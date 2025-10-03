@@ -17,7 +17,7 @@
     "skipLibCheck": true,
 
     // IMPORTANT: include node so @types/* packages are visible
-    "types": ["next", "node"]
+    "types": ["next", "node", "jsonwebtoken"]
   },
   "include": [
     "next-env.d.ts",
