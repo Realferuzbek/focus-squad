@@ -5,10 +5,17 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 import { TASHKENT } from '@/lib/tz';
 import { DateTime } from 'luxon';
 
+type Block = { start: string; end: string; label?: string };
+
 // Helper: compute blocks for a date from overrides or current template
-async function getBlocksForDate(sb: ReturnType<typeof supabaseAdmin>, dateISO: string) {
-  const { data: o } = await sb.from('schedule_overrides').select('blocks').eq('for_date', dateISO).maybeSingle();
-  if (o?.blocks) return o.blocks as Array<{ start: string; end: string; label?: string }>;
+async function getBlocksForDate(sb: ReturnType<typeof supabaseAdmin>, dateISO: string): Promise<Block[]> {
+  const { data: o } = await sb
+    .from('schedule_overrides')
+    .select('blocks')
+    .eq('for_date', dateISO)
+    .maybeSingle();
+
+  if (o?.blocks) return o.blocks as Block[];
 
   const { data: t } = await sb
     .from('schedule_templates')
@@ -20,7 +27,7 @@ async function getBlocksForDate(sb: ReturnType<typeof supabaseAdmin>, dateISO: s
     .limit(1)
     .maybeSingle();
 
-  return (t?.blocks as Array<{ start: string; end: string; label?: string }>) ?? [];
+  return (t?.blocks as Block[]) ?? [];
 }
 
 function slotStart(dateISO: string, hhmm: string) {
@@ -29,30 +36,48 @@ function slotStart(dateISO: string, hhmm: string) {
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const sb = supabaseAdmin();
   const url = new URL(req.url);
   const date = url.searchParams.get('date') ?? DateTime.now().setZone(TASHKENT).toISODate()!;
 
-  // user id
-  const { data: user } = await sb.from('users').select('id').eq('email', session.user.email).single();
+  // Resolve the current user and guard null for TS + runtime
+  const { data: userRow } = await sb
+    .from('users')
+    .select('id')
+    .eq('email', session.user.email)
+    .maybeSingle();
+
+  if (!userRow?.id) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+  const userId: string = userRow.id;
 
   const blocks = await getBlocksForDate(sb, date);
 
   const { data: notes } = await sb
     .from('slot_plans')
     .select('slot_index, note')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .eq('for_date', date);
 
-  const noteMap = new Map((notes ?? []).map((n) => [n.slot_index, n.note]));
+  const noteMap = new Map<number, string>((notes ?? []).map((n: any) => [n.slot_index as number, n.note as string]));
   const now = DateTime.now().setZone(TASHKENT);
 
   const rows = blocks.map((b, i) => {
     const start = slotStart(date, b.start);
     const locked = now >= start;
-    return { index: i, start: b.start, end: b.end, label: b.label ?? null, note: noteMap.get(i) ?? '', locked };
+    return {
+      index: i,
+      start: b.start,
+      end: b.end,
+      label: b.label ?? null,
+      note: noteMap.get(i) ?? '',
+      locked,
+    };
   });
 
   return NextResponse.json({ date, blocks: rows });
@@ -60,7 +85,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const sb = supabaseAdmin();
   const { date, index, note } = await req.json();
@@ -69,23 +96,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Bad body' }, { status: 400 });
   }
 
-  // who am I
-  const { data: user } = await sb.from('users').select('id, is_admin').eq('email', session.user.email).single();
+  // Resolve user and guard null
+  const { data: userRow } = await sb
+    .from('users')
+    .select('id, is_admin')
+    .eq('email', session.user.email)
+    .maybeSingle();
+
+  if (!userRow?.id) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+  const userId: string = userRow.id;
+  const isAdmin: boolean = Boolean((userRow as any).is_admin);
 
   const blocks = await getBlocksForDate(sb, date);
-  if (!blocks[index]) return NextResponse.json({ error: 'Unknown slot' }, { status: 400 });
+  if (!blocks[index]) {
+    return NextResponse.json({ error: 'Unknown slot' }, { status: 400 });
+  }
 
-  // lock at start time, except admins OR when running locally (dev convenience)
+  // Lock at start time, except admins OR when running locally (dev convenience)
   const isDev = process.env.NODE_ENV === 'development';
   const hasStarted = DateTime.now().setZone(TASHKENT) >= slotStart(date, blocks[index].start);
-  if (hasStarted && !user.is_admin && !isDev) {
+  if (hasStarted && !isAdmin && !isDev) {
     return NextResponse.json({ error: 'Slot locked' }, { status: 403 });
   }
 
   const { error } = await sb
     .from('slot_plans')
-    .upsert({ user_id: user.id, for_date: date, slot_index: index, note: note.trim() }, { onConflict: 'user_id,for_date,slot_index' });
+    .upsert(
+      { user_id: userId, for_date: date, slot_index: index, note: note.trim() },
+      { onConflict: 'user_id,for_date,slot_index' }
+    );
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }
