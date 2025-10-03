@@ -5,7 +5,10 @@ import { DateTime } from 'luxon';
 import jwt from 'jsonwebtoken';
 
 export const dynamic = 'force-dynamic';
-
+export async function GET() {
+  // helpful for Telegram’s initial reachability checks
+  return NextResponse.json({ ok: true, method: 'GET' });
+}
 function ok() { return NextResponse.json({ ok: true }); }
 
 export async function POST(req: NextRequest) {
