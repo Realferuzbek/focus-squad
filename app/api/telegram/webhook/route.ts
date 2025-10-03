@@ -5,11 +5,20 @@ import { DateTime } from 'luxon';
 import jwt from 'jsonwebtoken';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+// Telegram checks reachability with GET/HEAD — answer fast.
 export async function GET() {
-  // helpful for Telegram’s initial reachability checks
   return NextResponse.json({ ok: true, method: 'GET' });
 }
-function ok() { return NextResponse.json({ ok: true }); }
+export async function HEAD() {
+  return new NextResponse('ok', { status: 200 });
+}
+
+function ok() {
+  // Always respond 200 quickly to avoid Telegram retries/timeouts
+  return NextResponse.json({ ok: true });
+}
 
 export async function POST(req: NextRequest) {
   const update = await req.json().catch(() => null);
@@ -28,10 +37,13 @@ export async function POST(req: NextRequest) {
       const { email } = jwt.verify(token, process.env.NEXTAUTH_SECRET!) as { email: string };
       if (!email) return ok();
 
-      await sb.from('users').update({
-        telegram_user_id: msg.from?.id,
-        telegram_username: msg.from?.username ?? null,
-      }).eq('email', email);
+      await sb
+        .from('users')
+        .update({
+          telegram_user_id: msg.from?.id,
+          telegram_username: msg.from?.username ?? null,
+        })
+        .eq('email', email);
 
       // Confirmation
       const replyUrl = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
@@ -48,7 +60,10 @@ export async function POST(req: NextRequest) {
       await fetch(replyUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chat_id: msg.chat.id, text: '❌ Link expired or invalid. Open the dashboard and press “Link Telegram” again.' }),
+        body: JSON.stringify({
+          chat_id: msg.chat.id,
+          text: '❌ Link expired or invalid. Open the dashboard and press “Link Telegram” again.',
+        }),
       });
     }
     return ok();
