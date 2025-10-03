@@ -29,6 +29,7 @@
     "zod": "3.23.8"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/luxon": "^3.7.1"
   }
 }
