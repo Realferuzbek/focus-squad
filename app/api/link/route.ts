@@ -1,30 +1,41 @@
 // app/api/link/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
-import { supabaseAdmin } from '@/lib/supabaseServer';
-import { getToken } from 'next-auth/jwt';
+import jwt from 'jsonwebtoken';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest) {
-  // read the logged-in user from the NextAuth JWT
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-  const email = token?.email as string | undefined;
-  if (!email) {
-    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  }
-
-  // short 22-char token (under Telegram's 64-char /start limit)
-  const short = crypto.randomBytes(16).toString('base64url');
-
-  // store one-time token -> email
-  const sb = supabaseAdmin();
-  await sb.from('link_tokens').insert({ token: short, email });
-
-  // deep link to your bot
-  const bot = process.env.TELEGRAM_BOT_USERNAME!; // e.g. Studywithferuzbek_bot (no @)
-  const deepLink = `https://t.me/${bot}?start=${short}`;
-
-  return NextResponse.json({ ok: true, deepLink });
+function readSessionJWT(req: NextRequest): string | null {
+  // prod cookie first, then dev
+  return (
+    req.cookies.get('__Secure-next-auth.session-token')?.value ??
+    req.cookies.get('next-auth.session-token')?.value ??
+    null
+  );
 }
 
+export async function GET(req: NextRequest) {
+  const sess = readSessionJWT(req);
+  if (!sess || !process.env.NEXTAUTH_SECRET) {
+    return NextResponse.json({ error: 'no-session' }, { status: 401 });
+  }
+
+  // Try verified first, then fall back to decode (in case NextAuth signs a different sub)
+  let email: string | null = null;
+  try {
+    email = (jwt.verify(sess, process.env.NEXTAUTH_SECRET) as any)?.email ?? null;
+  } catch {
+    email = (jwt.decode(sess) as any)?.email ?? null;
+  }
+  if (!email) return NextResponse.json({ error: 'no-email' }, { status: 401 });
+
+  const bot = process.env.TELEGRAM_BOT_USERNAME!;
+  const token = jwt.sign({ email }, process.env.NEXTAUTH_SECRET, { expiresIn: '10m' });
+  const url = `https://t.me/${bot}?start=${encodeURIComponent(token)}`;
+
+  // If caller accepts JSON, return it; otherwise redirect (useful to hit in browser)
+  const accept = req.headers.get('accept') || '';
+  if (accept.includes('application/json')) {
+    return NextResponse.json({ url });
+  }
+  return NextResponse.redirect(url, { status: 302 });
+}
