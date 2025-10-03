@@ -1,22 +1,30 @@
 // app/api/link/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { supabaseAdmin } from '@/lib/supabaseServer';
-import { auth } from '@/lib/auth';
+import { getToken } from 'next-auth/jwt';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const session = await auth();
-  const email = session?.user?.email;
-  if (!email) return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+export async function GET(req: NextRequest) {
+  // read the logged-in user from the NextAuth JWT
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const email = token?.email as string | undefined;
+  if (!email) {
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+  }
 
-  // short 22-char base64url token (well below Telegram’s 64 char limit)
-  const token = crypto.randomBytes(16).toString('base64url');
+  // short 22-char token (under Telegram's 64-char /start limit)
+  const short = crypto.randomBytes(16).toString('base64url');
 
+  // store one-time token -> email
   const sb = supabaseAdmin();
-  await sb.from('link_tokens').insert({ token, email });
+  await sb.from('link_tokens').insert({ token: short, email });
 
-  const deepLink = `https://t.me/${process.env.TELEGRAM_BOT_USERNAME}?start=${token}`;
+  // deep link to your bot
+  const bot = process.env.TELEGRAM_BOT_USERNAME!; // e.g. Studywithferuzbek_bot (no @)
+  const deepLink = `https://t.me/${bot}?start=${short}`;
+
   return NextResponse.json({ ok: true, deepLink });
 }
+
