@@ -2,15 +2,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { DateTime } from 'luxon';
+import jwt from 'jsonwebtoken';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  // for reachability checks
-  return NextResponse.json({ ok: true, method: 'GET' });
-}
+const DASHBOARD_URL = `${process.env.NEXTAUTH_URL}/dashboard`;
 
 function ok() { return NextResponse.json({ ok: true }); }
+
+export async function GET() {
+  // Useful for Telegram's reachability checks
+  return NextResponse.json({ ok: true, method: 'GET' });
+}
 
 export async function POST(req: NextRequest) {
   const update = await req.json().catch(() => null);
@@ -19,34 +22,44 @@ export async function POST(req: NextRequest) {
   const sb = supabaseAdmin();
   const msg = update.message || update.edited_message || update.channel_post;
 
-  // 1) /start <short-token> — link user account to Telegram
+  // Helper to reply
+  async function reply(text: string, withOpenButton = false) {
+    const url = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
+    const body: any = { chat_id: msg.chat.id, text };
+    if (withOpenButton) {
+      body.reply_markup = {
+        inline_keyboard: [[{ text: 'Open dashboard', url: DASHBOARD_URL }]],
+      };
+    }
+    await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  }
+
+  // 1) /start <jwt> — link account to Telegram
   if (msg?.text?.startsWith('/start')) {
-    const token = msg.text.split(' ')[1];
-    if (!token) return ok();
+    const token = msg.text.split(' ')[1]; // may be undefined
+    if (!token) {
+      await reply('To link your account, please go to the website and tap “Link Telegram”.');
+      return ok();
+    }
 
-    const { data: row } = await sb.from('link_tokens').select('email').eq('token', token).single();
-    if (row?.email) {
-      await sb.from('users').update({
-        telegram_user_id: msg.from?.id,
-        telegram_username: msg.from?.username ?? null,
-      }).eq('email', row.email);
-      await sb.from('link_tokens').delete().eq('token', token);
-
-      // confirm to the user
-      const replyUrl = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
-      await fetch(replyUrl, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: msg.chat.id,
-          text: '✅ Telegram linked to your Focus Squad account. You can close this chat.',
-        }),
-      });
+    try {
+      const { email } = jwt.verify(token, process.env.NEXTAUTH_SECRET!) as { email: string };
+      if (email) {
+        await sb.from('users')
+          .update({
+            telegram_user_id: msg.from?.id ?? null,
+            telegram_username: msg.from?.username ?? null,
+          })
+          .eq('email', email);
+        await reply('✅ Telegram linked to your Focus Squad account.', true);
+      }
+    } catch {
+      await reply('❌ Link expired or invalid. Please tap “Link Telegram” on the website again.');
     }
     return ok();
   }
 
-  // 2) Group voice events -> live pill
+  // 2) Video chat events from your group → live pill
   const isGroup = msg?.chat?.id?.toString() === process.env.TELEGRAM_GROUP_ID;
   if (isGroup) {
     if (msg.video_chat_scheduled) {
