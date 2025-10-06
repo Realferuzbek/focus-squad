@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { auth } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabaseServer";
 import { broadcast } from '@/lib/broadcast';
 
 export async function POST(req: NextRequest) {
