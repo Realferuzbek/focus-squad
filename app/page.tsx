@@ -1,24 +1,15 @@
-﻿import './globals.css';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+﻿'use client';
+import { signIn } from 'next-auth/react';
 
-export default async function Home() {
-  const session = await getServerSession(authOptions);
-
-  if (session?.user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <a href="/dashboard" className="btn-primary focus-ring">Go to Dashboard</a>
-      </div>
-    );
-  }
-
+export default function SignIn() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-6">
-      <img src="/logo.svg" alt="Focus Squad" className="w-12 h-12 opacity-80" />
-      <h1 className="text-2xl font-bold">Focus Squad</h1>
-      <p className="text-sm text-subtle">Study with Feruzbek — Escape distractions and stay consistent.</p>
-      <a className="btn-primary focus-ring" href="/signin">Continue with Google</a>
+    <div className="min-h-[60vh] grid place-items-center">
+      <button
+        onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
+        className="px-6 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white"
+      >
+        Continue with Google
+      </button>
     </div>
   );
 }

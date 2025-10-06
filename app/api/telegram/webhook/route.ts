@@ -4,15 +4,23 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
-function ok() { return NextResponse.json({ ok: true }); }
+function ok() {
+  return NextResponse.json({ ok: true });
+}
 
 const TG = (path: string) =>
   `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}${path}`;
 
-async function reply(chatId: number | string, text: string, buttons?: { text: string; url: string }[]) {
+async function reply(
+  chatId: number | string,
+  text: string,
+  buttons?: { text: string; url: string }[]
+) {
   const body: any = { chat_id: chatId, text };
   if (buttons?.length) {
-    body.reply_markup = { inline_keyboard: [buttons.map(b => ({ text: b.text, url: b.url }))] };
+    body.reply_markup = {
+      inline_keyboard: [buttons.map((b) => ({ text: b.text, url: b.url }))],
+    };
   }
   await fetch(TG('/sendMessage'), {
     method: 'POST',
@@ -34,21 +42,24 @@ export async function POST(req: NextRequest) {
   const chatId = msg?.chat?.id;
   const from = msg?.from;
 
-  // --- 0) Group live status (keep your existing logic if you had it)
+  // Ignore group messages (keep your live-status logic elsewhere if needed)
   if (chatId?.toString() === process.env.TELEGRAM_GROUP_ID) return ok();
 
-  // --- 1) Parse commands
   const text: string = msg?.text ?? '';
   const startMatch = text.match(/^\/start(?:\s+([A-Za-z0-9_-]{6,64}))?$/);
-  const linkMatch  = text.match(/^\/link\s+([A-Za-z0-9_-]{6,64})$/);
+  const linkMatch = text.match(/^\/link\s+([A-Za-z0-9_-]{6,64})$/);
 
-  const openDashBtn = [{ text: 'Open dashboard', url: `${process.env.NEXTAUTH_URL ?? 'https://studywithferuzbek.vercel.app'}/dashboard` }];
+  const openDashBtn = [
+    {
+      text: 'Open dashboard',
+      url: `${process.env.NEXTAUTH_URL ?? 'https://studywithferuzbek.vercel.app'}/dashboard`,
+    },
+  ];
 
   const sb = supabaseAdmin();
 
-  // helper: complete link using a short token
   async function completeLink(token: string) {
-    // find short token that hasn't expired
+    // 1) Find token that hasn't expired
     const { data: link, error: linkErr } = await sb
       .from('link_tokens')
       .select('email, expires_at')
@@ -57,30 +68,29 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (linkErr || !link) {
-      await reply(chatId, '❌ Link expired or invalid. Please press “Link Telegram” on the website again.');
+      await reply(
+        chatId,
+        '❌ Link expired or invalid. Please press “Link Telegram” on the website again.'
+      );
       return;
     }
 
-    // update the user row; request the email back to be sure one row was changed
-    const { data: updated, error: updErr } = await sb
+    // 2) Upsert user row by email
+    await sb
       .from('users')
-      .update({
-        telegram_user_id: from?.id ?? null,
-        telegram_username: from?.username ?? null,
-      })
-      .eq('email', link.email)
-      .select('email')
-      .single();
+      .upsert(
+        {
+          email: link.email,
+          telegram_user_id: from?.id ?? null,
+          telegram_username: from?.username ?? null,
+        },
+        { onConflict: 'email' }
+      );
 
-    if (updErr || !updated) {
-      console.error('Failed to update users row', updErr);
-      await reply(chatId, '❌ Could not link your account. Please try again from the website.');
-      return;
-    }
-
-    // best-effort: delete token to prevent reuse
+    // 3) Delete the token (one-time use)
     await sb.from('link_tokens').delete().eq('token', token);
 
+    // 4) Confirm to the user
     await reply(chatId, '✅ Linked! You can close this chat.', openDashBtn);
   }
 
@@ -96,11 +106,14 @@ export async function POST(req: NextRequest) {
     if (token) {
       await completeLink(token);
     } else {
-      await reply(chatId, 'To link your account, please go to the website and press “Link Telegram”.');
+      await reply(
+        chatId,
+        'To link your account, please go to the website and press “Link Telegram”.'
+      );
     }
     return ok();
   }
 
-  // ignore anything else
+  // Ignore other messages
   return ok();
 }
