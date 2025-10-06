@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from "@/lib/auth";
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export async function GET() {
-  const sb = supabaseAdmin();
+const session = await getServerSession(authOptions);
   const { data: tpl } = await sb
     .from('schedule_templates')
     .select('id, active_from, active_to, is_active, blocks')

@@ -1,5 +1,6 @@
-﻿import type { NextAuthOptions } from "next-auth";
-import Google from "next-auth/providers/google";
+﻿// lib/auth.ts
+import type { NextAuthOptions } from 'next-auth';
+import Google from 'next-auth/providers/google';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -8,6 +9,6 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
-  session: { strategy: "jwt" },
+  session: { strategy: 'jwt' },
   secret: process.env.NEXTAUTH_SECRET,
 };

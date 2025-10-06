@@ -1,27 +1,22 @@
 // app/(protected)/layout.tsx
-import type { ReactNode } from "react";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabaseServer";
+import { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export default async function ProtectedLayout({ children }: { children: ReactNode }) {
-  // 1) require a signed-in user
-  const session = await auth();
+  const session = await getServerSession(authOptions);
   const email = session?.user?.email;
-  if (!email) {
-    redirect("/signin"); // or '/api/auth/signin'
-  }
+  if (!email) redirect('/signin');
 
-  // 2) gate until Telegram is linked
   const { data } = await supabaseAdmin()
-    .from("users")
-    .select("telegram_user_id")
-    .eq("email", email)
-    .single();
+    .from('users')
+    .select('telegram_user_id')
+    .eq('email', email)
+    .maybeSingle();
 
-  if (!data?.telegram_user_id) {
-    redirect("/link-telegram");
-  }
+  if (!data?.telegram_user_id) redirect('/link-telegram');
 
   return <>{children}</>;
 }
