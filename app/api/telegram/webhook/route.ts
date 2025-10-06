@@ -4,82 +4,103 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
-const ok = () => NextResponse.json({ ok: true });
-export async function GET() { return ok(); }
+function ok() { return NextResponse.json({ ok: true }); }
+
+const TG = (path: string) =>
+  `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}${path}`;
+
+async function reply(chatId: number | string, text: string, buttons?: { text: string; url: string }[]) {
+  const body: any = { chat_id: chatId, text };
+  if (buttons?.length) {
+    body.reply_markup = { inline_keyboard: [buttons.map(b => ({ text: b.text, url: b.url }))] };
+  }
+  await fetch(TG('/sendMessage'), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function GET() {
+  // for Telegram's reachability ping
+  return NextResponse.json({ ok: true, method: 'GET' });
+}
 
 export async function POST(req: NextRequest) {
   const update = await req.json().catch(() => null);
   if (!update) return ok();
 
   const msg = update.message || update.edited_message || update.channel_post;
-  if (!msg) return ok();
+  const chatId = msg?.chat?.id;
+  const from = msg?.from;
 
-  // ---- helpers
-  const text: string = (msg.text ?? '').trim();
-  const parse = (t: string) => {
-    // handle normal spaces + NBSP; captures "/cmd <arg>"
-    const m = t.match(/^\/(\w+)(?:[\s\u00A0]+(.+))?$/i);
-    return { cmd: (m?.[1] || '').toLowerCase(), arg: (m?.[2] || '').trim() };
-  };
-  const reply = async (body: any) => {
-    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    }).catch(() => {});
-  };
+  // --- 0) Group live status (keep your existing logic if you had it)
+  if (chatId?.toString() === process.env.TELEGRAM_GROUP_ID) return ok();
 
-  const { cmd, arg } = parse(text);
+  // --- 1) Parse commands
+  const text: string = msg?.text ?? '';
+  const startMatch = text.match(/^\/start(?:\s+([A-Za-z0-9_-]{6,64}))?$/);
+  const linkMatch  = text.match(/^\/link\s+([A-Za-z0-9_-]{6,64})$/);
 
-  // primary path: deep-link "/start <code>" OR fallback "/link <code>"
-  if (cmd === 'start' || cmd === 'link') {
-    // strip anything that isn't [a-z0-9-_] to avoid unicode mishaps
-    const code = (arg || '').replace(/[^\w-]/g, '');
-    if (!code) {
-      await reply({
-        chat_id: msg.chat.id,
-        text: 'To link your account, open the website and press “Link Telegram”.',
-      });
-      return ok();
-    }
+  const openDashBtn = [{ text: 'Open dashboard', url: `${process.env.NEXTAUTH_URL ?? 'https://studywithferuzbek.vercel.app'}/dashboard` }];
 
-    const sb = supabaseAdmin();
-    const { data: row } = await sb
+  const sb = supabaseAdmin();
+
+  // helper: complete link using a short token
+  async function completeLink(token: string) {
+    // find short token that hasn't expired
+    const { data: link, error: linkErr } = await sb
       .from('link_tokens')
-      .select('email')
-      .eq('token', code)
+      .select('email, expires_at')
+      .eq('token', token)
       .gt('expires_at', new Date().toISOString())
-      .maybeSingle();
+      .single();
 
-    if (!row?.email) {
-      await reply({
-        chat_id: msg.chat.id,
-        text: '❌ Link expired or invalid. Please press “Link Telegram” on the website again.',
-      });
-      return ok();
+    if (linkErr || !link) {
+      await reply(chatId, '❌ Link expired or invalid. Please press “Link Telegram” on the website again.');
+      return;
     }
 
-    await sb
+    // update the user row; request the email back to be sure one row was changed
+    const { data: updated, error: updErr } = await sb
       .from('users')
       .update({
-        telegram_user_id: msg.from?.id ?? null,
-        telegram_username: msg.from?.username ?? null,
+        telegram_user_id: from?.id ?? null,
+        telegram_username: from?.username ?? null,
       })
-      .eq('email', row.email);
+      .eq('email', link.email)
+      .select('email')
+      .single();
 
-    // burn the token so it can’t be reused
-    await sb.from('link_tokens').delete().eq('token', code);
+    if (updErr || !updated) {
+      console.error('Failed to update users row', updErr);
+      await reply(chatId, '❌ Could not link your account. Please try again from the website.');
+      return;
+    }
 
-    await reply({
-      chat_id: msg.chat.id,
-      text: '✅ Linked! You can close this chat.',
-      reply_markup: {
-        inline_keyboard: [[{ text: 'Open dashboard', url: `${process.env.NEXTAUTH_URL}/dashboard` }]],
-      },
-    });
+    // best-effort: delete token to prevent reuse
+    await sb.from('link_tokens').delete().eq('token', token);
+
+    await reply(chatId, '✅ Linked! You can close this chat.', openDashBtn);
+  }
+
+  // /link <token>
+  if (linkMatch) {
+    await completeLink(linkMatch[1]);
     return ok();
   }
 
-  // group live-status events handled elsewhere (not relevant here)
+  // /start <token> (deep link)
+  if (startMatch) {
+    const token = startMatch[1];
+    if (token) {
+      await completeLink(token);
+    } else {
+      await reply(chatId, 'To link your account, please go to the website and press “Link Telegram”.');
+    }
+    return ok();
+  }
+
+  // ignore anything else
   return ok();
 }
