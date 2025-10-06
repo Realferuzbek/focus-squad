@@ -9,7 +9,7 @@ function authOK(req: NextRequest) {
   return hdr === `Bearer ${process.env.CRON_SECRET}`;
 }
 
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest) {
   if (!authOK(req)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const sb = supabaseAdmin();
