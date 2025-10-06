@@ -1,14 +1,10 @@
 ﻿// lib/auth.ts
-import type { NextAuthOptions } from 'next-auth';
-import Google from 'next-auth/providers/google';
+import { getServerSession } from "next-auth";
+import type { NextAuthOptions } from "next-auth";
 
-export const authOptions: NextAuthOptions = {
-  providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-  ],
-  session: { strategy: 'jwt' },
-  secret: process.env.NEXTAUTH_SECRET,
-};
+// your existing export:
+// export const authOptions: NextAuthOptions = { ... }
+
+export function auth() {
+  return getServerSession(authOptions);
+}
