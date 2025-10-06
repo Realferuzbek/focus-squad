@@ -5,7 +5,7 @@ import { todayTashkent, isAfterTen } from '@/lib/tz';
 import { rateLimit } from '@/lib/rateLimit';
 
 export async function GET(req: NextRequest) {
-  const session = await auth (authOptions);
+  const session = await auth ();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const url = new URL(req.url);
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Slow down' }, { status: 429 });
   }
 
-  const session = await getServerSession(authOptions);
+  const session = await auth ();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Enforce 10:00 Tashkent lock in production; allow in local dev for testing

@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { todayTashkent } from '@/lib/tz';
 
 export async function GET(req: NextRequest) {
-  const session = await auth (authOptions);
+  const session = await auth ();
   const meEmail = session?.user?.email ?? '';
   const url = new URL(req.url);
   const period = url.searchParams.get('period') ?? 'today';

@@ -34,7 +34,7 @@ function slotStart(dateISO: string, hhmm: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await auth (authOptions);
+  const session = await auth ();
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const session = await auth ();
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
