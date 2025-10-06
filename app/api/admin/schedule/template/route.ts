@@ -22,7 +22,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth (authOptions);
+  const session = await auth ();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const sb = supabaseAdmin();
