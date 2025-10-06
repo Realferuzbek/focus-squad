@@ -1,24 +1,21 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { supabaseAdmin } from '@/lib/supabaseServer';
+// app/api/link/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 import crypto from 'crypto';
+import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email;
-  if (!email) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+export async function GET(req: NextRequest) {
+  const jwt = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const email = jwt?.email as string | undefined;
+  if (!email) return NextResponse.json({ error: 'not_signed_in' }, { status: 401 });
 
-  const sb = supabaseAdmin();
+  const code = crypto.randomBytes(8).toString('hex'); // 16-char hex
+  await supabaseAdmin().from('link_tokens').insert({ token: code, email });
 
-  // create a 16-char short token (valid ~10 min via table rule)
-  const code = crypto.randomBytes(8).toString('hex');
+  const bot = process.env.TELEGRAM_BOT_USERNAME!.replace(/^@/, '');
+  const url = `https://t.me/${bot}?start=${code}`;
 
-  // store (upsert) short-lived code
-  await sb.from('link_tokens').insert({ token: code, email }).select().single();
-
-  const url = `https://t.me/${process.env.TELEGRAM_BOT_USERNAME}?start=${code}`;
   return NextResponse.json({ url, code });
 }
