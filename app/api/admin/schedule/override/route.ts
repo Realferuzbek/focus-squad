@@ -1,27 +1,10 @@
-// app/api/admin/schedule/override/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
 type Block = { start: string; end: string; label?: string };
 
-// Optional: gate GET too (uncomment if you want only admins to read)
-// export async function GET(req: NextRequest) {
-//   const session = await auth();
-//   if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-//   const sb = supabaseAdmin();
-//   const { data: me } = await sb.from("users").select("is_admin").eq("email", session.user.email).single();
-//   if (!me?.is_admin) return NextResponse.json({ error: "Admin only" }, { status: 403 });
-
-//   const url = new URL(req.url);
-//   const date = url.searchParams.get("date");
-//   if (!date) return NextResponse.json({ error: "date required" }, { status: 400 });
-
-//   const { data } = await sb.from("schedule_overrides").select("*").eq("for_date", date).maybeSingle();
-//   return NextResponse.json(data ?? null);
-// }
-
-// Current behavior: GET is public
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const date = url.searchParams.get("date");
@@ -33,7 +16,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth(); // ✅ v5: no authOptions
+  const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const sb = supabaseAdmin();
@@ -55,7 +38,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const session = await auth(); // ✅ v5: no getServerSession
+  const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const sb = supabaseAdmin();
