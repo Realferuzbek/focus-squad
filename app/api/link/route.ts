@@ -1,21 +1,26 @@
 // app/api/link/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const sess = await getToken({ req, secureCookie: true });
-  const email = sess?.email as string | undefined;
-
-  if (!email || !process.env.NEXTAUTH_SECRET) {
-    return NextResponse.json({ error: 'no-session' }, { status: 401 });
+  const session = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  if (!session?.email) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
   }
 
-  const bot = process.env.TELEGRAM_BOT_USERNAME!;
-  const token = jwt.sign({ email }, process.env.NEXTAUTH_SECRET, { expiresIn: '10m' });
-  const url = `https://t.me/${bot}?start=${encodeURIComponent(token)}`;
+  const sb = supabaseAdmin();
 
+  // generate short, url-safe token (<= 64 chars)
+  const code = crypto.randomBytes(24).toString('base64url'); // ~32 chars
+
+  // store it (10min TTL via generated column)
+  await sb.from('link_tokens').insert({ token: code, email: session.email });
+
+  const bot = process.env.TELEGRAM_BOT_USERNAME!;
+  const url = `https://t.me/${bot}?start=${code}`;
   return NextResponse.json({ url });
 }
