@@ -4,139 +4,82 @@ import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
-function ok() {
-  return NextResponse.json({ ok: true });
-}
-
-async function reply(chatId: number, text: string, buttonUrl?: string, buttonText?: string) {
-  const body: any = { chat_id: chatId, text };
-  if (buttonUrl) {
-    body.reply_markup = {
-      inline_keyboard: [[{ text: buttonText ?? 'Open dashboard', url: buttonUrl }]],
-    };
-  }
-  await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-}
-
-export async function GET() {
-  // helps Telegram check reachability
-  return NextResponse.json({ ok: true, method: 'GET' });
-}
+const ok = () => NextResponse.json({ ok: true });
+export async function GET() { return ok(); }
 
 export async function POST(req: NextRequest) {
   const update = await req.json().catch(() => null);
   if (!update) return ok();
 
   const msg = update.message || update.edited_message || update.channel_post;
-  const text: string = (msg?.text ?? '').trim();
-  const chatId: number | undefined = msg?.chat?.id;
+  if (!msg) return ok();
 
-  const sb = supabaseAdmin();
-  const dashboardUrl = (process.env.NEXTAUTH_URL ?? '').replace(/\/$/, '') + '/dashboard';
+  // ---- helpers
+  const text: string = (msg.text ?? '').trim();
+  const parse = (t: string) => {
+    // handle normal spaces + NBSP; captures "/cmd <arg>"
+    const m = t.match(/^\/(\w+)(?:[\s\u00A0]+(.+))?$/i);
+    return { cmd: (m?.[1] || '').toLowerCase(), arg: (m?.[2] || '').trim() };
+  };
+  const reply = async (body: any) => {
+    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+  };
 
-  // ---- Linking flow ---------------------------------------------------------
-  // Accept /start <code> OR /link <code>, with or without angle brackets
-  if (/^\/start\b/i.test(text) || /^\/link\b/i.test(text)) {
-    // Extract token from either command
-    let token = '';
-    const mStart = text.match(/^\/start(?:\s+(.+))?$/i);
-    const mLink = text.match(/^\/link\s+(.+)$/i);
-    token = (mStart?.[1] ?? mLink?.[1] ?? '')
-      .trim()
-      .replace(/[<>]/g, '')           // strip angle brackets if user pasted them
-      .replace(/\u200b/g, '');        // strip zero-width if any
+  const { cmd, arg } = parse(text);
 
-    if (!token) {
-      if (chatId) {
-        await reply(
-          chatId,
-          'To link your account, please go to the website and press “Link Telegram”.'
-        );
-      }
+  // primary path: deep-link "/start <code>" OR fallback "/link <code>"
+  if (cmd === 'start' || cmd === 'link') {
+    // strip anything that isn't [a-z0-9-_] to avoid unicode mishaps
+    const code = (arg || '').replace(/[^\w-]/g, '');
+    if (!code) {
+      await reply({
+        chat_id: msg.chat.id,
+        text: 'To link your account, open the website and press “Link Telegram”.',
+      });
       return ok();
     }
 
-    // Look up the short token
-    const { data, error } = await sb
+    const sb = supabaseAdmin();
+    const { data: row } = await sb
       .from('link_tokens')
-      .select('email, expires_at')
-      .eq('token', token)
+      .select('email')
+      .eq('token', code)
+      .gt('expires_at', new Date().toISOString())
       .maybeSingle();
 
-    const expired =
-      !data || !data.expires_at || Date.now() >= new Date(data.expires_at).getTime();
-
-    if (expired || error) {
-      if (chatId) {
-        await reply(
-          chatId,
-          '❌ Link expired or invalid. Please press “Link Telegram” on the website again.'
-        );
-      }
+    if (!row?.email) {
+      await reply({
+        chat_id: msg.chat.id,
+        text: '❌ Link expired or invalid. Please press “Link Telegram” on the website again.',
+      });
       return ok();
     }
 
-    // Require a public @username so group announcements can mention people
-    if (!msg?.from?.username) {
-      if (chatId) {
-        await reply(
-          chatId,
-          'ℹ️ Please set a Telegram @username first (Settings ▸ Edit Profile ▸ Username), then press “Link Telegram” again.',
-          'https://t.me/settings',
-          'Open Telegram Settings'
-        );
-      }
-      return ok();
-    }
-
-    // Update your user row
     await sb
       .from('users')
       .update({
-        telegram_user_id: msg.from.id,
-        telegram_username: msg.from.username,
+        telegram_user_id: msg.from?.id ?? null,
+        telegram_username: msg.from?.username ?? null,
       })
-      .eq('email', data.email);
+      .eq('email', row.email);
 
-    // Consume the token so it can’t be reused
-    await sb.from('link_tokens').delete().eq('token', token);
+    // burn the token so it can’t be reused
+    await sb.from('link_tokens').delete().eq('token', code);
 
-    if (chatId) {
-      await reply(
-        chatId,
-        '✅ Linked! You can close this chat.',
-        dashboardUrl,
-        'Open dashboard'
-      );
-    }
+    await reply({
+      chat_id: msg.chat.id,
+      text: '✅ Linked! You can close this chat.',
+      reply_markup: {
+        inline_keyboard: [[{ text: 'Open dashboard', url: `${process.env.NEXTAUTH_URL}/dashboard` }]],
+      },
+    });
     return ok();
   }
 
-  // ---- Live / scheduled group events (keep your existing behaviour) ---------
-  const isGroup = msg?.chat?.id?.toString() === process.env.TELEGRAM_GROUP_ID;
-  if (isGroup) {
-    if (msg.video_chat_scheduled) {
-      await sb
-        .from('live_status')
-        .upsert(
-          { id: 1, state: 'scheduled', scheduled_at: new Date(msg.video_chat_scheduled.start_date * 1000).toISOString() },
-          { onConflict: 'id' }
-        );
-      return ok();
-    }
-    if (msg.video_chat_started) {
-      await sb.from('live_status').upsert({ id: 1, state: 'live', scheduled_at: null }, { onConflict: 'id' });
-      return ok();
-    }
-    if (msg.video_chat_ended) {
-      await sb.from('live_status').upsert({ id: 1, state: 'none', scheduled_at: null }, { onConflict: 'id' });
-      return ok();
-    }
-  }
-
+  // group live-status events handled elsewhere (not relevant here)
   return ok();
 }
