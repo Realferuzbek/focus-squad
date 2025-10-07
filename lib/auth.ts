@@ -1,39 +1,54 @@
 ﻿// lib/auth.ts
-import { getServerSession, type NextAuthOptions } from "next-auth";
-import Credentials from "next-auth/providers/credentials";
+import type { NextAuthOptions } from 'next-auth';
+import { getServerSession } from 'next-auth';
+import GoogleProvider from 'next-auth/providers/google';
+import { supabaseAdmin } from './supabaseServer';
 
-/**
- * Minimal NextAuth options so the app compiles and runs.
- * Swap/add real OAuth providers later if you want (Google/GitHub/etc).
- */
 export const authOptions: NextAuthOptions = {
   providers: [
-    Credentials({
-      name: "Email only",
-      credentials: { email: { label: "Email", type: "email" } },
-      async authorize(credentials) {
-        const email = (credentials?.email ?? "").trim();
-        if (!email) return null;
-        // Accept any email. Your API routes already enforce admin/allowlist/etc.
-        return { id: email, email };
-      },
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
-  session: { strategy: "jwt" },
+  // Always send users to our pretty sign-in screen
+  pages: { signIn: '/signin' },
+  session: { strategy: 'jwt' },
+
   callbacks: {
-    async jwt({ token, user }) {
-      if (user?.email) token.email = user.email;
-      return token;
+    // Enforce Google-only; optionally block users flagged in DB
+    async signIn({ user, account }) {
+      if (account?.provider !== 'google') return false;
+
+      try {
+        const sb = supabaseAdmin();
+        const { data: u } = await sb
+          .from('users')
+          .select('is_blocked')
+          .eq('email', user.email)
+          .maybeSingle();
+
+        if (u?.is_blocked) return false;
+      } catch {
+        // don't block if check fails
+      }
+      return true;
     },
+
+    // Keep email on session consistently
     async session({ session, token }) {
       if (session.user && token.email) {
-        session.user.email = String(token.email);
+        session.user.email = token.email as string;
       }
       return session;
+    },
+
+    async jwt({ token }) {
+      return token;
     },
   },
 };
 
-export function auth() {
+export async function auth() {
   return getServerSession(authOptions);
 }
