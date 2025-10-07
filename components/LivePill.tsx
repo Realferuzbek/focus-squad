@@ -1,35 +1,38 @@
-﻿'use client';
-import { useEffect, useState } from 'react';
+﻿// components/LivePill.tsx
+"use client";
 
-type Live = { state: 'none'|'scheduled'|'live'; scheduledAt?: string|null; joinUrl?: string };
+import { useEffect, useState } from "react";
+
+type LiveResp = { state: "none" | "scheduled" | "live"; scheduledAt?: string; joinUrl: string };
 
 export default function LivePill() {
-  const [live, setLive] = useState<Live>({ state: 'none' });
+  const [d, setD] = useState<LiveResp | null>(null);
+
   useEffect(() => {
-    let alive = true;
-    const fetchLive = async () => {
-      const res = await fetch('/api/live', { cache: 'no-store' });
-      const data = await res.json();
-      if (alive) setLive(data);
-    };
-    fetchLive();
-    const t = setInterval(fetchLive, 30_000);
-    return () => { alive = false; clearInterval(t); };
+    fetch("/api/live")
+      .then((r) => r.json())
+      .then((j) => setD(j))
+      .catch(() => {});
   }, []);
 
-  const base = 'pill focus-ring';
-  if (live.state === 'live') {
-    return (
-      <a href={live.joinUrl} className={`${base} border-red-500`} aria-label="Live now">
-        <span className="relative">
-          <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-        </span>
-        LIVE NOW
-      </a>
-    );
-  }
-  if (live.state === 'scheduled' && live.scheduledAt) {
-    return <a href={live.joinUrl} className={base} aria-label="Live scheduled">Scheduled at {new Date(live.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</a>;
-  }
-  return <span className={base} aria-label="No live stream">No live stream</span>;
+  if (!d) return null;
+
+  let label = "No live session";
+  if (d.state === "live") label = "LIVE now";
+  else if (d.state === "scheduled" && d.scheduledAt) label = `Scheduled at ${new Date(d.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+
+  return (
+    <a
+      href={d.joinUrl}
+      target="_blank"
+      rel="noreferrer"
+      className={`ml-3 text-xs px-3 py-1.5 rounded-full border transition ${
+        d.state === "live"
+          ? "border-rose-400 text-rose-300 hover:bg-rose-400/10"
+          : "border-white/15 text-gray-300 hover:bg-white/5"
+      }`}
+    >
+      {label}
+    </a>
+  );
 }

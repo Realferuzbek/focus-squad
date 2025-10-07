@@ -1,11 +1,12 @@
-﻿<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- public/logo.svg -->
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="6" y="6" width="52" height="52" rx="14" fill="url(#g)"/>
+  <path d="M22 32a10 10 0 1 1 10 10" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="3" fill="white"/>
   <defs>
-    <linearGradient id="grad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1e90ff"/>
-      <stop offset="0.5" stop-color="#a855f7"/>
-      <stop offset="1" stop-color="#fb7185"/>
+    <linearGradient id="g" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A855F7"/>
+      <stop offset="1" stop-color="#6366F1"/>
     </linearGradient>
   </defs>
-  <rect x="4" y="4" width="56" height="56" rx="16" fill="#0b0b0d" stroke="url(#grad)" stroke-width="4"/>
-  <path d="M24 20h16a4 4 0 014 4v4h-6v-3H26v14h12v-5h6v6a4 4 0 01-4 4H24a4 4 0 01-4-4V24a4 4 0 014-4z" fill="url(#grad)"/>
 </svg>

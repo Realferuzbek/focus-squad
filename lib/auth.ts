@@ -1,14 +1,15 @@
 ﻿// lib/auth.ts
-import { getServerSession, NextAuthOptions } from "next-auth";
+import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import { supabaseAdmin } from "./supabaseServer";
+import { getServerSession } from "next-auth";
 
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      allowDangerousEmailAccountLinking: true,
+      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      // Force account chooser when switching
+      authorization: { params: { prompt: "select_account" } },
     }),
   ],
   pages: {
@@ -16,43 +17,25 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
-    async signIn({ user }) {
-      // Ensure a row exists in "users" for this email
-      const email = user.email ?? "";
-      if (!email) return false;
-
-      const sb = supabaseAdmin();
-      await sb
-        .from("users")
-        .upsert(
-          {
-            email,
-            display_name: user.name ?? email.split("@")[0],
-            avatar_url: user.image ?? null,
-          },
-          { onConflict: "email" },
-        );
-
-      return true;
-    },
-    async session({ session, token }) {
-      // surface email consistently
-      if (session.user && token.email) {
-        session.user.email = token.email as string;
-      }
-      return session;
-    },
     async jwt({ token, account, profile }) {
-      // keep token email up to date
-      if (profile?.email) token.email = profile.email;
+      // Preserve email and name reliably in the JWT
+      if (profile && "email" in profile && typeof profile.email === "string") {
+        token.email = profile.email;
+      }
+      if (profile && "name" in profile && typeof profile.name === "string") {
+        token.name = profile.name;
+      }
       return token;
     },
+    async session({ session, token }) {
+      if (token?.email) session.user!.email = token.email as string;
+      if (token?.name) session.user!.name = token.name as string;
+      return session;
+    },
   },
-  // IMPORTANT in prod: set NEXTAUTH_URL and NEXTAUTH_SECRET in Vercel
 };
 
-export async function auth() {
-  return getServerSession(authOptions);
-}
+export const auth = () => getServerSession(authOptions);
