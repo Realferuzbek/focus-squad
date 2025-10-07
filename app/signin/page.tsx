@@ -1,21 +1,21 @@
-﻿'use client';
-import { signIn } from 'next-auth/react';
+﻿// app/signin/page.tsx
+"use client";
 
-export default function SignIn() {
+import { signIn } from "next-auth/react";
+
+export default function SignInPage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-6">
-      <img src="/logo.svg" alt="Focus Squad" className="w-12 h-12" />
-      <h1 className="text-xl font-bold">Continue with Google</h1>
+    <div className="min-h-screen w-full flex items-center justify-center">
       <button
-        className="btn-primary focus-ring"
-        aria-label="Continue with Google"
-        onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
+        onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+        className="px-6 py-3 rounded-full text-white"
+        style={{
+          background:
+            "linear-gradient(90deg, rgba(244,114,182,1) 0%, rgba(147,51,234,1) 100%)",
+        }}
       >
         Continue with Google
       </button>
-      <p className="text-xs text-subtle max-w-sm text-center">
-        We only support Google sign-in. Your session persists, and you’ll auto-return to the dashboard on revisit.
-      </p>
     </div>
   );
 }

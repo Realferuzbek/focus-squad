@@ -1,80 +1,41 @@
 // app/link-telegram/page.tsx
-'use client';
+import Link from "next/link";
+import { auth } from "@/lib/auth";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+export default async function LinkTelegramPage() {
+  const session = await auth();
+  if (!session?.user?.email) {
+    // must be signed in to link
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center">
+        <Link href="/signin" className="underline">
+          Sign in first
+        </Link>
+      </div>
+    );
+  }
 
-type LinkResp = { url: string; code: string };
-
-export default function LinkTelegramPage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [code, setCode] = useState<string | null>(null);
-  const [tgUrl, setTgUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // fetch a fresh token as soon as page loads
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const res = await fetch('/api/link', { cache: 'no-store' });
-        if (!res.ok) throw new Error('Failed to get link token');
-        const data = (await res.json()) as LinkResp;
-        setCode(data.code);
-        setTgUrl(data.url);
-      } catch (e: any) {
-        setError(e.message ?? 'Something went wrong');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  // poll "am I linked yet?"
-  useEffect(() => {
-    const id = setInterval(async () => {
-      try {
-        const res = await fetch('/api/me', { cache: 'no-store' });
-        if (!res.ok) return;
-        const j = await res.json();
-        if (j.linked) {
-          clearInterval(id);
-          router.replace('/dashboard');
-        }
-      } catch {
-        // ignore transient errors
-      }
-    }, 2000);
-    return () => clearInterval(id);
-  }, [router]);
-
+  // The client component/CTA you already have can call /api/link to get token+url.
   return (
-    <div className="max-w-xl mx-auto px-6 py-10 space-y-6">
-      <h1 className="text-2xl font-semibold">Almost there — link your Telegram</h1>
-      <p className="opacity-80">
-        We use Telegram for announcements and live sessions. Tap the button below to connect your account.
-      </p>
-
-      <button
-        disabled={!tgUrl || loading}
-        onClick={() => tgUrl && window.open(tgUrl, '_blank')}
-        className="w-full rounded-2xl py-4 text-white font-medium
-                   bg-gradient-to-r from-pink-500 to-purple-500 hover:opacity-90
-                   disabled:opacity-60"
-      >
-        {loading ? 'Preparing…' : 'Link Telegram'}
-      </button>
-
-      {code && (
-        <p className="text-sm opacity-80">
-          If the bot didn’t reply, copy and send in Telegram: <code className="px-2 py-1 bg-black/30 rounded">/link {code}</code>
+    <div className="min-h-screen w-full flex items-center justify-center">
+      <div className="max-w-xl w-full p-6">
+        <h1 className="text-2xl mb-4">Almost there — link your Telegram</h1>
+        {/* Put your existing <LinkTelegram /> client component here if you want */}
+        {/* Or a simple link that hits /api/link and opens bot */}
+        <a
+          href="/api/link"
+          className="block w-full text-center rounded-full py-3 text-white"
+          style={{
+            background:
+              "linear-gradient(90deg, rgba(244,114,182,1) 0%, rgba(147,51,234,1) 100%)",
+          }}
+        >
+          Link Telegram
+        </a>
+        <p className="opacity-70 mt-3">
+          After linking in Telegram, return to this site—your dashboard will open automatically.
         </p>
-      )}
-
-      {error && <p className="text-red-400">{error}</p>}
-
-      <p className="text-sm opacity-70">This page will auto-redirect once linking succeeds.</p>
+      </div>
     </div>
   );
 }

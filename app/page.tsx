@@ -1,15 +1,10 @@
-﻿'use client';
-import { signIn } from 'next-auth/react';
+﻿// app/page.tsx
+import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
-export default function SignIn() {
-  return (
-    <div className="min-h-[60vh] grid place-items-center">
-      <button
-        onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
-        className="px-6 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 text-white"
-      >
-        Continue with Google
-      </button>
-    </div>
-  );
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.email) redirect("/dashboard");
+  redirect("/signin");
 }
