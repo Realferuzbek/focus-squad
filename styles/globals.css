@@ -1,10 +1,15 @@
-﻿@tailwind base;
+﻿/* styles/globals.css */
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root { color-scheme: dark; }
-html, body, #__next { height: 100%; background: #0b0b0d; color: #fff; font-family: Arial, Helvetica, sans-serif; }
-a { color: #6ee7ff; }
+
+html, body { height: 100%; background: #07070b; }
+
+* { scrollbar-width: thin; scrollbar-color: #333 transparent; }
+*::-webkit-scrollbar { height: 10px; width: 10px; }
+*::-webkit-scrollbar-thumb { background: #2a2a38; border-radius: 8px; }
 
 .btn-primary {
   @apply relative inline-flex items-center justify-center h-11 px-5 rounded-2xl text-sm font-bold;

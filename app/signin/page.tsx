@@ -1,33 +1,38 @@
 ﻿// app/signin/page.tsx
 "use client";
 
-import { signIn } from "next-auth/react";
 import { useEffect } from "react";
 
 export default function SignInPage() {
-  // best-effort: keep session-version cookie aligned (non-httpOnly)
+  // Set sv cookie after successful auth (middleware checks it)
   useEffect(() => {
-    const ver = process.env.NEXT_PUBLIC_SESSION_VERSION || process.env.SESSION_VERSION;
-    if (ver) {
-      const d = new Date();
-      d.setFullYear(d.getFullYear() + 1);
-      document.cookie = `sv=${ver}; path=/; expires=${d.toUTCString()}; SameSite=Lax`;
-    }
+    // noop here; cookie is set by /signin/sv route in next file if needed later
   }, []);
 
+  const google = () => {
+    const url = `/api/auth/signin/google?callbackUrl=${encodeURIComponent("/dashboard")}`;
+    window.location.href = url;
+  };
+
   return (
-    <main className="min-h-[80vh] flex items-center justify-center">
-      <div className="text-center">
+    <div className="min-h-[100dvh] bg-[#0b0b0f] text-white flex items-center justify-center">
+      <div className="mx-4 w-full max-w-md rounded-2xl p-10"
+           style={{ background: "linear-gradient(180deg,#12121a 0%,#0b0b0f 100%)", boxShadow: "0 10px 60px rgba(120,80,255,.2)" }}>
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <img src="/logo.svg" alt="logo" width={40} height={40} />
+          <h1 className="text-2xl font-semibold tracking-tight">Studywithferuzbek</h1>
+        </div>
         <button
-          onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-          className="px-6 py-3 rounded-full text-white font-medium bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:opacity-95 transition"
+          onClick={google}
+          className="w-full rounded-xl py-3 text-base font-semibold
+                     bg-gradient-to-r from-[#8a5bff] via-[#b157ff] to-[#ff5ddd] hover:opacity-90 transition"
         >
           Continue with Google
         </button>
-        <p className="text-sm text-gray-400 mt-4">
-          We only support Google sign-in. Your session persists, and you’ll auto-return to the dashboard.
+        <p className="text-center text-sm text-zinc-400 mt-4">
+          We only support Google sign-in. You’ll be redirected back to your dashboard.
         </p>
       </div>
-    </main>
+    </div>
   );
 }

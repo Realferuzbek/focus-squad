@@ -1,39 +1,60 @@
 // app/link-telegram/page.tsx
-import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { createHmac } from "crypto";
+
+function b64url(i: Buffer | string) {
+  const s = (i instanceof Buffer ? i : Buffer.from(i))
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+  return s;
+}
+
+function signPayload(payload: string) {
+  const secret = process.env.NEXTAUTH_SECRET!;
+  const sig = createHmac("sha256", secret).update(payload).digest();
+  return b64url(sig);
+}
 
 export default async function LinkTelegramPage() {
-  const session = await auth();
+  const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
-    // must be signed in to link
     return (
-      <div className="min-h-screen w-full flex items-center justify-center">
-        <Link href="/signin" className="underline">
-          Sign in first
-        </Link>
+      <div className="min-h-[100dvh] flex items-center justify-center text-white bg-black">
+        Not signed in.
       </div>
     );
   }
 
-  // The client component/CTA you already have can call /api/link to get token+url.
+  const uid = (session.user as any).id;
+  const ts = Math.floor(Date.now() / 1000);
+  const payload = `${uid}.${ts}`;
+  const sig = signPayload(payload);
+  const token = `${payload}.${sig}`;
+
+  const botUser = process.env.TELEGRAM_BOT_USERNAME!;
+  const deepLink = `https://t.me/${botUser}?start=${encodeURIComponent(token)}`;
+
   return (
-    <div className="min-h-screen w-full flex items-center justify-center">
-      <div className="max-w-xl w-full p-6">
-        <h1 className="text-2xl mb-4">Almost there — link your Telegram</h1>
-        {/* Put your existing <LinkTelegram /> client component here if you want */}
-        {/* Or a simple link that hits /api/link and opens bot */}
-        <a
-          href="/api/link"
-          className="block w-full text-center rounded-full py-3 text-white"
-          style={{
-            background:
-              "linear-gradient(90deg, rgba(244,114,182,1) 0%, rgba(147,51,234,1) 100%)",
-          }}
-        >
+    <div className="min-h-[100dvh] bg-[#0b0b0f] text-white flex items-center justify-center">
+      <div className="max-w-xl mx-4 p-8 rounded-2xl"
+           style={{ background: "linear-gradient(180deg,#12121a 0%,#0b0b0f 100%)", boxShadow: "0 10px 60px rgba(120,80,255,.2)" }}>
+        <h1 className="text-2xl font-semibold mb-2">Almost there — link your Telegram</h1>
+        <p className="text-zinc-400 mb-6">
+          We use Telegram for announcements and live sessions. Tap below to connect your account.
+        </p>
+        <a href={deepLink}
+           className="inline-flex items-center justify-center rounded-xl px-5 py-3 bg-gradient-to-r from-[#8a5bff] via-[#b157ff] to-[#ff5ddd] font-semibold">
           Link Telegram
         </a>
-        <p className="opacity-70 mt-3">
-          After linking in Telegram, return to this site—your dashboard will open automatically.
+        <p className="text-sm text-zinc-500 mt-4">
+          If the bot didn’t open, copy and send in Telegram:
+          <code className="ml-2 rounded bg-zinc-900 px-2 py-1">{`/start ${token}`}</code>
+        </p>
+        <p className="text-sm text-zinc-500 mt-3">
+          After linking, come back to the site — you’ll be taken to your dashboard automatically.
         </p>
       </div>
     </div>

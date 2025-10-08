@@ -1,12 +1,11 @@
 <!-- public/logo.svg -->
-<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="6" y="6" width="52" height="52" rx="14" fill="url(#g)"/>
-  <path d="M22 32a10 10 0 1 1 10 10" stroke="white" stroke-width="4" stroke-linecap="round"/>
-  <circle cx="32" cy="32" r="3" fill="white"/>
+<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="g" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#A855F7"/>
-      <stop offset="1" stop-color="#6366F1"/>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8a5bff"/>
+      <stop offset="1" stop-color="#ff5ddd"/>
     </linearGradient>
   </defs>
+  <rect x="12" y="12" width="96" height="96" rx="24" fill="url(#g)"/>
+  <path d="M60 32c-15 0-26 10.5-26 25.2 0 14.1 10 22.8 22.9 24.6v6c0 1.6 1.3 2.9 2.9 2.9h1.6c1.6 0 2.9-1.3 2.9-2.9V81c12.4-1.5 21.8-10.7 21.8-23.8C86 42.9 74.6 32 60 32zm0 12.4c8 0 14.2 5.9 14.2 14.1 0 8.1-6.2 14.1-14.2 14.1S45.8 66.6 45.8 58.5C45.8 50.3 52 44.4 60 44.4z" fill="#0b0b0f"/>
 </svg>

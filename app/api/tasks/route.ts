@@ -1,96 +1,63 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
-import { auth } from "@/lib/auth";
-import { supabaseAdmin } from '@/lib/supabaseServer';
-import { todayTashkent, isAfterTen } from '@/lib/tz';
-import { rateLimit } from '@/lib/rateLimit';
+﻿// app/api/tasks/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabaseServer";
 
-export async function GET(req: NextRequest) {
-  const session = await auth ();
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+function tzNow() {
+  return new Date(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: process.env.NEXT_PUBLIC_TZ || "Asia/Tashkent",
+      hour12: false,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    }).format(new Date()).replace(/(\d{2})\/(\d{2})\/(\d{4}), /, "$3-$2-$1T")
+  );
+}
+function dayKey(d: Date) {
+  // YYYY-MM-DD in TZ
+  return new Intl.DateTimeFormat("en-CA", { timeZone: process.env.NEXT_PUBLIC_TZ || "Asia/Tashkent" }).format(d);
+}
+function locked(d: Date) {
+  const tz = process.env.NEXT_PUBLIC_TZ || "Asia/Tashkent";
+  const date = new Date(new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(d) + "T10:00:00");
+  return d >= date;
+}
 
-  const url = new URL(req.url);
-  const date = url.searchParams.get('date') ?? todayTashkent();
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return NextResponse.json({ tasks: [] });
 
+  const now = tzNow();
   const sb = supabaseAdmin();
-
-  // Find current user
-  const { data: user, error: userErr } = await sb
-    .from('users')
-    .select('*')
-    .eq('email', session.user.email)
-    .single();
-  if (userErr || !user) return NextResponse.json([], { status: 200 });
-
-  // Tasks + reviews joined in code
-  const { data: tasks } = await sb
-    .from('tasks')
-    .select('id, content, created_at, for_date')
-    .eq('user_id', user.id)
-    .eq('for_date', date);
-
-  const { data: reviews } = await sb
-    .from('task_reviews')
-    .select('task_id, status, note')
-    .in('task_id', (tasks ?? []).map(t => t.id));
-
-  const statusMap = new Map((reviews ?? []).map(r => [r.task_id, r]));
-  const rows = (tasks ?? []).map(t => ({
-    ...t,
-    status: statusMap.get(t.id)?.status ?? null,
-    note: statusMap.get(t.id)?.note ?? null
-  }));
-
-  return NextResponse.json(rows);
+  const { data } = await sb
+    .from("tasks")
+    .select("id,title,done")
+    .eq("user_id", (session.user as any).id)
+    .eq("day", dayKey(now))
+    .order("id", { ascending: true });
+  return NextResponse.json({ tasks: data || [], locked: locked(now) });
 }
 
 export async function POST(req: NextRequest) {
-  // very light IP-based limiter
-  const key = req.headers.get('x-forwarded-for') ?? 'anon';
-  if (!rateLimit(`tasks:${key}`, 60, 60_000).ok) {
-    return NextResponse.json({ error: 'Slow down' }, { status: 429 });
-  }
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const session = await auth ();
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const now = tzNow();
+  if (locked(now)) return NextResponse.json({ error: "Task entry closed for today" }, { status: 403 });
 
-  // Enforce 10:00 Tashkent lock in production; allow in local dev for testing
-  if (process.env.NODE_ENV !== 'development' && isAfterTen()) {
-    return NextResponse.json({ error: 'Task entry closed' }, { status: 403 });
-  }
-
-  const body = await req.json();
-  const content: unknown = body?.content;
-
-  if (typeof content !== 'string' || !content.trim()) {
-    return NextResponse.json({ error: 'Invalid content' }, { status: 400 });
-  }
-
-  const lines = content
-    .split('\n')
-    .map(s => s.trim())
-    .filter(Boolean);
-
-  if (lines.length === 0) {
-    return NextResponse.json({ error: 'No tasks' }, { status: 400 });
-  }
+  const body = await req.json().catch(() => ({}));
+  const lines: string[] = Array.isArray(body.lines) ? body.lines : [];
+  if (!lines.length) return NextResponse.json({ ok: true });
 
   const sb = supabaseAdmin();
-
-  const { data: user } = await sb
-    .from('users')
-    .select('id')
-    .eq('email', session.user.email)
-    .single();
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 400 });
-
-  const toInsert = lines.map(s => ({
-    user_id: user.id,
-    content: s,
-    for_date: todayTashkent()
+  const rows = lines.map((title: string) => ({
+    user_id: (session.user as any).id,
+    day: dayKey(now),
+    title,
+    done: false,
   }));
-
-  const { error } = await sb.from('tasks').insert(toInsert);
+  const { error } = await sb.from("tasks").insert(rows);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
   return NextResponse.json({ ok: true });
 }

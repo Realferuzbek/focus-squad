@@ -1,76 +1,43 @@
 ﻿// app/(protected)/dashboard/page.tsx
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabaseServer";
-import Link from "next/link";
-import LivePill from "@/components/LivePill";
-import TaskInput from "@/components/TaskInput";
-import SessionsCard from "@/components/SessionsCard";
-import StreakCard from "@/components/StreakCard";
-import ReviewerPanel from "@/components/ReviewerPanel";
+import Navbar from "@/components/Navbar";
+import TaskPlannerSheet from "@/components/TaskPlannerSheet";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return null;
-  }
-
-  const email = session.user.email;
-  const sb = supabaseAdmin();
-
-  const { data: me } = await sb
-    .from("users")
-    .select("id, display_name, is_admin, avatar_url")
-    .eq("email", email)
-    .maybeSingle();
+  const user = session!.user as any;
 
   return (
-    <div className="px-4 md:px-8 lg:px-10 py-6 space-y-8">
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <img src="/logo.svg" alt="Focus Squad" className="h-7 w-7" />
-          <h1 className="text-xl md:text-2xl font-semibold">Focus Squad</h1>
-          <LivePill />
-        </div>
-        <div className="flex items-center gap-3">
-          {me?.is_admin && (
-            <Link
-              href="/reviewer"
-              className="rounded-full border border-white/10 px-4 py-2 text-sm hover:bg-white/5 transition"
-            >
-              Reviewer panel
-            </Link>
-          )}
-          <div className="flex items-center gap-2">
-            {me?.avatar_url ? (
-              <img
-                src={me.avatar_url}
-                className="h-8 w-8 rounded-full object-cover"
-                alt="avatar"
-              />
-            ) : (
-              <div className="h-8 w-8 rounded-full bg-white/10" />
-            )}
-            <span className="text-sm text-gray-300">
-              {session.user.name ?? email}
-            </span>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-[100dvh] bg-[#07070b]">
+      {/* Expose email to client for recent-accounts */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `window.__session_email=${JSON.stringify(user?.email || null)};`,
+        }}
+      />
+      <Navbar isAdmin={!!user.is_admin} avatarUrl={user?.image || user?.avatar_url} />
 
-      {/* Planner & Progress */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <TaskInput />
-          <SessionsCard />
+      <main className="mx-auto max-w-6xl px-4 py-8 text-white">
+        <div className="grid md:grid-cols-2 gap-6">
+          <section className="rounded-2xl p-6 bg-gradient-to-br from-[#161628] to-[#0f0f18] border border-white/10">
+            <h2 className="text-xl font-semibold mb-2">Welcome back, {session?.user?.name ?? "friend"} 👋</h2>
+            <p className="text-zinc-400">
+              Stay consistent. Plan your day before 10:00 and execute.
+            </p>
+            <div className="mt-6">
+              <TaskPlannerSheet />
+            </div>
+          </section>
+
+          <section className="rounded-2xl p-6 bg-gradient-to-br from-[#161628] to-[#0f0f18] border border-white/10">
+            <h2 className="text-xl font-semibold mb-2">My streak 🔥</h2>
+            <p className="text-zinc-400">Streak & history UI will live here (next step).</p>
+          </section>
         </div>
-        <div className="space-y-6">
-          <StreakCard />
-          {/* History is embedded in SessionsCard in your codebase; keep this lean */}
-        </div>
-      </section>
+      </main>
     </div>
   );
 }
