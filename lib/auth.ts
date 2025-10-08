@@ -1,16 +1,16 @@
 ﻿// lib/auth.ts
-import NextAuth, { type NextAuthConfig } from "next-auth";
-import Google from "next-auth/providers/google";
+import type { NextAuthOptions } from "next-auth";
+import GoogleProvider from "next-auth/providers/google";
 import { supabaseAdmin } from "./supabaseServer";
 
 export const ADMIN_EMAILS = new Set<string>(["feruzbekqurbonov03@gmail.com"]);
 
-// --- Auth config (v5 style) ---
-const config: NextAuthConfig = {
+export const authOptions: NextAuthOptions = {
   providers: [
-    Google({
+    GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // Force account chooser when we pass prompt=select_account
       authorization: {
         params: {
           prompt: "consent",
@@ -20,11 +20,9 @@ const config: NextAuthConfig = {
       },
     }),
   ],
-
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   pages: { signIn: "/signin" },
   secret: process.env.NEXTAUTH_SECRET,
-
   callbacks: {
     async signIn({ user }) {
       try {
@@ -49,7 +47,7 @@ const config: NextAuthConfig = {
           await sb.from("users").update({ is_admin: true }).eq("email", email);
         }
       } catch {
-        // don't block sign-in on provisioning failure
+        // do not block sign-in
       }
       return true;
     },
@@ -82,8 +80,9 @@ const config: NextAuthConfig = {
           (token as any).avatar_url = null;
         }
       } catch {
-        // keep prior token values
+        // keep token as-is on failure
       }
+
       return token;
     },
 
@@ -96,15 +95,3 @@ const config: NextAuthConfig = {
     },
   },
 };
-
-// v5 helpers (used by [...nextauth] route and server-side auth())
-export const {
-  handlers: { GET, POST },
-  auth,
-  signIn,
-  signOut,
-} = NextAuth(config);
-
-// **Compat export for existing imports** that call getServerSession(authOptions)
-export const authOptions =
-  config as unknown as import("next-auth").NextAuthOptions;
