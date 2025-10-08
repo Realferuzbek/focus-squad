@@ -5,12 +5,12 @@ import { supabaseAdmin } from "./supabaseServer";
 
 export const ADMIN_EMAILS = new Set<string>(["feruzbekqurbonov03@gmail.com"]);
 
+// --- Auth config (v5 style) ---
 const config: NextAuthConfig = {
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // keep account chooser available for switch flow
       authorization: {
         params: {
           prompt: "consent",
@@ -26,12 +26,10 @@ const config: NextAuthConfig = {
   secret: process.env.NEXTAUTH_SECRET,
 
   callbacks: {
-    // 1) First-time sign-in: ensure a row exists and mark admin if email matches
     async signIn({ user }) {
       try {
         const sb = supabaseAdmin();
         const email = (user.email || "").toLowerCase();
-
         if (!email) return true;
 
         const { data: existing } = await sb
@@ -51,12 +49,11 @@ const config: NextAuthConfig = {
           await sb.from("users").update({ is_admin: true }).eq("email", email);
         }
       } catch {
-        // fail-open; do not block login on provisioning error
+        // don't block sign-in on provisioning failure
       }
       return true;
     },
 
-    // 2) Every request: enrich JWT with DB flags
     async jwt({ token, user, profile }) {
       if (user?.email) token.email = user.email;
       if (!token.email && profile && (profile as any).email) {
@@ -85,12 +82,11 @@ const config: NextAuthConfig = {
           (token as any).avatar_url = null;
         }
       } catch {
-        // ignore; keep prior token values
+        // keep prior token values
       }
       return token;
     },
 
-    // 3) Expose enriched fields to session.user
     async session({ session, token }) {
       (session.user as any).id = (token as any).uid ?? null;
       (session.user as any).is_admin = !!(token as any).is_admin;
@@ -101,10 +97,14 @@ const config: NextAuthConfig = {
   },
 };
 
-// Export v5 helpers so API routes can `import { auth } from "@/lib/auth"`
+// v5 helpers (used by [...nextauth] route and server-side auth())
 export const {
   handlers: { GET, POST },
   auth,
   signIn,
   signOut,
 } = NextAuth(config);
+
+// **Compat export for existing imports** that call getServerSession(authOptions)
+export const authOptions =
+  config as unknown as import("next-auth").NextAuthOptions;
