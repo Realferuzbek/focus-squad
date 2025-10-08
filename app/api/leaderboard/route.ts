@@ -1,10 +1,11 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
-import { auth } from "@/lib/auth";
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { todayTashkent } from '@/lib/tz';
 
 export async function GET(req: NextRequest) {
-  const session = await auth ();
+  const session = await getServerSession(authOptions);
   const meEmail = session?.user?.email ?? '';
   const url = new URL(req.url);
   const period = url.searchParams.get('period') ?? 'today';
