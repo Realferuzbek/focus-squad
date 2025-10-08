@@ -1,37 +1,55 @@
 ﻿// app/signin/page.tsx
 "use client";
 
-import { useEffect } from "react";
+import Image from "next/image";
+import { signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useMemo } from "react";
 
 export default function SignInPage() {
-  // Set sv cookie after successful auth (middleware checks it)
-  useEffect(() => {
-    // noop here; cookie is set by /signin/sv route in next file if needed later
+  const sp = useSearchParams();
+  const error = sp.get("error");
+
+  const message = useMemo(() => {
+    if (!error) return null;
+    // keep it simple; we don’t expose internals
+    return "Sign-in failed. Please try again.";
+  }, [error]);
+
+  const onClick = useCallback(() => {
+    // opens Google account chooser and returns to /dashboard
+    signIn("google", {
+      callbackUrl: "/dashboard",
+      // ask Google to always show the chooser
+      prompt: "select_account",
+      redirect: true,
+    });
   }, []);
 
-  const google = () => {
-    const url = `/api/auth/signin/google?callbackUrl=${encodeURIComponent("/dashboard")}`;
-    window.location.href = url;
-  };
-
   return (
-    <div className="min-h-[100dvh] bg-[#0b0b0f] text-white flex items-center justify-center">
-      <div className="mx-4 w-full max-w-md rounded-2xl p-10"
-           style={{ background: "linear-gradient(180deg,#12121a 0%,#0b0b0f 100%)", boxShadow: "0 10px 60px rgba(120,80,255,.2)" }}>
+    <div className="min-h-screen grid place-items-center bg-[#070b19] text-white">
+      <div className="relative w-[560px] max-w-[92vw] rounded-3xl p-10 shadow-2xl"
+           style={{ boxShadow: "0 0 150px rgba(150, 80, 255, .15), inset 0 0 120px rgba(50, 20, 90, .35)", background: "linear-gradient(180deg,#0b0f23 0%, #0a0e1f 100%)" }}>
         <div className="flex items-center justify-center gap-3 mb-6">
-          <img src="/logo.svg" alt="logo" width={40} height={40} />
-          <h1 className="text-2xl font-semibold tracking-tight">Studywithferuzbek</h1>
+          <Image src="/logo.svg" alt="logo" width={36} height={36} priority />
+          <h1 className="text-2xl font-semibold">Studywithferuzbek</h1>
         </div>
+
         <button
-          onClick={google}
-          className="w-full rounded-xl py-3 text-base font-semibold
-                     bg-gradient-to-r from-[#8a5bff] via-[#b157ff] to-[#ff5ddd] hover:opacity-90 transition"
+          onClick={onClick}
+          className="btn-primary w-full"
+          aria-label="Continue with Google"
         >
           Continue with Google
         </button>
-        <p className="text-center text-sm text-zinc-400 mt-4">
+
+        <p className="text-center text-sm text-neutral-300 mt-5">
           We only support Google sign-in. You’ll be redirected back to your dashboard.
         </p>
+
+        {message && (
+          <p className="mt-4 text-center text-rose-400 text-sm">{message}</p>
+        )}
       </div>
     </div>
   );

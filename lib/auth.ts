@@ -1,63 +1,64 @@
 ﻿// lib/auth.ts
-import type { NextAuthOptions } from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
+import NextAuth from "next-auth";
+import Google from "next-auth/providers/google";
 import { supabaseAdmin } from "./supabaseServer";
 
-export const ADMIN_EMAILS = new Set<string>(["feruzbekqurbonov03@gmail.com"]);
+export const ADMIN_EMAILS = new Set<string>([
+  "feruzbekqurbonov03@gmail.com",
+]);
 
-export const authOptions: NextAuthOptions = {
+export const {
+  handlers: { GET, POST },
+  auth,
+  signIn,
+  signOut,
+} = NextAuth({
   providers: [
-    GoogleProvider({
+    Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // Force account chooser when we pass prompt=select_account
       authorization: {
         params: {
-          prompt: "consent",
+          prompt: "consent", // always show chooser when we ask
           access_type: "offline",
           response_type: "code",
         },
       },
     }),
   ],
-  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
+  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 30 },
   pages: { signIn: "/signin" },
   secret: process.env.NEXTAUTH_SECRET,
+
   callbacks: {
+    // 1) make sure user exists in Supabase and mark admins
     async signIn({ user }) {
       try {
         const sb = supabaseAdmin();
-        const email = (user.email || "").toLowerCase();
-        if (!email) return true;
-
         const { data: existing } = await sb
           .from("users")
-          .select("id,email,is_admin")
-          .eq("email", email)
+          .select("id,email")
+          .eq("email", user.email)
           .maybeSingle();
 
         if (!existing) {
           await sb.from("users").insert({
-            email,
+            email: user.email,
             name: user.name,
             avatar_url: user.image ?? null,
-            is_admin: ADMIN_EMAILS.has(email),
+            is_admin: ADMIN_EMAILS.has((user.email || "").toLowerCase()),
           });
-        } else if (!existing.is_admin && ADMIN_EMAILS.has(email)) {
-          await sb.from("users").update({ is_admin: true }).eq("email", email);
+        } else if (ADMIN_EMAILS.has((existing.email || "").toLowerCase())) {
+          await sb.from("users").update({ is_admin: true }).eq("email", existing.email);
         }
       } catch {
-        // do not block sign-in
+        // fail open so auth isn’t blocked
       }
       return true;
     },
 
-    async jwt({ token, user, profile }) {
-      if (user?.email) token.email = user.email;
-      if (!token.email && profile && (profile as any).email) {
-        token.email = (profile as any).email as string;
-      }
-
+    // 2) enrich token with flags from DB
+    async jwt({ token }) {
       const email = (token.email || "").toString().toLowerCase();
       if (!email) return token;
 
@@ -80,18 +81,18 @@ export const authOptions: NextAuthOptions = {
           (token as any).avatar_url = null;
         }
       } catch {
-        // keep token as-is on failure
+        // ignore
       }
-
       return token;
     },
 
+    // 3) expose flags on session.user for UI
     async session({ session, token }) {
-      (session.user as any).id = (token as any).uid ?? null;
+      (session.user as any).id = (token as any).uid;
       (session.user as any).is_admin = !!(token as any).is_admin;
       (session.user as any).telegram_linked = !!(token as any).telegram_linked;
       (session.user as any).avatar_url = (token as any).avatar_url ?? null;
       return session;
     },
   },
-};
+});
