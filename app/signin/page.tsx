@@ -1,6 +1,6 @@
 ﻿// app/signin/page.tsx
 import Image from "next/image";
-import { signIn } from "@/lib/auth";
+import GoogleSignInButton from "@/components/GoogleSignInButton";
 
 export default function SignInPage() {
   return (
@@ -11,16 +11,7 @@ export default function SignInPage() {
           <h1 className="text-2xl font-semibold">Studywithferuzbek</h1>
         </div>
 
-        <form
-          action={async () => {
-            "use server";
-            await signIn("google", { redirectTo: "/dashboard" });
-          }}
-        >
-          <button type="submit" className="btn-primary w-full">
-            Continue with Google
-          </button>
-        </form>
+        <GoogleSignInButton className="btn-primary w-full" callbackUrl="/dashboard" />
 
         <p className="mt-4 text-center text-sm text-neutral-300">
           We only support Google sign-in. You’ll be redirected back

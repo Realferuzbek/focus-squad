@@ -1,11 +1,11 @@
 ﻿// lib/auth.ts
-import NextAuth from "next-auth";
+import NextAuth, { getServerSession, type NextAuthOptions } from "next-auth";
 import Google from "next-auth/providers/google";
 import { supabaseAdmin } from "./supabaseServer";
 
 export const ADMIN_EMAILS = new Set<string>(["feruzbekqurbonov03@gmail.com"]);
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const authOptions: NextAuthOptions = {
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -81,6 +81,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
-});
+};
 
-export const { GET, POST } = handlers;
+export const auth = () => getServerSession(authOptions);
+
+const handler = NextAuth(authOptions);
+export { handler as GET, handler as POST };
