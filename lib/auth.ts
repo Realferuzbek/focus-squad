@@ -1,11 +1,9 @@
-﻿// lib/auth.ts (NextAuth v5, locked to our plan/features)
+﻿// lib/auth.ts
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { supabaseAdmin } from "./supabaseServer";
 
-export const ADMIN_EMAILS = new Set<string>([
-  "feruzbekqurbonov03@gmail.com",
-]);
+export const ADMIN_EMAILS = new Set<string>(["feruzbekqurbonov03@gmail.com"]);
 
 export const {
   handlers: { GET, POST },
@@ -17,16 +15,17 @@ export const {
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // keep defaults; no extra params to avoid provider quirks
+      // show account chooser consistently
+      authorization: {
+        params: { prompt: "consent", access_type: "offline", response_type: "code" },
+      },
     }),
   ],
-  pages: {
-    signIn: "/signin",
-  },
+  pages: { signIn: "/signin" },
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   callbacks: {
-    // Provision user & sync admin flag
     async signIn({ user }) {
+      // Provision/update user in Supabase
       try {
         const sb = supabaseAdmin();
         const email = (user.email || "").toLowerCase();
@@ -42,6 +41,7 @@ export const {
           await sb.from("users").insert({
             email,
             name: user.name,
+            display_name: user.name,
             avatar_url: user.image ?? null,
             is_admin: ADMIN_EMAILS.has(email),
           });
@@ -49,16 +49,13 @@ export const {
           await sb.from("users").update({ is_admin: true }).eq("email", email);
         }
       } catch {
-        // fail open; we still allow sign-in
+        // fail-open
       }
       return true;
     },
-    async jwt({ token, user, profile }) {
-      // ensure email on token
-      if (user?.email) token.email = user.email;
-      if (!token.email && profile && (profile as any).email)
-        token.email = (profile as any).email;
 
+    async jwt({ token }) {
+      // Enrich token with DB flags every request
       const email = (token.email || "").toString().toLowerCase();
       if (!email) return token;
 
@@ -66,7 +63,7 @@ export const {
         const sb = supabaseAdmin();
         const { data } = await sb
           .from("users")
-          .select("id,is_admin,telegram_user_id,avatar_url")
+          .select("id,is_admin,telegram_user_id,avatar_url,name,display_name")
           .eq("email", email)
           .maybeSingle();
 
@@ -74,23 +71,22 @@ export const {
           (token as any).uid = data.id;
           (token as any).is_admin = !!data.is_admin;
           (token as any).telegram_linked = !!data.telegram_user_id;
-          (token as any).avatar_url = data.avatar_url || null;
+          (token as any).avatar_url = data.avatar_url ?? null;
+          (token as any).display_name = data.display_name ?? data.name ?? null;
         } else {
           (token as any).is_admin = ADMIN_EMAILS.has(email);
           (token as any).telegram_linked = false;
-          (token as any).avatar_url = null;
         }
-      } catch {
-        // ignore & keep token minimal
-      }
+      } catch {}
       return token;
     },
+
     async session({ session, token }) {
-      (session.user as any).id = (token as any).uid ?? null;
+      (session.user as any).id = (token as any).uid;
       (session.user as any).is_admin = !!(token as any).is_admin;
       (session.user as any).telegram_linked = !!(token as any).telegram_linked;
-      (session.user as any).image =
-        (token as any).avatar_url || (session.user as any).image || null;
+      (session.user as any).avatar_url = (token as any).avatar_url ?? session.user?.image ?? null;
+      (session.user as any).display_name = (token as any).display_name ?? session.user?.name ?? null;
       return session;
     },
   },
