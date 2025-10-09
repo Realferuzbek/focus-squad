@@ -6,21 +6,22 @@ import { auth } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import LinkTelegramWatcher from "@/components/LinkTelegramWatcher";
 import { redirect } from "next/navigation";
-import { createHmac } from "crypto";
+import { randomBytes } from "crypto";
 
-function b64url(i: Buffer | string) {
-  const s = (i instanceof Buffer ? i : Buffer.from(i))
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-  return s;
+const TOKEN_TTL_MS = 1000 * 60 * 10; // 10 minutes
+
+type LinkTokenRow = {
+  token: string;
+  expires_at?: string | null;
+};
+
+function generateToken() {
+  return randomBytes(16).toString("hex"); // 32 hex chars (fits Telegram limit)
 }
 
-function signPayload(payload: string) {
-  const secret = process.env.NEXTAUTH_SECRET!;
-  const sig = createHmac("sha256", secret).update(payload).digest();
-  return b64url(sig);
+function isExpired(row?: LinkTokenRow | null) {
+  if (!row?.expires_at) return false;
+  return Date.parse(row.expires_at) < Date.now();
 }
 
 export default async function LinkTelegramPage() {
@@ -34,7 +35,9 @@ export default async function LinkTelegramPage() {
   }
 
   const uid = (session.user as any).id;
+  const email = session.user.email.toLowerCase();
   const sb = supabaseAdmin();
+
   const { data: user } = await sb
     .from("users")
     .select("telegram_user_id,display_name")
@@ -45,11 +48,26 @@ export default async function LinkTelegramPage() {
     redirect("/dashboard");
   }
 
-  const ts = Math.floor(Date.now() / 1000);
-  const payload = `${uid}.${ts}`;
-  const sig = signPayload(payload);
-  const token = `${payload}.${sig}`;
+  const { data: existingToken } = await sb
+    .from("link_tokens")
+    .select("token,expires_at")
+    .eq("email", email)
+    .maybeSingle();
 
+  let tokenRow = existingToken as LinkTokenRow | null;
+  if (!tokenRow || isExpired(tokenRow)) {
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
+    await sb.from("link_tokens").delete().eq("email", email);
+    await sb.from("link_tokens").insert({
+      token,
+      email,
+      expires_at: expiresAt,
+    });
+    tokenRow = { token, expires_at: expiresAt };
+  }
+
+  const token = tokenRow.token;
   const botUser = process.env.TELEGRAM_BOT_USERNAME!;
   const deepLink = `https://t.me/${botUser}?start=${encodeURIComponent(token)}`;
 
@@ -65,7 +83,7 @@ export default async function LinkTelegramPage() {
             {session.user?.name
               ? `Hi ${session.user.name.split(" ")[0]}, tap the button below to open @${botUser}.`
               : `Tap the button below to open @${botUser}.`}
-            {" Once you hit Start in Telegram, we’ll recognize you immediately."}
+            {" Once you hit Start in Telegram, we’ll lock your account pairing instantly."}
           </p>
         </div>
 
@@ -84,6 +102,9 @@ export default async function LinkTelegramPage() {
               <span className="text-zinc-500">/start</span>
               <span className="break-all text-zinc-200">{token}</span>
             </div>
+            <p className="mt-2 text-xs text-zinc-500">
+              Tokens expire after 10 minutes. Refresh this page for a fresh one if needed.
+            </p>
           </div>
         </div>
 
@@ -91,8 +112,8 @@ export default async function LinkTelegramPage() {
           <p className="font-semibold">What happens next?</p>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-purple-50/80">
             <li>Telegram opens with @{botUser}. Hit <strong>Start</strong>.</li>
-            <li>We link this Google account to your Telegram safely.</li>
-            <li>Watch this page — we’ll move you to the dashboard as soon as linking finishes.</li>
+            <li>We verify this one-time code and link Telegram to your Google account.</li>
+            <li>Stay on this tab — we’ll move you to the dashboard as soon as the bot confirms.</li>
           </ol>
         </div>
       </div>
