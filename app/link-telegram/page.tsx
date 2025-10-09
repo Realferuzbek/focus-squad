@@ -1,6 +1,5 @@
 // app/link-telegram/page.tsx
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { createHmac } from "crypto";
 
 function b64url(i: Buffer | string) {
@@ -19,7 +18,7 @@ function signPayload(payload: string) {
 }
 
 export default async function LinkTelegramPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.email) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center text-white bg-black">

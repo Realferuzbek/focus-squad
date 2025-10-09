@@ -1,7 +1,6 @@
 ﻿// app/api/tasks/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
 function tzNow() {
@@ -25,7 +24,7 @@ function locked(d: Date) {
 }
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user) return NextResponse.json({ tasks: [] });
 
   const now = tzNow();

@@ -1,11 +1,10 @@
 ﻿// app/(protected)/admin/page.tsx
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
 export default async function AdminPage() {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   const me = session?.user as any;
   if (!me?.is_admin) redirect("/dashboard");
 

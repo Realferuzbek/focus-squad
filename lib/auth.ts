@@ -1,4 +1,4 @@
-﻿// lib/auth.ts
+﻿// lib/auth.ts (NextAuth v5, locked to our plan/features)
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { supabaseAdmin } from "./supabaseServer";
@@ -17,48 +17,48 @@ export const {
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      authorization: {
-        params: {
-          prompt: "consent", // always show chooser when we ask
-          access_type: "offline",
-          response_type: "code",
-        },
-      },
+      // keep defaults; no extra params to avoid provider quirks
     }),
   ],
-  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 30 },
-  pages: { signIn: "/signin" },
-  secret: process.env.NEXTAUTH_SECRET,
-
+  pages: {
+    signIn: "/signin",
+  },
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   callbacks: {
-    // 1) make sure user exists in Supabase and mark admins
+    // Provision user & sync admin flag
     async signIn({ user }) {
       try {
         const sb = supabaseAdmin();
+        const email = (user.email || "").toLowerCase();
+        if (!email) return false;
+
         const { data: existing } = await sb
           .from("users")
-          .select("id,email")
-          .eq("email", user.email)
+          .select("id,email,is_admin")
+          .eq("email", email)
           .maybeSingle();
 
         if (!existing) {
           await sb.from("users").insert({
-            email: user.email,
+            email,
             name: user.name,
             avatar_url: user.image ?? null,
-            is_admin: ADMIN_EMAILS.has((user.email || "").toLowerCase()),
+            is_admin: ADMIN_EMAILS.has(email),
           });
-        } else if (ADMIN_EMAILS.has((existing.email || "").toLowerCase())) {
-          await sb.from("users").update({ is_admin: true }).eq("email", existing.email);
+        } else if (ADMIN_EMAILS.has(email) && !existing.is_admin) {
+          await sb.from("users").update({ is_admin: true }).eq("email", email);
         }
       } catch {
-        // fail open so auth isn’t blocked
+        // fail open; we still allow sign-in
       }
       return true;
     },
+    async jwt({ token, user, profile }) {
+      // ensure email on token
+      if (user?.email) token.email = user.email;
+      if (!token.email && profile && (profile as any).email)
+        token.email = (profile as any).email;
 
-    // 2) enrich token with flags from DB
-    async jwt({ token }) {
       const email = (token.email || "").toString().toLowerCase();
       if (!email) return token;
 
@@ -74,25 +74,25 @@ export const {
           (token as any).uid = data.id;
           (token as any).is_admin = !!data.is_admin;
           (token as any).telegram_linked = !!data.telegram_user_id;
-          (token as any).avatar_url = data.avatar_url ?? null;
+          (token as any).avatar_url = data.avatar_url || null;
         } else {
           (token as any).is_admin = ADMIN_EMAILS.has(email);
           (token as any).telegram_linked = false;
           (token as any).avatar_url = null;
         }
       } catch {
-        // ignore
+        // ignore & keep token minimal
       }
       return token;
     },
-
-    // 3) expose flags on session.user for UI
     async session({ session, token }) {
-      (session.user as any).id = (token as any).uid;
+      (session.user as any).id = (token as any).uid ?? null;
       (session.user as any).is_admin = !!(token as any).is_admin;
       (session.user as any).telegram_linked = !!(token as any).telegram_linked;
-      (session.user as any).avatar_url = (token as any).avatar_url ?? null;
+      (session.user as any).image =
+        (token as any).avatar_url || (session.user as any).image || null;
       return session;
     },
   },
+  secret: process.env.NEXTAUTH_SECRET,
 });

@@ -1,11 +1,10 @@
 // app/api/admin/users/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   const me = session?.user as any;
   if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
