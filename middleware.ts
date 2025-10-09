@@ -37,8 +37,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(signin);
   }
 
-  const sv = req.cookies.get("sv")?.value;
-  if (sv !== SESSION_VERSION) {
+  const svCookie = req.cookies.get("sv")?.value;
+  if (svCookie && svCookie !== SESSION_VERSION) {
     const out = new URL("/api/auth/signout", req.url);
     out.searchParams.set("callbackUrl", "/signin");
     return NextResponse.redirect(out);
@@ -51,7 +51,17 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(linkUrl);
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  if (!svCookie) {
+    response.cookies.set("sv", SESSION_VERSION, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: true,
+      path: "/",
+    });
+  }
+
+  return response;
 }
 
 export const config = {
