@@ -1,5 +1,9 @@
+// app/api/admin/route.ts
+export const runtime = 'nodejs';         // run on Node (not Edge)
+export const dynamic = 'force-dynamic';  // never pre-render / collect at build
+
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from "@/lib/auth";
+import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export async function GET() {
