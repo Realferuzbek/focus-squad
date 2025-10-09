@@ -1,4 +1,7 @@
 // app/(protected)/layout.tsx
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import type { ReactNode } from "react";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";

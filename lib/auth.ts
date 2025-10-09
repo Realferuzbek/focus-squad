@@ -5,7 +5,7 @@ import { supabaseAdmin } from "./supabaseServer";
 
 export const ADMIN_EMAILS = new Set<string>(["feruzbekqurbonov03@gmail.com"]);
 
-export const { auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -82,3 +82,5 @@ export const { auth, signIn, signOut } = NextAuth({
   },
   secret: process.env.NEXTAUTH_SECRET,
 });
+
+export const { GET, POST } = handlers;

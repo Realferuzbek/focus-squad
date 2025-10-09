@@ -4,7 +4,6 @@ import { getToken } from "next-auth/jwt";
 
 const SESSION_VERSION = process.env.SESSION_VERSION || "1";
 
-// Paths that never require auth/link
 const PUBLIC_PATHS = new Set<string>([
   "/signin",
   "/api/auth",
@@ -15,9 +14,13 @@ const PUBLIC_PATHS = new Set<string>([
   "/opengraph-image",
 ]);
 
+// treat common static assets as public
+const STATIC_EXT = /\.(?:png|svg|jpg|jpeg|gif|webp|ico|txt|xml)$/i;
+
 function isPublic(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (pathname === "/") return true;
+  if (STATIC_EXT.test(pathname)) return true;
   for (const p of PUBLIC_PATHS) if (pathname.startsWith(p)) return true;
   return false;
 }
@@ -34,7 +37,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(signin);
   }
 
-  // Global re-login if session version changed
   const sv = req.cookies.get("sv")?.value;
   if (sv !== SESSION_VERSION) {
     const out = new URL("/api/auth/signout", req.url);
@@ -42,7 +44,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(out);
   }
 
-  // Require Telegram link for protected areas except the link page itself
   const needLink = !(token as any).telegram_linked;
   const onLinkPage = url.pathname.startsWith("/link-telegram");
   if (needLink && !onLinkPage) {

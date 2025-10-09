@@ -1,9 +1,10 @@
 ﻿// app/(protected)/dashboard/page.tsx
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { auth } from "@/lib/auth";
 import Navbar from "@/components/Navbar";
 import TaskPlannerSheet from "@/components/TaskPlannerSheet";
-
-export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const session = await auth();
