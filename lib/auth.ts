@@ -5,17 +5,11 @@ import { supabaseAdmin } from "./supabaseServer";
 
 export const ADMIN_EMAILS = new Set<string>(["feruzbekqurbonov03@gmail.com"]);
 
-export const {
-  handlers: { GET, POST },
-  auth,
-  signIn,
-  signOut,
-} = NextAuth({
+export const { auth, signIn, signOut } = NextAuth({
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // show account chooser consistently
       authorization: {
         params: { prompt: "consent", access_type: "offline", response_type: "code" },
       },
@@ -25,7 +19,6 @@ export const {
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   callbacks: {
     async signIn({ user }) {
-      // Provision/update user in Supabase
       try {
         const sb = supabaseAdmin();
         const email = (user.email || "").toLowerCase();
@@ -48,14 +41,11 @@ export const {
         } else if (ADMIN_EMAILS.has(email) && !existing.is_admin) {
           await sb.from("users").update({ is_admin: true }).eq("email", email);
         }
-      } catch {
-        // fail-open
-      }
+      } catch {}
       return true;
     },
 
     async jwt({ token }) {
-      // Enrich token with DB flags every request
       const email = (token.email || "").toString().toLowerCase();
       if (!email) return token;
 
