@@ -2,12 +2,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-const SESSION_VERSION = process.env.SESSION_VERSION || "1";
-
 const PUBLIC_PATHS = new Set<string>([
   "/signin",
   "/api/auth",
   "/api/telegram/webhook",
+  "/api/admin/state",
   "/_next",
   "/favicon.ico",
   "/robots.txt",
@@ -37,8 +36,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(signin);
   }
 
-  const svCookie = req.cookies.get("sv")?.value;
-  if (svCookie && svCookie !== SESSION_VERSION) {
+  let latestVersion: string | null = null;
+  try {
+    const stateUrl = new URL("/api/admin/state", req.url);
+    const stateRes = await fetch(stateUrl.toString(), { cache: "no-store" });
+    if (stateRes.ok) {
+      const data = await stateRes.json();
+      latestVersion = `${data?.session_version ?? 1}`;
+    }
+  } catch (err) {}
+
+  const svCookie = req.cookies.get("sv")?.value ?? null;
+  if (!latestVersion) {
+    latestVersion = svCookie ?? "1";
+  }
+
+  if (svCookie && latestVersion && svCookie !== latestVersion) {
     const out = new URL("/api/auth/signout", req.url);
     out.searchParams.set("callbackUrl", "/signin");
     return NextResponse.redirect(out);
@@ -52,8 +65,8 @@ export async function middleware(req: NextRequest) {
   }
 
   const response = NextResponse.next();
-  if (!svCookie) {
-    response.cookies.set("sv", SESSION_VERSION, {
+  if (latestVersion && svCookie !== latestVersion) {
+    response.cookies.set("sv", latestVersion, {
       httpOnly: true,
       sameSite: "lax",
       secure: true,
