@@ -1,29 +1,66 @@
-﻿import './globals.css';
-import { ReactNode } from 'react';
-export const metadata = { title: 'Focus Squad', description: 'Study with Feruzbek — Focus Squad' };
+import './globals.css';
+import type { Metadata } from 'next';
+import NextTopLoader from 'nextjs-toploader';
+import type { ReactNode } from 'react';
 
-export const metadata = {
-  title: 'Studywithferuzbek',
-  description: 'Focus Squad — study together, level up.',
-  icons: {
-    icon: [
-      { url: '/logo.svg', type: 'image/svg+xml' }, // works now
-      { url: '/favicon.ico' }                      // add later if you export one
-    ],
+const siteUrl = 'https://studywithferuzbek.vercel.app';
+const siteTitle = 'Studywithferuzbek';
+const siteDescription = 'Focus Squad — study together, level up.';
+
+export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: siteTitle,
+    template: `%s | ${siteTitle}`,
+  },
+  description: siteDescription,
+  keywords: [
+    'Studywithferuzbek',
+    'Focus Squad',
+    'coworking',
+    'productivity',
+    'study with me',
+    'community',
+  ],
+  authors: [{ name: 'Studywithferuzbek' }],
+  alternates: {
+    canonical: '/',
   },
   openGraph: {
-    title: 'Studywithferuzbek',
-    description: 'Focus Squad — study together, level up.',
-    url: 'https://studywithferuzbek.vercel.app',
-    siteName: 'Studywithferuzbek',
-    images: ['/opengraph-image.png'], // add this file when ready
+    type: 'website',
+    locale: 'en_US',
+    url: siteUrl,
+    siteName: siteTitle,
+    title: siteTitle,
+    description: siteDescription,
+    images: [
+      {
+        url: '/logo.svg',
+        width: 512,
+        height: 512,
+        alt: siteTitle,
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: siteTitle,
+    description: siteDescription,
+    images: ['/logo.svg'],
+  },
+  icons: {
+    icon: [{ url: '/logo.svg', type: 'image/svg+xml' }],
+    shortcut: ['/logo.svg'],
   },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <NextTopLoader showSpinner={false} />
+        {children}
+      </body>
     </html>
   );
 }
