@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import PostCard from "./PostCard";
 import Notice from "./Notice";
+import GlowPanel from "@/components/GlowPanel";
 
 type AdminFeedProps = {
   ownerName: string;
@@ -97,26 +99,27 @@ export default function AdminFeed({ ownerName, avatarUrl }: AdminFeedProps) {
 
   if (loading) {
     return (
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
         {skeletons.map((_, idx) => (
-          <div
+          <GlowPanel
+            subtle
             key={idx}
-            className="h-64 rounded-3xl border border-white/10 bg-[#0d0d16]/70 p-6"
+            className="h-64 overflow-hidden p-6"
           >
-            <div className="flex animate-pulse items-start gap-3">
-              <div className="h-12 w-12 rounded-2xl bg-zinc-700/40" />
+            <div className="flex animate-pulse items-start gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-white/10" />
               <div className="flex-1 space-y-3">
-                <div className="h-4 w-1/3 rounded bg-zinc-700/40" />
-                <div className="h-3 w-1/5 rounded bg-zinc-700/30" />
+                <div className="h-4 w-1/2 rounded bg-white/10" />
+                <div className="h-3 w-1/4 rounded bg-white/5" />
               </div>
             </div>
             <div className="mt-6 space-y-3 animate-pulse">
-              <div className="h-3 w-full rounded bg-zinc-700/40" />
-              <div className="h-3 w-3/4 rounded bg-zinc-700/40" />
-              <div className="h-3 w-2/5 rounded bg-zinc-700/30" />
+              <div className="h-3 w-full rounded bg-white/10" />
+              <div className="h-3 w-3/4 rounded bg-white/10" />
+              <div className="h-3 w-2/5 rounded bg-white/5" />
             </div>
-            <div className="mt-6 h-32 rounded-2xl bg-zinc-700/20" />
-          </div>
+            <div className="mt-6 h-28 rounded-2xl bg-white/5" />
+          </GlowPanel>
         ))}
       </div>
     );
@@ -154,10 +157,24 @@ export default function AdminFeed({ ownerName, avatarUrl }: AdminFeedProps) {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <motion.div
+      className="grid gap-5 lg:grid-cols-2"
+      initial="hidden"
+      animate="visible"
+      variants={{
+        hidden: {},
+        visible: {
+          transition: {
+            staggerChildren: 0.12,
+          },
+        },
+      }}
+    >
       {posts.map((post) => (
-        <PostCard key={post.id} post={post} name={ownerName} avatarUrl={avatarUrl} />
+        <motion.div key={post.id} variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}>
+          <PostCard post={post} name={ownerName} avatarUrl={avatarUrl} />
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   );
 }

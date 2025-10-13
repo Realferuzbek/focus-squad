@@ -32,8 +32,18 @@ export default async function LinkedInAdminFeedPage() {
   const avatarUrl = owner?.avatar_url ?? (viewer as any)?.avatar_url ?? viewer?.image ?? null;
 
   return (
-    <div className="min-h-[100dvh] bg-[#07070b] px-4 py-10 text-white">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
+    <div className="min-h-[100dvh] bg-[#07070b] px-4 py-12 text-white">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-10">
+        <div className="space-y-3">
+          <span className="pill">Admin Suite</span>
+          <h1 className="text-4xl font-bold tracking-tight text-white md:text-5xl">
+            LinkedIn Hub Admin
+          </h1>
+          <p className="max-w-2xl text-base text-white/60">
+            Deliver polished updates for the community and keep the hub alive with premium stories.
+          </p>
+        </div>
+
         <ProfileHeader
           name={name}
           headline={DEFAULT_HEADLINE}

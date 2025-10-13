@@ -258,7 +258,7 @@ export default function AdminManager({ initialPosts, missingTable }: AdminManage
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-2xl bg-gradient-to-r from-[#8b5cf6] via-[#a855f7] to-[#ec4899] px-6 py-3 text-sm font-semibold shadow-[0_18px_35px_rgba(138,92,246,0.35)] transition hover:shadow-[0_26px_60px_rgba(138,92,246,0.45)] disabled:cursor-not-allowed disabled:opacity-70"
+            className="btn-primary disabled:cursor-not-allowed disabled:opacity-70"
           >
             {submitting ? "Saving…" : draft.id ? "Save changes" : "Publish post"}
           </button>

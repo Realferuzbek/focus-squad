@@ -2,10 +2,17 @@ import './globals.css';
 import type { Metadata } from 'next';
 import NextTopLoader from 'nextjs-toploader';
 import type { ReactNode } from 'react';
+import { Inter } from 'next/font/google';
 
 const siteUrl = 'https://studywithferuzbek.vercel.app';
 const siteTitle = 'Studywithferuzbek';
 const siteDescription = 'Focus Squad — study together, level up.';
+
+const sans = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-sans',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -56,8 +63,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" className={`${sans.variable} font-sans`}>
+      <body className="font-sans bg-[#07070b] text-white">
         <NextTopLoader showSpinner={false} />
         {children}
       </body>

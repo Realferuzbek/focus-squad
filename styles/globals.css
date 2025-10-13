@@ -3,30 +3,44 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+:root {
+  color-scheme: dark;
+  --swf-glow-start: #8b5cf6;
+  --swf-glow-end: #ec4899;
+  --swf-card: #0d0d16;
+  --swf-muted: #171725;
+  --swf-border: rgba(255, 255, 255, 0.08);
+}
 
-html, body { height: 100%; background: #07070b; }
+html, body { height: 100%; background: #07070b; font-family: var(--font-sans), 'Inter', system-ui, sans-serif; color: rgba(255,255,255,0.92); }
 
 * { scrollbar-width: thin; scrollbar-color: #333 transparent; }
 *::-webkit-scrollbar { height: 10px; width: 10px; }
 *::-webkit-scrollbar-thumb { background: #2a2a38; border-radius: 8px; }
 
 .btn-primary {
-  @apply relative inline-flex items-center justify-center h-11 px-5 rounded-2xl text-sm font-bold;
-  background: linear-gradient(45deg, #1e90ff, #a855f7, #fb7185);
-  filter: drop-shadow(0 0 10px rgba(168,85,247,0.35));
+  @apply relative inline-flex h-11 items-center justify-center rounded-full px-6 text-sm font-semibold tracking-tight text-white transition;
+  background: linear-gradient(120deg, var(--swf-glow-start), var(--swf-glow-end));
+  box-shadow: 0 14px 35px rgba(139, 92, 246, 0.45);
+  overflow: hidden;
 }
 .btn-primary::after {
   content: '';
-  position: absolute; inset: -2px;
-  border-radius: 1.25rem;
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
   background: radial-gradient(closest-side, rgba(255,255,255,.25), transparent 70%);
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.btn-primary:hover::after {
+  opacity: 1;
 }
 .btn-secondary {
-  @apply h-11 px-4 rounded-2xl border border-neutral-700 text-sm;
+  @apply inline-flex h-11 items-center justify-center rounded-full border border-white/10 bg-[#11111f] px-5 text-sm font-medium text-white/80 transition hover:border-white/20 hover:text-white;
 }
 .pill {
-  @apply inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs border border-neutral-700 bg-[#121217];
+  @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#121217] px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white/60;
 }
 .focus-ring { @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400; }
