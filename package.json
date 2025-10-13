@@ -33,7 +33,7 @@
     "@types/canvas-confetti": "^1.9.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/luxon": "^3.7.1",
-    "eslint": "^9.37.0",
-    "eslint-config-next": "^15.5.4"
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.33"
   }
 }
