@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import PostCard, { LinkedInPost } from "./PostCard";
+import PostCard from "./PostCard";
 import Notice from "./Notice";
 
 type AdminFeedProps = {
@@ -9,16 +9,28 @@ type AdminFeedProps = {
   avatarUrl?: string | null;
 };
 
-type ApiResponse =
-  | {
-      ok: true;
-      data: LinkedInPost[];
-    }
-  | {
-      ok: false;
-      error?: string;
-      missingTable?: boolean;
-    };
+/** Matches rows from `linkedin_admin_posts` */
+type LinkedInPost = {
+  id: string;
+  title?: string | null;
+  excerpt?: string | null;
+  media_url?: string | null;
+  post_url: string;
+  created_at: string;
+  published_at?: string | null;
+};
+
+/** API response shapes */
+type ApiSuccess = { ok: true; data: LinkedInPost[] };
+type ApiFailure = {
+  ok: false;
+  error?: string;
+  /** Some handlers returned this flag */
+  missingTable?: boolean;
+  /** Optional reason enum for future-proofing */
+  reason?: "missing_table" | "not_admin" | "forbidden";
+};
+type ApiResponse = ApiSuccess | ApiFailure;
 
 export default function AdminFeed({ ownerName, avatarUrl }: AdminFeedProps) {
   const [posts, setPosts] = useState<LinkedInPost[]>([]);
@@ -33,27 +45,32 @@ export default function AdminFeed({ ownerName, avatarUrl }: AdminFeedProps) {
     async function load() {
       setLoading(true);
       setError(null);
+
       try {
         const res = await fetch("/api/linkedinhub/admin/posts", { cache: "no-store" });
         const data: ApiResponse = await res.json();
         if (!mounted) return;
 
-        if (!res.ok || !data.ok) {
-          if (data && "missingTable" in data && data.missingTable) {
+        // Narrow first: any non-OK payload is a failure shape
+        if (!data.ok) {
+          // Support either `missingTable: true` or `reason: 'missing_table'`
+          if (data.missingTable || data.reason === "missing_table") {
             setMissing(true);
           } else {
             setError(data.error ?? "Failed to load LinkedIn posts.");
           }
           setPosts([]);
           return;
-        } else {
-          setMissing(false);
-          setError(null);
-          setPosts(Array.isArray(data.data) ? data.data : []);
         }
-      } catch (err) {
+
+        // Success
+        setMissing(false);
+        setError(null);
+        setPosts(Array.isArray(data.data) ? data.data : []);
+      } catch {
         if (!mounted) return;
         setError("Network error while loading posts.");
+        setPosts([]);
       } finally {
         if (mounted) setLoading(false);
       }
