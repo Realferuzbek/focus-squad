@@ -34,7 +34,14 @@ const fileSchema = baseSchema.extend({
     .optional(),
 });
 
+type TextPayload = z.infer<typeof textSchema>;
+type FilePayload = z.infer<typeof fileSchema>;
+
 const bodySchema = z.union([textSchema, fileSchema]);
+
+function isFilePayload(payload: TextPayload | FilePayload): payload is FilePayload {
+  return "kind" in payload;
+}
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -80,17 +87,9 @@ export async function POST(req: NextRequest) {
 
     await ensureParticipant(threadId, userId, admin ? "dm_admin" : "member");
 
-    const isFile = "kind" in payload;
-    let insertPayload: Record<string, any> = {
-      thread_id: threadId,
-      author_id: userId,
-      kind: isFile ? payload.kind : "text",
-      text: isFile
-        ? payload.text?.trim()?.substring(0, 4000) ?? null
-        : payload.text.trim(),
-    };
+    let insertPayload: Record<string, any>;
 
-    if (isFile) {
+    if (isFilePayload(payload)) {
       if (!payload.filePath.startsWith(`dm-uploads/${threadId}/`)) {
         return NextResponse.json(
           { error: "File path mismatch" },
@@ -98,10 +97,20 @@ export async function POST(req: NextRequest) {
         );
       }
       insertPayload = {
-        ...insertPayload,
+        thread_id: threadId,
+        author_id: userId,
+        kind: payload.kind,
+        text: payload.text?.trim()?.substring(0, 4000) ?? null,
         file_url: payload.filePath,
         file_mime: payload.fileMime,
         file_bytes: payload.fileBytes,
+      };
+    } else {
+      insertPayload = {
+        thread_id: threadId,
+        author_id: userId,
+        kind: "text",
+        text: payload.text.trim(),
       };
     }
 
