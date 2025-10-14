@@ -9,24 +9,24 @@ const cards = [
     title: "Admin Chat",
     description: "Direct line to the team. Get help, share wins, and stay aligned.",
     href: "/community/admin",
-    tag: "New",
+    tag: "Live",
   },
   {
-    title: "Community Lounge",
-    description: "Join focused sprints, swap insights, and keep your momentum.",
-    href: "/feature/chat",
+    title: "Live Stream Chat",
+    description: "Drop into focused sessions with the squad and stay accountable.",
+    href: "#",
     tag: "Soon",
   },
   {
-    title: "Motivation Vault",
-    description: "Curated stories and tactics to keep the grind inspiring.",
-    href: "/feature/motivation",
+    title: "Groups Chat",
+    description: "Spin up micro-communities to tackle shared goals together.",
+    href: "#",
     tag: "Soon",
   },
   {
-    title: "Live Stream Studio",
-    description: "Drop into live focus sessions with the squad.",
-    href: "/feature/live",
+    title: "Anonymous Chat",
+    description: "Share candid updates and feedback—no names attached.",
+    href: "#",
     tag: "Soon",
   },
 ];
@@ -68,4 +68,3 @@ export default function CommunityPage() {
     </div>
   );
 }
-

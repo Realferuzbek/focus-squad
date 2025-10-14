@@ -27,6 +27,7 @@ export default async function DashboardPage() {
       description: "Drop updates, share wins, and stay accountable together.",
       accent: "from-[#f97316] via-[#fb7185] to-[#a855f7]",
       icon: "💬",
+      href: "/community",
     },
     {
       key: "motivation",
@@ -131,7 +132,7 @@ export default async function DashboardPage() {
           {features.map((feature) => (
             <Link
               key={feature.key}
-              href={`/feature/${feature.key}`}
+              href={feature.href ?? `/feature/${feature.key}`}
               className="group relative min-h-[160px] overflow-hidden rounded-[26px] border border-white/10 bg-[#0c0c16]/85 p-6 shadow-[0_18px_50px_rgba(12,12,22,0.6)] transition-all duration-200 hover:-translate-y-1 hover:border-white/20"
             >
               <div
