@@ -10,14 +10,31 @@ import {
 } from "@/lib/adminchat/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
-const bodySchema = z.object({
+const baseSchema = z.object({
   threadId: z.string().uuid().optional(),
+});
+
+const textSchema = baseSchema.extend({
   text: z
     .string()
     .trim()
     .min(1, "Message cannot be empty")
     .max(4000, "Message too long"),
 });
+
+const fileSchema = baseSchema.extend({
+  kind: z.enum(["image", "video", "audio", "file"]),
+  filePath: z.string().min(1),
+  fileMime: z.string().min(1),
+  fileBytes: z.number().int().positive(),
+  text: z
+    .string()
+    .trim()
+    .max(4000, "Message too long")
+    .optional(),
+});
+
+const bodySchema = z.union([textSchema, fileSchema]);
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -63,14 +80,34 @@ export async function POST(req: NextRequest) {
 
     await ensureParticipant(threadId, userId, admin ? "dm_admin" : "member");
 
+    const isFile = "kind" in payload;
+    let insertPayload: Record<string, any> = {
+      thread_id: threadId,
+      author_id: userId,
+      kind: isFile ? payload.kind : "text",
+      text: isFile
+        ? payload.text?.trim()?.substring(0, 4000) ?? null
+        : payload.text.trim(),
+    };
+
+    if (isFile) {
+      if (!payload.filePath.startsWith(`dm-uploads/${threadId}/`)) {
+        return NextResponse.json(
+          { error: "File path mismatch" },
+          { status: 400 },
+        );
+      }
+      insertPayload = {
+        ...insertPayload,
+        file_url: payload.filePath,
+        file_mime: payload.fileMime,
+        file_bytes: payload.fileBytes,
+      };
+    }
+
     const { data, error } = await sb
       .from("dm_messages")
-      .insert({
-        thread_id: threadId,
-        author_id: userId,
-        kind: "text",
-        text: payload.text.trim(),
-      })
+      .insert(insertPayload)
       .select(
         "id,thread_id,author_id,kind,text,file_url,file_mime,file_bytes,edited_at,created_at",
       )
@@ -103,4 +140,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

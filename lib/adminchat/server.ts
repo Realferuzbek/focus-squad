@@ -77,6 +77,32 @@ export async function ensureParticipant(
   if (error) throw error;
 }
 
+export async function getParticipant(
+  threadId: string,
+  userId: string,
+): Promise<{ role: string } | null> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("dm_participants")
+    .select("role")
+    .eq("thread_id", threadId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as { role: string } | null) ?? null;
+}
+
+export async function isThreadParticipant(
+  threadId: string,
+  userId: string,
+): Promise<boolean> {
+  const participant = await getParticipant(threadId, userId);
+  if (participant) return true;
+  const thread = await fetchThreadById(threadId);
+  if (!thread) return false;
+  return thread.user_id === userId;
+}
+
 export function mapThread(row: ThreadRow) {
   return {
     id: row.id,
@@ -109,10 +135,4 @@ export function isDmAdmin(user: any): boolean {
   return !!user?.is_dm_admin;
 }
 
-export function ensureThreadAccess(userId: string, thread: ThreadRow | null) {
-  if (!thread) return false;
-  return thread.user_id === userId;
-}
-
 export { THREAD_COLUMNS, MESSAGE_COLUMNS };
-

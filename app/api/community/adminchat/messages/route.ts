@@ -61,20 +61,24 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parsed.limit ?? PAGE_SIZE, 100);
     const sb = supabaseAdmin();
 
+    const selecting =
+      "id,thread_id,author_id,kind,text,file_url,file_mime,file_bytes,edited_at,created_at,visibility:dm_message_visibility!left(user_id,hidden)";
+
+    const usingSearch = !!parsed.q;
+
     let query = sb
       .from("dm_messages")
-      .select(
-        "id,thread_id,author_id,kind,text,file_url,file_mime,file_bytes,edited_at,created_at,visibility:dm_message_visibility!left(user_id,hidden)",
-      )
+      .select(selecting)
       .eq("thread_id", threadId)
-      .order("created_at", { ascending: false })
-      .limit(limit + 5); // fetch extra to compensate for hidden
+      .order("created_at", { ascending: false });
 
-    if (parsed.cursor) {
-      query = query.lt("created_at", parsed.cursor);
-    }
-    if (parsed.q) {
-      query = query.ilike("text", `%${parsed.q}%`);
+    if (usingSearch) {
+      query = query.ilike("text", `%${parsed.q}%`).limit(100);
+    } else {
+      query = query.limit(limit + 5);
+      if (parsed.cursor) {
+        query = query.lt("created_at", parsed.cursor);
+      }
     }
 
     const { data, error } = await query;
@@ -94,16 +98,29 @@ export async function GET(req: NextRequest) {
       return !hidden;
     });
 
-    const paged = rows.slice(0, limit);
-    const hasMore = rows.length > limit;
-    const nextCursor =
-      hasMore && paged.length > 0 ? paged[paged.length - 1].created_at : null;
+    if (usingSearch) {
+      const mapped = rows.map((row: any) => {
+        const message = mapMessage(row);
+        const highlight = buildHighlight(message.text ?? "", parsed.q!);
+        return { ...message, highlight };
+      });
+      return NextResponse.json({
+        messages: mapped.reverse(),
+        hasMore: false,
+        nextCursor: null,
+      });
+    } else {
+      const paged = rows.slice(0, limit);
+      const hasMore = rows.length > limit;
+      const nextCursor =
+        hasMore && paged.length > 0 ? paged[paged.length - 1].created_at : null;
 
-    return NextResponse.json({
-      messages: paged.reverse().map(mapMessage),
-      hasMore,
-      nextCursor,
-    });
+      return NextResponse.json({
+        messages: paged.reverse().map(mapMessage),
+        hasMore,
+        nextCursor,
+      });
+    }
   } catch (err) {
     console.error(err);
     return NextResponse.json(
@@ -113,3 +130,16 @@ export async function GET(req: NextRequest) {
   }
 }
 
+function escapeRegExp(input: string) {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildHighlight(text: string, query: string) {
+  if (!text) return null;
+  const regex = new RegExp(`(${escapeRegExp(query)})`, "gi");
+  const snippet = text
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 280);
+  return snippet.replace(regex, "<mark>$1</mark>");
+}
