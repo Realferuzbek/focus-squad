@@ -19,10 +19,21 @@ import { AnimatePresence, motion } from "framer-motion";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import GlowPanel from "@/components/GlowPanel";
 import Image from "next/image";
-import "emoji-mart/css/emoji-mart.css";
+import "@emoji-mart/css/emoji-mart.css";
 
 const EmojiPicker = dynamic(
-  () => import("emoji-mart").then((mod) => mod.Picker),
+  () =>
+    Promise.all([
+      import("@emoji-mart/react"),
+      import("@emoji-mart/data"),
+    ]).then(([mod, data]) => {
+      const Picker = mod.default;
+      const EmojiPickerComponent = (props: any) => (
+        <Picker data={data.default} {...props} />
+      );
+      EmojiPickerComponent.displayName = "EmojiPickerComponent";
+      return EmojiPickerComponent;
+    }),
   { ssr: false },
 );
 
