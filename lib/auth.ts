@@ -53,13 +53,14 @@ export const authOptions: NextAuthOptions = {
         const sb = supabaseAdmin();
         const { data } = await sb
           .from("users")
-          .select("id,is_admin,telegram_user_id,avatar_url,name,display_name")
+          .select("id,is_admin,is_dm_admin,telegram_user_id,avatar_url,name,display_name")
           .eq("email", email)
           .maybeSingle();
 
         if (data) {
           (token as any).uid = data.id;
           (token as any).is_admin = !!data.is_admin;
+          (token as any).is_dm_admin = !!data.is_dm_admin;
           (token as any).telegram_linked = !!data.telegram_user_id;
           (token as any).avatar_url = data.avatar_url ?? null;
           (token as any).display_name = data.display_name ?? data.name ?? null;
@@ -74,6 +75,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       (session.user as any).id = (token as any).uid;
       (session.user as any).is_admin = !!(token as any).is_admin;
+      (session.user as any).is_dm_admin = !!(token as any).is_dm_admin;
       (session.user as any).telegram_linked = !!(token as any).telegram_linked;
       (session.user as any).avatar_url = (token as any).avatar_url ?? session.user?.image ?? null;
       (session.user as any).display_name = (token as any).display_name ?? session.user?.name ?? null;
