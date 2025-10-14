@@ -994,6 +994,7 @@ export default function AdminChatClient({
                       onDelete={handleHide}
                       menuOpenId={menuOpenId}
                       setMenuOpenId={setMenuOpenId}
+                      setEditingId={setEditingId}
                       editingId={editingId}
                       editingText={editingText}
                       setEditingText={setEditingText}
@@ -1343,6 +1344,7 @@ type MessageBubbleProps = {
   setMenuOpenId: (id: string | null) => void;
   editingId: string | null;
   editingText: string;
+  setEditingId: (value: string | null) => void;
   setEditingText: (value: string) => void;
   onEditSubmit: () => void;
   resolveFileUrl: (path: string) => Promise<string>;
@@ -1359,6 +1361,7 @@ function MessageBubble({
   setMenuOpenId,
   editingId,
   editingText,
+  setEditingId,
   setEditingText,
   onEditSubmit,
   resolveFileUrl,
@@ -1625,3 +1628,4 @@ function Spoiler(props: any) {
     </span>
   );
 }
+
