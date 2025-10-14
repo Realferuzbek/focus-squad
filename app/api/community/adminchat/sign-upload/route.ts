@@ -75,6 +75,6 @@ export async function POST(req: Request) {
   return NextResponse.json({
     path,
     token: data.token,
-    expiresIn: data.expiresIn,
+    expiresIn: 60,
   });
 }
