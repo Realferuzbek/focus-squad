@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 type Slot = { index: number; start: string; end: string; label: string | null; note: string; locked: boolean };
 export default function SessionsCard() {
@@ -7,13 +7,13 @@ export default function SessionsCard() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [saving, setSaving] = useState<number | null>(null);
 
-  async function load(d = date) {
+  const load = useCallback(async (d = date) => {
     const r = await fetch(`/api/slots?date=${d}`, { cache: 'no-store' });
     const data = await r.json();
     setSlots(data.blocks ?? []);
-  }
+  }, [date]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   async function save(idx: number, note: string) {
     setSaving(idx);

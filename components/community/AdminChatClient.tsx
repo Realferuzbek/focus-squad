@@ -625,3 +625,4 @@ function mapMessageRow(row: any): Message {
   };
 }
 
+
