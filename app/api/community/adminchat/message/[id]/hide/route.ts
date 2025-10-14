@@ -1,15 +1,30 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import {
-  fetchThreadById,
-  fetchThreadByUserId,
-  isDmAdmin,
-} from "@/lib/adminchat/server";
+import { fetchThreadById, fetchThreadByUserId, isDmAdmin } from "@/lib/adminchat/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
 type RouteParams = {
   params: { id: string };
 };
+
+function buildMessagePreview(kind: string, text: string | null) {
+  const trimmed = text?.trim();
+  if (trimmed) {
+    return trimmed.length > 140 ? `${trimmed.slice(0, 137)}…` : trimmed;
+  }
+  switch (kind) {
+    case "image":
+      return "[image]";
+    case "video":
+      return "[video]";
+    case "audio":
+      return "[audio]";
+    case "file":
+      return "[file]";
+    default:
+      return "Message hidden";
+  }
+}
 
 export async function POST(_: Request, { params }: RouteParams) {
   const session = await auth();
@@ -30,7 +45,7 @@ export async function POST(_: Request, { params }: RouteParams) {
     const sb = supabaseAdmin();
     const { data: messageRow, error } = await sb
       .from("dm_messages")
-      .select("id,thread_id")
+      .select("id,thread_id,kind,text")
       .eq("id", messageId)
       .maybeSingle();
 
@@ -77,6 +92,18 @@ export async function POST(_: Request, { params }: RouteParams) {
       );
     }
 
+    const preview = buildMessagePreview(messageRow.kind, messageRow.text ?? null);
+    const { error: auditError } = await sb.from("dm_audit").insert({
+      thread_id: messageRow.thread_id,
+      actor_id: userId,
+      action: "message_delete_soft",
+      target_id: messageId,
+      meta: { kind: messageRow.kind, preview, scope: "self" },
+    });
+    if (auditError) {
+      console.error(auditError);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -86,4 +113,3 @@ export async function POST(_: Request, { params }: RouteParams) {
     );
   }
 }
-

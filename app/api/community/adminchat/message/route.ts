@@ -9,6 +9,7 @@ import {
   mapMessage,
 } from "@/lib/adminchat/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
+import { notifyThreadNewMessage } from "@/lib/push";
 
 const baseSchema = z.object({
   threadId: z.string().uuid().optional(),
@@ -41,6 +42,25 @@ const bodySchema = z.union([textSchema, fileSchema]);
 
 function isFilePayload(payload: TextPayload | FilePayload): payload is FilePayload {
   return "kind" in payload;
+}
+
+function buildMessagePreview(kind: string, text: string | null) {
+  const trimmed = text?.trim();
+  if (trimmed) {
+    return trimmed.length > 140 ? `${trimmed.slice(0, 137)}…` : trimmed;
+  }
+  switch (kind) {
+    case "image":
+      return "[image]";
+    case "video":
+      return "[video]";
+    case "audio":
+      return "[audio]";
+    case "file":
+      return "[file]";
+    default:
+      return "New message";
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -139,6 +159,26 @@ export async function POST(req: NextRequest) {
     await sb
       .from("dm_receipts")
       .upsert({ thread_id: threadId, user_id: userId, last_read_at: nowIso, typing: false });
+
+    const preview = buildMessagePreview(data.kind, data.text);
+    const { error: auditError } = await sb.from("dm_audit").insert({
+      thread_id: threadId,
+      actor_id: userId,
+      action: "message_create",
+      target_id: data.id,
+      meta: { kind: data.kind, preview },
+    });
+    if (auditError) {
+      console.error(auditError);
+    }
+
+    if (data.kind !== "system") {
+      try {
+        await notifyThreadNewMessage(threadId, userId, preview);
+      } catch (notifyError) {
+        console.error(notifyError);
+      }
+    }
 
     return NextResponse.json({ message: mapMessage(data) });
   } catch (err) {

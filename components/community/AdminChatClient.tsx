@@ -17,6 +17,7 @@ import remarkGfm from "remark-gfm";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { AnimatePresence, motion } from "framer-motion";
 import { supabaseBrowser } from "@/lib/supabaseClient";
+import { hasSubscription, subscribePush, unsubscribePush } from "@/lib/pushClient";
 import GlowPanel from "@/components/GlowPanel";
 import Image from "next/image";
 import "@emoji-mart/css/emoji-mart.css";
@@ -78,6 +79,23 @@ type MessagesResponse = {
 
 type SearchResponse = {
   messages: Message[];
+  hasMore: boolean;
+  nextCursor: string | null;
+};
+
+type AuditEntry = {
+  id: number;
+  threadId: string;
+  actorId: string | null;
+  action: string;
+  targetId: string | null;
+  meta: Record<string, any> | null;
+  createdAt: string;
+  text: string;
+};
+
+type AuditResponse = {
+  entries: AuditEntry[];
   hasMore: boolean;
   nextCursor: string | null;
 };
@@ -160,6 +178,15 @@ export default function AdminChatClient({
     wallpaperUrl: initialThread?.wallpaperUrl ?? "",
     description: initialThread?.description ?? "",
   });
+  const [pushSupported, setPushSupported] = useState(true);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditCursor, setAuditCursor] = useState<string | null>(null);
+  const [auditHasMore, setAuditHasMore] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
 
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -176,6 +203,12 @@ export default function AdminChatClient({
   );
 
   const isDmAdmin = !!user.isDmAdmin;
+  const pushLabel = pushSupported
+    ? pushSubscribed
+      ? "Subscribed"
+      : "Off"
+    : "Unavailable";
+  const pushIcon = pushSupported ? (pushSubscribed ? "🔔" : "🔕") : "🚫";
 
   const virtualizer = useVirtualizer({
     count: messages.length,
@@ -251,11 +284,111 @@ export default function AdminChatClient({
     }
   }, []);
 
+  const loadAudit = useCallback(
+    async (cursor?: string) => {
+      if (!isDmAdmin || !memoizedThreadId) return;
+      setAuditLoading(true);
+      try {
+        const params = new URLSearchParams({ threadId: memoizedThreadId });
+        if (cursor) params.set("cursor", cursor);
+        const res = await fetch(
+          `/api/community/adminchat/audit?${params.toString()}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) throw new Error("Failed to load audit entries");
+        const data: AuditResponse = await res.json();
+        setAuditEntries((prev) =>
+          cursor ? [...prev, ...data.entries] : data.entries,
+        );
+        setAuditHasMore(data.hasMore);
+        setAuditCursor(data.nextCursor);
+        setAuditError(null);
+      } catch (err) {
+        console.error(err);
+        setAuditError("Unable to load recent actions.");
+      } finally {
+        setAuditLoading(false);
+      }
+    },
+    [isDmAdmin, memoizedThreadId],
+  );
+
+  const refreshAuditIfOpen = useCallback(() => {
+    if (auditOpen && !auditLoading) {
+      loadAudit();
+    }
+  }, [auditLoading, auditOpen, loadAudit]);
+
+  const handleLoadMoreAudit = useCallback(() => {
+    if (!auditCursor || auditLoading) return;
+    loadAudit(auditCursor);
+  }, [auditCursor, auditLoading, loadAudit]);
+
+  const handleTogglePush = useCallback(async () => {
+    if (!pushSupported || pushLoading) return;
+    setPushLoading(true);
+    try {
+      if (pushSubscribed) {
+        await unsubscribePush();
+        setPushSubscribed(false);
+      } else {
+        await subscribePush();
+        setPushSubscribed(true);
+      }
+      refreshAuditIfOpen();
+    } catch (err) {
+      console.error(err);
+      const message =
+        err instanceof Error ? err.message : "Failed to update push notifications.";
+      if (message.toLowerCase().includes("denied")) {
+        setError("Notifications are blocked in your browser settings.");
+      } else {
+        setError("Unable to update push notifications right now.");
+      }
+    } finally {
+      setPushLoading(false);
+    }
+  }, [pushSupported, pushLoading, pushSubscribed, refreshAuditIfOpen]);
+
   useEffect(() => {
     if (memoizedThreadId) {
       loadMessages();
     }
   }, [memoizedThreadId, loadMessages]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const supported =
+      "serviceWorker" in navigator &&
+      "PushManager" in window &&
+      typeof Notification !== "undefined";
+    setPushSupported(supported);
+    if (!supported) return;
+    hasSubscription()
+      .then((value) => setPushSubscribed(value))
+      .catch(() => setPushSubscribed(false));
+  }, []);
+
+  useEffect(() => {
+    setAuditEntries([]);
+    setAuditCursor(null);
+    setAuditHasMore(false);
+    setAuditError(null);
+    setAuditOpen(false);
+  }, [memoizedThreadId]);
+
+  useEffect(() => {
+    if (!auditOpen || !isDmAdmin || !memoizedThreadId) return;
+    if (auditEntries.length > 0 || auditLoading) return;
+    loadAudit();
+  }, [
+    auditOpen,
+    isDmAdmin,
+    memoizedThreadId,
+    loadAudit,
+    auditEntries.length,
+    auditLoading,
+  ]);
 
   const sendReceipt = useCallback(
     async (typing: boolean) => {
@@ -306,6 +439,7 @@ export default function AdminChatClient({
             sendReceipt(false);
           }
           scrollToBottom(true);
+          refreshAuditIfOpen();
         },
       )
       .on(
@@ -325,6 +459,22 @@ export default function AdminChatClient({
                 : msg,
             ),
           );
+          refreshAuditIfOpen();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "dm_messages",
+          filter: `thread_id=eq.${memoizedThreadId}`,
+        },
+        (payload) => {
+          const row = payload.old as any;
+          if (!row?.id) return;
+          setMessages((prev) => prev.filter((msg) => msg.id !== row.id));
+          refreshAuditIfOpen();
         },
       )
       .on(
@@ -339,6 +489,9 @@ export default function AdminChatClient({
           const hidden = payload.new as any;
           if (!hidden.hidden) return;
           setMessages((prev) => prev.filter((msg) => msg.id !== hidden.message_id));
+          if (hidden.user_id !== user.id) {
+            refreshAuditIfOpen();
+          }
         },
       )
       .subscribe();
@@ -347,7 +500,7 @@ export default function AdminChatClient({
       channel.unsubscribe();
       channelRef.current = null;
     };
-  }, [memoizedThreadId, scrollToBottom, sendReceipt, user.id]);
+  }, [memoizedThreadId, refreshAuditIfOpen, scrollToBottom, sendReceipt, user.id]);
 
   useEffect(() => {
     if (!memoizedThreadId) return;
@@ -503,13 +656,14 @@ export default function AdminChatClient({
       });
       setComposer("");
       scrollToBottom(true);
+      refreshAuditIfOpen();
     } catch (err) {
       console.error(err);
       setError("Message failed to send.");
     } finally {
       setSending(false);
     }
-  }, [composer, isDmAdmin, memoizedThreadId, scrollToBottom, sending]);
+  }, [composer, isDmAdmin, memoizedThreadId, refreshAuditIfOpen, scrollToBottom, sending]);
 
   const handleEditSubmit = useCallback(async () => {
     if (!editingId) return;
@@ -534,13 +688,14 @@ export default function AdminChatClient({
             : msg,
         ),
       );
+      refreshAuditIfOpen();
       setEditingId(null);
       setEditingText("");
     } catch (err) {
       console.error(err);
       setError("Unable to edit message.");
     }
-  }, [editingId, editingText]);
+  }, [editingId, editingText, refreshAuditIfOpen]);
 
   const handleHide = useCallback(async (messageId: string) => {
     try {
@@ -550,11 +705,26 @@ export default function AdminChatClient({
       );
       if (!res.ok) throw new Error("Failed");
       setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+      refreshAuditIfOpen();
     } catch (err) {
       console.error(err);
       setError("Failed to delete message.");
     }
-  }, []);
+  }, [refreshAuditIfOpen]);
+
+  const handleHardDelete = useCallback(async (messageId: string) => {
+    try {
+      const res = await fetch(`/api/community/adminchat/message/${messageId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed");
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+      refreshAuditIfOpen();
+    } catch (err) {
+      console.error(err);
+      setError("Failed to hard delete message.");
+    }
+  }, [refreshAuditIfOpen]);
 
   const compressImage = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) return file;
@@ -627,6 +797,7 @@ export default function AdminChatClient({
               new Date(b.createdAt).getTime(),
           );
         });
+        refreshAuditIfOpen();
         scrollToBottom(true);
       } catch (err: any) {
         console.error(err);
@@ -640,7 +811,7 @@ export default function AdminChatClient({
         setUploadQueue((prev) => prev.filter((task) => task.id !== taskId));
       }
     },
-    [compressImage, scrollToBottom, signUpload],
+    [compressImage, refreshAuditIfOpen, scrollToBottom, signUpload],
   );
 
   const handleFileInput = useCallback(
@@ -812,11 +983,12 @@ export default function AdminChatClient({
       const data = await res.json();
       setThread(data.thread);
       setCustomizeOpen(false);
+      refreshAuditIfOpen();
     } catch (err) {
       console.error(err);
       setError("Unable to update thread details.");
     }
-  }, [memoizedThreadId, metaForm]);
+  }, [memoizedThreadId, metaForm, refreshAuditIfOpen]);
 
   const markdownComponents = useMemo(
     () => ({
@@ -879,14 +1051,27 @@ export default function AdminChatClient({
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/60 transition hover:border-white/30 hover:text-white"
-              disabled
+              className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={handleTogglePush}
+              disabled={!pushSupported || pushLoading}
+              title={pushSupported ? "Toggle push notifications" : "Push not supported"}
             >
-              🔔
+              <span>{pushIcon}</span>
+              <span>{pushLoading ? "…" : pushLabel}</span>
             </button>
+            {isDmAdmin && (
+              <button
+                type="button"
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/60 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => setAuditOpen(true)}
+                disabled={!memoizedThreadId}
+              >
+                Recent actions
+              </button>
+            )}
             <button
               type="button"
               className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/60 transition hover:border-white/30 hover:text-white"
@@ -991,11 +1176,13 @@ export default function AdminChatClient({
                         setEditingId(msg.id);
                         setEditingText(msg.text ?? "");
                       }}
-                      onDelete={handleHide}
-                      menuOpenId={menuOpenId}
-                      setMenuOpenId={setMenuOpenId}
-                      setEditingId={setEditingId}
-                      editingId={editingId}
+                    onDelete={handleHide}
+                    onHardDelete={handleHardDelete}
+                    canHardDelete={isDmAdmin}
+                    menuOpenId={menuOpenId}
+                    setMenuOpenId={setMenuOpenId}
+                    setEditingId={setEditingId}
+                    editingId={editingId}
                       editingText={editingText}
                       setEditingText={setEditingText}
                       onEditSubmit={handleEditSubmit}
@@ -1189,6 +1376,81 @@ export default function AdminChatClient({
       </AnimatePresence>
 
       <AnimatePresence>
+        {auditOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur"
+            onClick={() => setAuditOpen(false)}
+          >
+            <motion.div
+              initial={{ x: 320 }}
+              animate={{ x: 0 }}
+              exit={{ x: 320 }}
+              transition={{ type: "spring", stiffness: 260, damping: 28 }}
+              className="h-full w-full max-w-md overflow-y-auto border-l border-white/10 bg-[#090912]/95 px-6 py-6 text-white shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Recent actions</h3>
+                  <p className="text-xs text-white/50">
+                    Logged events for this thread.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="text-sm text-white/60 transition hover:text-white"
+                  onClick={() => setAuditOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              {auditError && (
+                <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
+                  {auditError}
+                </div>
+              )}
+              <div className="mt-4 space-y-3">
+                {auditEntries.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80"
+                  >
+                    <div>{entry.text}</div>
+                    <div className="mt-2 text-[11px] uppercase tracking-wide text-white/35">
+                      {new Date(entry.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+                {!auditEntries.length && !auditLoading && !auditError && (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-center text-xs text-white/50">
+                    No activity recorded yet.
+                  </div>
+                )}
+                {auditLoading && auditEntries.length === 0 && (
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center text-xs text-white/60">
+                    Loading…
+                  </div>
+                )}
+              </div>
+              {auditHasMore && (
+                <button
+                  type="button"
+                  className="mt-6 w-full rounded-2xl border border-white/15 bg-transparent px-4 py-2 text-xs font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={handleLoadMoreAudit}
+                  disabled={auditLoading}
+                >
+                  {auditLoading ? "Loading…" : "Load more"}
+                </button>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {searchOpen && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -1340,6 +1602,8 @@ type MessageBubbleProps = {
   active: boolean;
   onEdit: (message: Message) => void;
   onDelete: (id: string) => void;
+  onHardDelete: (id: string) => void;
+  canHardDelete: boolean;
   menuOpenId: string | null;
   setMenuOpenId: (id: string | null) => void;
   editingId: string | null;
@@ -1357,6 +1621,8 @@ function MessageBubble({
   active,
   onEdit,
   onDelete,
+  onHardDelete,
+  canHardDelete,
   menuOpenId,
   setMenuOpenId,
   editingId,
@@ -1459,6 +1725,18 @@ function MessageBubble({
                     }}
                   >
                     Edit
+                  </button>
+                )}
+                {canHardDelete && message.kind !== "system" && (
+                  <button
+                    type="button"
+                    className="rounded-xl px-3 py-2 text-left text-rose-200 transition hover:bg-rose-500/20 hover:text-white"
+                    onClick={() => {
+                      onHardDelete(message.id);
+                      setMenuOpenId(null);
+                    }}
+                  >
+                    Hard delete
                   </button>
                 )}
                 <button

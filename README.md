@@ -23,6 +23,26 @@ Next.js 14 app for the Focus Squad community. Features Google authentication via
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_GROUP_ID`, `TELEGRAM_BOT_USERNAME`
 - `PUBLIC_TG_GROUP_LINK`
 - `CRON_SECRET`
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_SUBJECT`
+
+## Web Push Setup
+
+Generate a VAPID key pair (run once) and copy the values into `.env.local`:
+
+```bash
+node -e "const webpush = require('web-push'); const keys = webpush.generateVAPIDKeys(); console.log(keys);"
+```
+
+Add the resulting values as:
+
+```
+VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
+VAPID_SUBJECT=mailto:hello@example.com
+```
+
+`VAPID_SUBJECT` can be a `mailto:` address or an HTTPS origin that identifies your application.
 
 ## Scripts
 
