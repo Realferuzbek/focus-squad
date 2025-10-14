@@ -140,27 +140,6 @@ export default function AdminChatClient({
     el.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
   }, []);
 
-  const sendReceipt = useCallback(
-    async (typing: boolean, threadId?: string) => {
-      const currentThreadId = threadId ?? thread?.id;
-      if (!currentThreadId) return;
-      try {
-        await fetch("/api/community/adminchat/receipt", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            threadId: isDmAdmin ? currentThreadId : undefined,
-            typing,
-            lastReadAt: !typing ? new Date().toISOString() : undefined,
-          }),
-        });
-      } catch (err) {
-        console.error(err);
-      }
-    },
-    [isDmAdmin, thread?.id],
-  );
-
   useEffect(() => {
     if (thread) {
       loadMessages();
@@ -246,6 +225,27 @@ export default function AdminChatClient({
       sendReceipt(false, thread.id);
     }
   }, [messages, thread, user.id, sendReceipt]);
+
+  const sendReceipt = useCallback(
+    async (typing: boolean, threadId?: string) => {
+      const currentThreadId = threadId ?? thread?.id;
+      if (!currentThreadId) return;
+      try {
+        await fetch("/api/community/adminchat/receipt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            threadId: isDmAdmin ? currentThreadId : undefined,
+            typing,
+            lastReadAt: !typing ? new Date().toISOString() : undefined,
+          }),
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    },
+    [isDmAdmin, thread?.id],
+  );
 
   const handleStart = useCallback(async () => {
     try {
