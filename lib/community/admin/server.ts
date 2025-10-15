@@ -6,6 +6,7 @@ export type AdminInboxThread = {
   status: string;
   lastMessageAt: string | null;
   avatarUrl: string | null;
+  lastMessagePreview: string | null;
   targetUser: {
     id: string;
     name: string | null;
@@ -85,6 +86,16 @@ export async function listAdminThreads(adminId: string): Promise<AdminInboxThrea
     new Set(orderedThreads.map((row) => row.user_id).filter(Boolean)),
   ) as string[];
 
+  const messagesPromise = sb
+    .from("dm_messages")
+    .select("thread_id,kind,text,file_mime,file_bytes,created_at")
+    .in(
+      "thread_id",
+      orderedThreads.map((row) => row.id),
+    )
+    .order("created_at", { ascending: false })
+    .limit(Math.max(orderedThreads.length * 3, 60));
+
   const receiptsPromise = sb
     .from("dm_receipts")
     .select("thread_id,last_read_at")
@@ -114,6 +125,44 @@ export async function listAdminThreads(adminId: string): Promise<AdminInboxThrea
     userMap.set(user.id, user);
   });
 
+  const { data: messageRows, error: messagesError } = await messagesPromise;
+  if (messagesError) throw messagesError;
+
+  type LastMessageRow = {
+    thread_id: string;
+    kind: string;
+    text: string | null;
+    file_mime: string | null;
+    file_bytes: number | null;
+  };
+
+  const lastMessageMap = new Map<string, LastMessageRow>();
+  (messageRows ?? []).forEach((row: any) => {
+    const threadId = row.thread_id as string | null;
+    if (!threadId) return;
+    if (!lastMessageMap.has(threadId)) {
+      lastMessageMap.set(threadId, row as LastMessageRow);
+    }
+  });
+
+  function buildPreview(row: LastMessageRow | undefined): string | null {
+    if (!row) return null;
+    if (row.kind === "text" && row.text) {
+      const trimmed = row.text.replace(/\s+/g, " ").trim();
+      if (!trimmed) return null;
+      return trimmed.slice(0, 120);
+    }
+    if (row.kind === "audio") return "Voice message";
+    if (row.kind === "video") return "Video";
+    if (row.kind === "image") return "Photo";
+    if (row.kind === "file") {
+      if (row.file_mime?.startsWith("application/pdf")) return "PDF";
+      if (row.file_mime?.startsWith("application/zip")) return "Archive";
+      return "File";
+    }
+    return row.kind ? row.kind.charAt(0).toUpperCase() + row.kind.slice(1) : null;
+  }
+
   return orderedThreads.map((row) => {
     const user = row.user_id ? userMap.get(row.user_id) : null;
     const lastMessageAt = row.last_message_at ?? null;
@@ -126,6 +175,7 @@ export async function listAdminThreads(adminId: string): Promise<AdminInboxThrea
       id: row.id,
       status: row.status,
       lastMessageAt,
+       lastMessagePreview: buildPreview(lastMessageMap.get(row.id)),
       avatarUrl: row.avatar_url ?? (user?.avatar_url ?? null),
       targetUser: user
         ? {

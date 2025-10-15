@@ -10,8 +10,8 @@ import {
   useRef,
   useState,
   useId,
-  type CSSProperties,
 } from "react";
+import type { ChangeEvent, MouseEvent, TouchEvent } from "react";
 import dynamic from "next/dynamic";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import ReactMarkdown from "react-markdown";
@@ -22,7 +22,8 @@ import { supabaseBrowser } from "@/lib/supabaseClient";
 import { hasSubscription, subscribePush, unsubscribePush } from "@/lib/pushClient";
 import GlowPanel from "@/components/GlowPanel";
 import Image from "next/image";
-import { Bell, Inbox, Mic, Paperclip, Search, Smile } from "lucide-react";
+import TextareaAutosize from "react-textarea-autosize";
+import { Bell, ChevronLeft, Mic, Paperclip, Search, Send, Smile } from "lucide-react";
 import "@emoji-mart/css/emoji-mart.css";
 
 const EmojiPicker = dynamic(
@@ -40,6 +41,49 @@ const EmojiPicker = dynamic(
     }),
   { ssr: false },
 );
+
+const WALLPAPER_STORAGE_KEY = "adminChat.wallpaper";
+const WALLPAPER_MAX_DIMENSION = 1920;
+
+type FormatAction = "bold" | "italic" | "underline" | "spoiler" | "quote";
+
+async function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Unable to read file"));
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+      } else {
+        reject(new Error("Invalid file result"));
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressWallpaper(file: File): Promise<string> {
+  const base64 = await readFileAsDataUrl(file);
+  if (typeof window === "undefined") {
+    throw new Error("Window not available");
+  }
+  const image = new window.Image();
+  image.src = base64;
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error("Unable to load image"));
+  });
+  const { width, height } = image;
+  const maxSide = Math.max(width, height);
+  const scale = maxSide > WALLPAPER_MAX_DIMENSION ? WALLPAPER_MAX_DIMENSION / maxSide : 1;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(height * scale);
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas not supported");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
 
 export type ThreadMeta = {
   id: string;
@@ -122,6 +166,7 @@ type AdminChatClientProps = {
   inboxOpen?: boolean;
   onToggleInbox?: () => void;
   onCloseInbox?: () => void;
+  onCollapseToInbox?: () => void;
 };
 
 type UploadTask = {
@@ -205,6 +250,7 @@ export default function AdminChatClient({
   inboxOpen,
   onToggleInbox,
   onCloseInbox,
+  onCollapseToInbox,
 }: AdminChatClientProps) {
   const [thread, setThread] = useState<ThreadMeta | null>(initialThread);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -230,6 +276,10 @@ export default function AdminChatClient({
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [wallpaperDataUrl, setWallpaperDataUrl] = useState<string | null>(null);
+  const [wallpaperSaving, setWallpaperSaving] = useState(false);
+  const [wallpaperError, setWallpaperError] = useState<string | null>(null);
+  const [wallpaperMessage, setWallpaperMessage] = useState<string | null>(null);
   const emojiMenuId = useId();
   const attachMenuId = useId();
   const [headerMeta, setHeaderMeta] = useState<ThreadDisplayMeta | null>(
@@ -249,6 +299,11 @@ export default function AdminChatClient({
   const [auditCursor, setAuditCursor] = useState<string | null>(null);
   const [auditHasMore, setAuditHasMore] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
+  const [formatMenu, setFormatMenu] = useState<{ visible: boolean; x: number; y: number }>({
+    visible: false,
+    x: 0,
+    y: 0,
+  });
 
   useEffect(() => {
     setThread(initialThread);
@@ -262,6 +317,23 @@ export default function AdminChatClient({
   useEffect(() => {
     setHeaderMeta(threadDisplayMeta ?? null);
   }, [threadDisplayMeta]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = window.localStorage.getItem(WALLPAPER_STORAGE_KEY);
+      if (stored) {
+        setWallpaperDataUrl(stored);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  const hideFormatMenu = useCallback(() => {
+    setFormatMenu((prev) => (prev.visible ? { ...prev, visible: false } : prev));
+    selectionPointerRef.current = null;
+  }, []);
 
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -280,6 +352,9 @@ export default function AdminChatClient({
   const actionHistoryRef = useRef<number[]>([]);
   const rateLimitTimerRef = useRef<NodeJS.Timeout | null>(null);
   const errorTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const wallpaperInputRef = useRef<HTMLInputElement | null>(null);
+  const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
+  const selectionPointerRef = useRef<{ x: number; y: number } | null>(null);
 
   const prefersReducedMotion = useReducedMotion();
   const isDmAdmin = !!user.isDmAdmin;
@@ -299,6 +374,71 @@ export default function AdminChatClient({
     overscan: 8,
   });
   const virtualItems = virtualizer.getVirtualItems();
+
+  useEffect(() => {
+    const textarea = composerRef.current;
+    if (!textarea) return;
+
+    const handleSelectionChange = () => {
+      const node = composerRef.current;
+      if (!node) return;
+      if (document.activeElement !== node) {
+        hideFormatMenu();
+        return;
+      }
+      const start = node.selectionStart ?? 0;
+      const end = node.selectionEnd ?? 0;
+      selectionRef.current = { start, end };
+      if (end - start <= 0) {
+        hideFormatMenu();
+        return;
+      }
+      const rect = node.getBoundingClientRect();
+      const pointer = selectionPointerRef.current;
+      const clientX = pointer?.x ?? rect.left + rect.width / 2;
+      const clientY = pointer?.y ?? rect.top;
+      setFormatMenu({
+        visible: true,
+        x: clientX + window.scrollX,
+        y: clientY + window.scrollY - 56,
+      });
+    };
+
+    const handleBlur = () => hideFormatMenu();
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    window.addEventListener("resize", hideFormatMenu);
+    textarea.addEventListener("blur", handleBlur);
+    textarea.addEventListener("scroll", hideFormatMenu);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+      window.removeEventListener("resize", hideFormatMenu);
+      textarea.removeEventListener("blur", handleBlur);
+      textarea.removeEventListener("scroll", hideFormatMenu);
+    };
+  }, [hideFormatMenu]);
+
+  useEffect(() => {
+    if (!composer.trim()) {
+      hideFormatMenu();
+    }
+  }, [composer, hideFormatMenu]);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const textarea = composerRef.current;
+      if (textarea && document.activeElement === textarea) {
+        if (composer.trim().length > 0) return;
+        textarea.blur();
+      }
+      onCollapseToInbox?.();
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [composer, onCollapseToInbox]);
 
   const measureRow = useCallback(
     (node: HTMLDivElement | null, key: string) => {
@@ -700,35 +840,67 @@ export default function AdminChatClient({
       sendReceipt(false);
     }
   }, [composer, memoizedThreadId, sendReceipt]);
-  const applyFormatting = useCallback((type: "bold" | "italic" | "quote") => {
-    const textarea = composerRef.current;
-    if (!textarea) return;
-    const start = textarea.selectionStart ?? 0;
-    const end = textarea.selectionEnd ?? 0;
-    const selected = composer.slice(start, end);
-    let before = "";
-    let after = "";
-    switch (type) {
-      case "bold":
-        before = after = "**";
-        break;
-      case "italic":
-        before = after = "*";
-        break;
-      case "quote":
-        before = "\n> ";
-        after = "\n";
-        break;
-    }
-    const nextValue =
-      composer.slice(0, start) + before + selected + after + composer.slice(end);
-    setComposer(nextValue);
-    requestAnimationFrame(() => {
-      const pos = start + before.length + selected.length + after.length;
-      textarea.focus();
-      textarea.setSelectionRange(pos, pos);
-    });
-  }, [composer]);
+  const applyFormatting = useCallback(
+    (type: FormatAction) => {
+      const textarea = composerRef.current;
+      if (!textarea) return;
+      const start =
+        textarea.selectionStart ?? selectionRef.current.start ?? 0;
+      const end =
+        textarea.selectionEnd ?? selectionRef.current.end ?? start;
+      if (start === end) return;
+      const selected = composer.slice(start, end);
+      let nextValue = composer;
+      let nextStart = start;
+      let nextEnd = end;
+
+      const wrap = (before: string, after: string) => {
+        nextValue =
+          composer.slice(0, start) + before + selected + after + composer.slice(end);
+        nextStart = start + before.length;
+        nextEnd = nextStart + selected.length;
+      };
+
+      switch (type) {
+        case "bold":
+          wrap("**", "**");
+          break;
+        case "italic":
+          wrap("*", "*");
+          break;
+        case "underline":
+          wrap("__", "__");
+          break;
+        case "spoiler":
+          wrap("||", "||");
+          break;
+        case "quote": {
+          const lines = selected.split(/\r?\n/);
+          const formatted = lines
+            .map((line) => {
+              if (!line.trim()) return ">";
+              const trimmed = line.trimStart();
+              if (trimmed.startsWith(">")) return line;
+              return `> ${line}`;
+            })
+            .join("\n");
+          nextValue = composer.slice(0, start) + formatted + composer.slice(end);
+          nextStart = start;
+          nextEnd = start + formatted.length;
+          break;
+        }
+      }
+
+      setComposer(nextValue);
+      selectionRef.current = { start: nextStart, end: nextEnd };
+      requestAnimationFrame(() => {
+        textarea.focus();
+        textarea.setSelectionRange(nextStart, nextEnd);
+      });
+      hideFormatMenu();
+    },
+    [composer, hideFormatMenu],
+  );
 
   const handleInsertEmoji = useCallback(
     (emoji: any) => {
@@ -1219,10 +1391,34 @@ export default function AdminChatClient({
         } else if (event.key.toLowerCase() === "i") {
           event.preventDefault();
           applyFormatting("italic");
+        } else if (event.key.toLowerCase() === "u") {
+          event.preventDefault();
+          applyFormatting("underline");
         }
       }
     },
     [applyFormatting, handleSend],
+  );
+
+  const rememberPointer = useCallback((clientX: number, clientY: number) => {
+    selectionPointerRef.current = { x: clientX, y: clientY };
+  }, []);
+
+  const handleComposerMouseUp = useCallback(
+    (event: MouseEvent<HTMLTextAreaElement>) => {
+      rememberPointer(event.clientX, event.clientY);
+    },
+    [rememberPointer],
+  );
+
+  const handleComposerTouchEnd = useCallback(
+    (event: TouchEvent<HTMLTextAreaElement>) => {
+      const touch = event.changedTouches?.[0];
+      if (touch) {
+        rememberPointer(touch.clientX, touch.clientY);
+      }
+    },
+    [rememberPointer],
   );
 
   const handleMetaSave = useCallback(async () => {
@@ -1250,6 +1446,50 @@ export default function AdminChatClient({
     }
   }, [memoizedThreadId, metaForm, refreshAuditIfOpen, showError]);
 
+  const handleWallpaperFileChange = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const [file] = Array.from(event.target.files ?? []);
+      event.target.value = "";
+      if (!file) return;
+      setWallpaperSaving(true);
+      setWallpaperError(null);
+      setWallpaperMessage(null);
+      try {
+        const dataUrl = await compressWallpaper(file);
+        setWallpaperDataUrl(dataUrl);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(WALLPAPER_STORAGE_KEY, dataUrl);
+        }
+        setWallpaperMessage("Wallpaper saved to this device");
+      } catch (err) {
+        console.error(err);
+        setWallpaperError("Could not process wallpaper");
+      } finally {
+        setWallpaperSaving(false);
+      }
+    },
+    [],
+  );
+
+  const handleWallpaperReset = useCallback(() => {
+    setWallpaperError(null);
+    setWallpaperMessage(null);
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(WALLPAPER_STORAGE_KEY);
+      }
+      setWallpaperDataUrl(null);
+      setWallpaperMessage("Wallpaper reset to default");
+    } catch (err) {
+      console.error(err);
+      setWallpaperError("Unable to reset wallpaper");
+    }
+  }, []);
+
+  const openWallpaperPicker = useCallback(() => {
+    wallpaperInputRef.current?.click();
+  }, []);
+
   const markdownComponents = useMemo(
     () => ({
       spoiler: Spoiler,
@@ -1270,113 +1510,148 @@ export default function AdminChatClient({
   );
 
   const headerAvatar =
-    thread?.avatarUrl ??
-    headerMeta?.avatarUrl ??
     headerMeta?.targetUser?.avatarUrl ??
+    headerMeta?.avatarUrl ??
+    thread?.avatarUrl ??
     null;
-  const headerTitle = headerMeta?.title ?? "Admin Chat";
-  const headerSubtitle =
-    headerMeta?.targetUser?.email ?? headerMeta?.targetUser?.name ?? null;
-  const statusLabel = thread?.status?.toUpperCase() ?? "OPEN";
+  const headerTitle =
+    headerMeta?.targetUser?.name ??
+    headerMeta?.title ??
+    headerMeta?.targetUser?.email ??
+    "Admin Chat";
+  const headerSubtitle = headerMeta?.targetUser?.email ?? null;
   const pushButtonLabel = pushSupported
     ? pushSubscribed
       ? "Disable push notifications"
       : "Enable push notifications"
     : "Push notifications not supported";
+  const wallpaperImage = wallpaperDataUrl ?? thread?.wallpaperUrl ?? null;
+  const composerDisabled = sending || !memoizedThreadId;
+  const canSend = composer.trim().length > 0 && !composerDisabled;
 
-  const wallpaperStyle = useMemo(() => {
-    if (!thread?.wallpaperUrl) return undefined;
-    return {
-      backgroundImage: `linear-gradient(rgba(7,7,11,0.92), rgba(7,7,11,0.95)), url(${thread.wallpaperUrl})`,
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-    } as CSSProperties;
-  }, [thread?.wallpaperUrl]);
+  useEffect(() => {
+    if (composerDisabled) {
+      setAttachMenuOpen(false);
+      setEmojiOpen(false);
+      hideFormatMenu();
+    }
+  }, [composerDisabled, hideFormatMenu]);
   return (
-    <div className="flex flex-col gap-6" style={wallpaperStyle}>
-      <header className="sticky top-0 z-30 -mx-4 flex flex-col gap-4 border-b border-white/10 bg-[#07070b]/95 px-4 py-4 backdrop-blur md:mx-0 md:rounded-3xl md:border md:px-6 md:py-5">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="relative h-12 w-12 overflow-hidden rounded-2xl border border-white/10 bg-white/10 text-xl text-white/80">
-              {headerAvatar ? (
-                <Image src={headerAvatar} alt="Conversation avatar" fill className="object-cover" />
-              ) : (
-                <div className="grid h-full w-full place-items-center">💬</div>
+    <div className="relative flex flex-col gap-6">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(138,92,246,0.22),transparent_58%),radial-gradient(circle_at_18%_82%,rgba(56,189,248,0.18),transparent_65%),radial-gradient(circle_at_88%_12%,rgba(244,114,182,0.18),transparent_60%)]" />
+        {wallpaperImage ? (
+          <motion.div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `url(${wallpaperImage})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              filter: "blur(48px) saturate(120%)",
+              opacity: 0.45,
+            }}
+            animate={
+              prefersReducedMotion
+                ? undefined
+                : {
+                    scale: [1.04, 1.07, 1.04],
+                    x: ["-1%", "1%", "-1%"],
+                    y: ["-1%", "1%", "-1%"],
+                  }
+            }
+            transition={{ duration: 40, repeat: Infinity, ease: "easeInOut" }}
+          />
+        ) : null}
+        <div className="absolute inset-0 bg-[#07070b]/82 backdrop-blur-[28px]" />
+      </div>
+
+      <div className="relative flex flex-col gap-6">
+        <header className="sticky top-0 z-30 -mx-4 flex flex-col gap-3 border-b border-white/10 bg-[#07070b]/80 px-4 py-4 backdrop-blur-md md:mx-0 md:rounded-3xl md:border md:px-6 md:py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              {isDmAdmin && onToggleInbox && (
+                <button
+                  type="button"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 md:hidden"
+                  aria-label={inboxOpen ? "Hide inbox" : "Show inbox"}
+                  onClick={() => (inboxOpen ? onCloseInbox?.() : onToggleInbox())}
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
               )}
-            </div>
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-semibold tracking-tight text-white">
-                  {headerTitle}
-                </h1>
-                <span className="pill border-white/15 text-white/80">{statusLabel}</span>
+              <div className="relative h-12 w-12 overflow-hidden rounded-full border border-white/15 bg-white/10">
+                {headerAvatar ? (
+                  <Image src={headerAvatar} alt="" fill className="object-cover" />
+                ) : (
+                  <div className="grid h-full w-full place-items-center text-lg">💬</div>
+                )}
               </div>
-              {headerSubtitle && (
-                <div className="line-clamp-1 text-sm text-white/60">{headerSubtitle}</div>
-              )}
-              {thread?.description && (
-                <div className="line-clamp-1 text-xs text-white/45">
-                  {thread.description}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h1 className="truncate text-lg font-semibold text-white">
+                    {headerTitle}
+                  </h1>
                 </div>
+                {headerSubtitle && (
+                  <div className="truncate text-xs text-white/60">{headerSubtitle}</div>
+                )}
+                {thread?.description && (
+                  <div className="truncate text-xs text-white/45">{thread.description}</div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 md:gap-3">
+              <button
+                type="button"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={handleTogglePush}
+                disabled={!pushSupported || pushLoading}
+                aria-pressed={pushSubscribed}
+                aria-label="Notifications"
+                title="Notifications"
+              >
+                <Bell className="h-5 w-5" fill={pushSubscribed ? "currentColor" : "none"} />
+              </button>
+              <button
+                type="button"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                onClick={() => setSearchOpen(true)}
+                aria-label="Search messages"
+                title="Search"
+              >
+                <Search className="h-5 w-5" />
+              </button>
+              {isDmAdmin && (
+                <button
+                  type="button"
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/75 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => setAuditOpen(true)}
+                  disabled={!memoizedThreadId}
+                >
+                  Recent actions
+                </button>
+              )}
+              {isDmAdmin && thread && (
+                <button
+                  type="button"
+                  className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/75 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  onClick={() => setCustomizeOpen(true)}
+                >
+                  Customize
+                </button>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 md:gap-3">
-            {isDmAdmin && onToggleInbox && (
-              <button
-                type="button"
-                className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 md:hidden"
-                aria-label={inboxOpen ? "Close inbox" : "Open inbox"}
-                onClick={() => (inboxOpen ? onCloseInbox?.() : onToggleInbox())}
-              >
-                <Inbox className="h-5 w-5" />
-              </button>
-            )}
-            <button
-              type="button"
-              className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={handleTogglePush}
-              disabled={!pushSupported || pushLoading}
-              aria-pressed={pushSubscribed}
-              aria-label={pushButtonLabel}
+          {error && (
+            <div
+              className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-100"
+              role="status"
+              aria-live="assertive"
             >
-              <Bell className="h-5 w-5" fill={pushSubscribed ? "currentColor" : "none"} />
-            </button>
-            <button
-              type="button"
-              className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-              onClick={() => setSearchOpen(true)}
-              aria-label="Search messages"
-            >
-              <Search className="h-5 w-5" />
-            </button>
-            {isDmAdmin && (
-              <button
-                type="button"
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-60"
-                onClick={() => setAuditOpen(true)}
-                disabled={!memoizedThreadId}
-              >
-                Recent actions
-              </button>
-            )}
-            {isDmAdmin && thread && (
-              <button
-                type="button"
-                className="btn-secondary min-h-[2.75rem] px-5 text-sm"
-                onClick={() => setCustomizeOpen(true)}
-              >
-                Customize
-              </button>
-            )}
-          </div>
-        </div>
-        {error && (
-          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-100" role="status" aria-live="assertive">
-            {error}
-          </div>
-        )}
-      </header>
+              {error}
+            </div>
+          )}
+        </header>
 
       {!thread ? (
         <GlowPanel subtle className="flex flex-col items-center gap-6 p-10 text-center">
@@ -1455,6 +1730,7 @@ export default function AdminChatClient({
                       message={message}
                       currentUserId={user.id}
                       active={activeHighlight === message.id}
+                      otherAvatar={headerAvatar}
                       onEdit={(msg) => {
                         setEditingId(msg.id);
                         setEditingText(msg.text ?? "");
@@ -1497,11 +1773,18 @@ export default function AdminChatClient({
             </div>
           )}
 
-          <div className="sticky bottom-0 rounded-3xl border-t border-white/10 bg-[#0d0d16]/95 p-4 md:border md:px-6 md:pb-6 md:pt-4">
+          <div className="sticky bottom-0 rounded-3xl border-t border-white/10 bg-[#0d0d16]/90 p-4 md:border md:px-6 md:pb-6 md:pt-4">
             {uploadQueue.length > 0 && (
-              <div className="mb-4 space-y-2 rounded-2xl border border-white/10 bg-white/10 p-3 text-xs text-white/80 shadow-[0_16px_40px_rgba(10,10,24,0.45)]" role="status" aria-live="polite">
+              <div
+                className="mb-4 space-y-2 rounded-2xl border border-white/10 bg-white/10 p-3 text-xs text-white/80 shadow-[0_16px_40px_rgba(10,10,24,0.45)]"
+                role="status"
+                aria-live="polite"
+              >
                 {uploadQueue.map((task) => (
-                  <div key={task.id} className="flex items-center justify-between gap-4 rounded-xl bg-black/30 px-3 py-2">
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between gap-4 rounded-xl bg-black/30 px-3 py-2"
+                  >
                     <span className="max-w-[70%] truncate" title={task.filename}>
                       {task.filename} · {task.kind.toUpperCase()}
                     </span>
@@ -1518,100 +1801,115 @@ export default function AdminChatClient({
               </div>
             )}
 
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:gap-6">
-              <div className="flex-1 rounded-3xl border border-white/10 bg-[#0b0b15]/95 px-4 py-3 shadow-[0_18px_48px_rgba(9,9,20,0.55)]">
-                <textarea
+            <div className="flex flex-col gap-3">
+              <div className="flex items-end gap-3 rounded-[28px] border border-white/10 bg-[#0b0b15]/95 px-2.5 py-2 shadow-[0_18px_48px_rgba(9,9,20,0.55)]">
+                <div className="relative flex items-center">
+                  <button
+                    type="button"
+                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Attach a file"
+                    aria-expanded={attachMenuOpen}
+                    aria-controls={attachMenuId}
+                    disabled={composerDisabled}
+                    onClick={() => {
+                      if (!composerDisabled) {
+                        setAttachMenuOpen((value) => !value);
+                      }
+                    }}
+                  >
+                    <Paperclip className="h-5 w-5" />
+                  </button>
+                  <AnimatePresence>
+                    {attachMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 8 }}
+                        id={attachMenuId}
+                        className="absolute left-0 top-12 z-50 min-w-[200px] rounded-2xl border border-white/10 bg-[#10101c] p-3 text-xs text-white/70 shadow-xl"
+                      >
+                        <div className="flex flex-col gap-2">
+                          <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
+                            Image · ≤5MB
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(event) => handleFileInput(event, "image")}
+                            />
+                          </label>
+                          <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
+                            Video · ≤50MB
+                            <input
+                              type="file"
+                              accept="video/*"
+                              className="hidden"
+                              onChange={(event) => handleFileInput(event, "video")}
+                            />
+                          </label>
+                          <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
+                            Audio · ≤10MB
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              className="hidden"
+                              onChange={(event) => handleFileInput(event, "audio")}
+                            />
+                          </label>
+                          <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
+                            File · ≤20MB
+                            <input
+                              type="file"
+                              className="hidden"
+                              onChange={(event) => handleFileInput(event, "file")}
+                            />
+                          </label>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <TextareaAutosize
                   ref={composerRef}
                   value={composer}
                   onChange={(event) => setComposer(event.target.value)}
                   onKeyDown={handleComposerKey}
-                  disabled={sending}
+                  onMouseUp={handleComposerMouseUp}
+                  onTouchEnd={handleComposerTouchEnd}
+                  disabled={composerDisabled}
+                  minRows={1}
+                  maxRows={5}
                   placeholder="Write a message…"
-                  className="min-h-[80px] w-full resize-none bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+                  className="max-h-40 flex-1 resize-none bg-transparent px-1 text-sm text-white placeholder:text-white/40 focus:outline-none disabled:opacity-60"
                 />
-              </div>
-              <div className="flex w-full flex-col items-end gap-3 md:w-auto">
-                <div className="flex w-full items-center justify-between gap-3 md:w-auto md:justify-end">
+
+                <div className="flex items-end gap-1.5">
                   <button
                     type="button"
-                  className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                  aria-label="Insert emoji"
-                  aria-expanded={emojiOpen}
-                  aria-controls={emojiMenuId}
-                  onClick={() => setEmojiOpen((value) => !value)}
-                >
-                  <Smile className="h-5 w-5" />
-                </button>
-                <div className="relative">
-                    <button
-                      type="button"
-                      className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                      aria-label="Attach a file"
-                      aria-expanded={attachMenuOpen}
-                      aria-controls={attachMenuId}
-                      onClick={() => setAttachMenuOpen((value) => !value)}
-                    >
-                      <Paperclip className="h-5 w-5" />
-                    </button>
-                    <AnimatePresence>
-                      {attachMenuOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 8 }}
-                          id={attachMenuId}
-                          className="absolute right-0 top-12 z-50 min-w-[200px] rounded-2xl border border-white/10 bg-[#10101c] p-3 text-xs text-white/70 shadow-xl"
-                        >
-                          <div className="flex flex-col gap-2">
-                            <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
-                              Image · ≤5MB
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(event) => handleFileInput(event, "image")}
-                              />
-                            </label>
-                            <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
-                              Video · ≤50MB
-                              <input
-                                type="file"
-                                accept="video/*"
-                                className="hidden"
-                                onChange={(event) => handleFileInput(event, "video")}
-                              />
-                            </label>
-                            <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
-                              Audio · ≤10MB
-                              <input
-                                type="file"
-                                accept="audio/*"
-                                className="hidden"
-                                onChange={(event) => handleFileInput(event, "audio")}
-                              />
-                            </label>
-                            <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
-                              File · ≤20MB
-                              <input
-                                type="file"
-                                className="hidden"
-                                onChange={(event) => handleFileInput(event, "file")}
-                              />
-                            </label>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Insert emoji"
+                    aria-expanded={emojiOpen}
+                    aria-controls={emojiMenuId}
+                    disabled={composerDisabled}
+                    onClick={() => {
+                      if (!composerDisabled) {
+                        setEmojiOpen((value) => !value);
+                      }
+                    }}
+                  >
+                    <Smile className="h-5 w-5" />
+                  </button>
                   <button
                     type="button"
-                    className={`rounded-full border p-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
+                    className={`flex h-10 w-10 items-center justify-center rounded-full border p-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
                       recording
                         ? "border-rose-300/60 bg-rose-500/20 text-rose-100"
                         : "border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:text-white"
                     }`}
                     aria-label={recording ? "Stop recording voice note" : "Record voice note"}
                     aria-pressed={recording}
+                    disabled={!recording && composerDisabled}
                     onClick={() => {
                       if (recording) {
                         stopRecording();
@@ -1629,24 +1927,18 @@ export default function AdminChatClient({
                       <Mic className="h-5 w-5" />
                     )}
                   </button>
-                </div>
-                <div className="flex w-full items-center justify-between gap-3 md:w-auto md:justify-end">
-                  <div className="text-xs text-white/40 md:hidden">
-                    Enter to send · Shift+Enter for newline
-                  </div>
                   <button
                     type="button"
-                    className="btn-primary inline-flex h-10 min-w-[120px] items-center justify-center px-6 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[var(--swf-glow-end,#8b5cf6)]/80 text-white transition hover:bg-[var(--swf-glow-end,#8b5cf6)] focus:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-60"
                     onClick={handleSend}
-                    disabled={sending || !composer.trim()}
+                    disabled={!canSend}
+                    aria-label="Send message"
+                    title="Send"
                   >
-                    {sending ? "Sending…" : "Send"}
+                    <Send className={`h-5 w-5 ${sending ? "animate-pulse" : ""}`} />
                   </button>
                 </div>
               </div>
-            </div>
-            <div className="hidden text-xs text-white/40 md:block">
-              Enter to send · Shift+Enter for newline
             </div>
           </div>
         </div>
@@ -1832,6 +2124,63 @@ export default function AdminChatClient({
                   Close
                 </button>
               </div>
+              <input
+                ref={wallpaperInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleWallpaperFileChange}
+              />
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Wallpaper</p>
+                    <p className="text-xs text-white/50">Stored locally for admins on this device.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-40"
+                      onClick={handleWallpaperReset}
+                      disabled={!wallpaperDataUrl}
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold text-white/75 transition hover:border-white/30 hover:bg-white/20 hover:text-white disabled:opacity-50"
+                      onClick={openWallpaperPicker}
+                      disabled={wallpaperSaving}
+                    >
+                      Change wallpaper
+                    </button>
+                  </div>
+                </div>
+                <div className="overflow-hidden rounded-2xl border border-white/10">
+                  <div
+                    className="h-32 w-full"
+                    style={{
+                      backgroundImage: wallpaperDataUrl
+                        ? `linear-gradient(rgba(7,7,11,0.45), rgba(7,7,11,0.55)), url(${wallpaperDataUrl})`
+                        : wallpaperImage
+                        ? `linear-gradient(rgba(7,7,11,0.45), rgba(7,7,11,0.55)), url(${wallpaperImage})`
+                        : "radial-gradient(circle at top, rgba(138,92,246,0.25), transparent 60%)",
+                      backgroundPosition: "center",
+                      backgroundSize: "cover",
+                      filter: "blur(0px)",
+                    }}
+                  />
+                </div>
+                {wallpaperSaving && (
+                  <div className="text-xs text-white/60">Processing wallpaper…</div>
+                )}
+                {wallpaperMessage && (
+                  <div className="text-xs text-emerald-300">{wallpaperMessage}</div>
+                )}
+                {wallpaperError && (
+                  <div className="text-xs text-rose-300">{wallpaperError}</div>
+                )}
+              </div>
               <label className="block space-y-2 text-sm text-white/70">
                 Avatar URL
                 <input
@@ -1891,6 +2240,57 @@ export default function AdminChatClient({
         )}
       </AnimatePresence>
     </div>
+
+    {formatMenu.visible && (
+      <div
+        className="pointer-events-none fixed z-50"
+        style={{ top: formatMenu.y, left: formatMenu.x }}
+      >
+        <div className="admin-format-bubble pointer-events-auto">
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => applyFormatting("bold")}
+            aria-label="Bold"
+          >
+            B
+          </button>
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => applyFormatting("italic")}
+            aria-label="Italic"
+          >
+            I
+          </button>
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => applyFormatting("underline")}
+            aria-label="Underline"
+          >
+            U
+          </button>
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => applyFormatting("quote")}
+            aria-label="Quote"
+          >
+            &gt;
+          </button>
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => applyFormatting("spoiler")}
+            aria-label="Spoiler"
+          >
+            ||
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
   );
 }
 
@@ -1898,6 +2298,7 @@ type MessageBubbleProps = {
   message: Message;
   currentUserId: string;
   active: boolean;
+  otherAvatar: string | null;
   onEdit: (message: Message) => void;
   onDelete: (id: string) => void;
   onHardDelete: (id: string) => void;
@@ -1917,6 +2318,7 @@ const MessageBubble = memo(function MessageBubble({
   message,
   currentUserId,
   active,
+  otherAvatar,
   onEdit,
   onDelete,
   onHardDelete,
@@ -1934,123 +2336,138 @@ const MessageBubble = memo(function MessageBubble({
   const mine = message.authorId === currentUserId;
   const isEditing = editingId === message.id;
   return (
-    <div className={`group flex ${mine ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`relative max-w-[75%] rounded-3xl border px-4 py-3 text-sm leading-relaxed shadow-[0_15px_45px_rgba(9,9,20,0.4)] ${
-          mine
-            ? "border-transparent bg-gradient-to-r from-[var(--swf-glow-start)] to-[var(--swf-glow-end)] text-white"
-            : "border-white/10 bg-white/5 text-white/85"
-        } ${active ? "ring-2 ring-[var(--swf-glow-end)]" : ""}`}
-      >
-        {isEditing ? (
-          <div className="space-y-2">
-            <textarea
-              value={editingText}
-              onChange={(event) => setEditingText(event.target.value)}
-              rows={3}
-              className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-white/40"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 transition hover:border-white/40"
-                onClick={() => {
-                  setMenuOpenId(null);
-                  setEditingId(null);
-                  setEditingText("");
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn-primary h-9 px-4 text-xs"
-                onClick={onEditSubmit}
-              >
-                Save
-              </button>
+    <div className={`group flex ${mine ? "justify-end" : "justify-start"} gap-2`}>
+      {!mine && (
+        <div className="mt-auto h-6 w-6 overflow-hidden rounded-full border border-white/15 bg-white/10">
+          {otherAvatar ? (
+            <Image src={otherAvatar} alt="" width={24} height={24} className="h-full w-full object-cover" />
+          ) : (
+            <div className="grid h-full w-full place-items-center text-[11px] text-white/60">👤</div>
+          )}
+        </div>
+      )}
+      <div className={`flex max-w-[75%] flex-col ${mine ? "items-end" : "items-start"}`}>
+        <div
+          className={`relative w-full rounded-3xl border px-4 py-3 text-sm leading-relaxed shadow-[0_15px_45px_rgba(9,9,20,0.4)] ${
+            mine
+              ? "border-transparent bg-gradient-to-r from-[var(--swf-glow-start)] to-[var(--swf-glow-end)] text-white"
+              : "border-white/10 bg-white/5 text-white/85"
+          } ${active ? "ring-2 ring-[var(--swf-glow-end)]" : ""}`}
+        >
+          {isEditing ? (
+            <div className="space-y-2">
+              <textarea
+                value={editingText}
+                onChange={(event) => setEditingText(event.target.value)}
+                rows={3}
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-white/40"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 transition hover:border-white/40"
+                  onClick={() => {
+                    setMenuOpenId(null);
+                    setEditingId(null);
+                    setEditingText("");
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary h-9 px-4 text-xs"
+                  onClick={onEditSubmit}
+                >
+                  Save
+                </button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <Fragment>
-            {message.kind === "text" && message.text && (
-              <MessageMarkdown
-                text={message.text}
-                components={markdownComponents}
-              />
-            )}
-            {message.kind !== "text" && message.fileUrl && (
-              <MessageMedia
-                message={message}
-                resolveFileUrl={resolveFileUrl}
-              />
-            )}
-            {message.kind !== "text" && message.text && (
-              <div className="mt-3">
+          ) : (
+            <Fragment>
+              {message.kind === "text" && message.text && (
                 <MessageMarkdown
                   text={message.text}
                   components={markdownComponents}
                 />
-              </div>
-            )}
-            <div className="mt-3 flex items-center gap-3 text-[11px] text-white/60">
-              <span>{formatTime(message.createdAt)}</span>
-              {message.editedAt && <span>edited</span>}
-            </div>
-          </Fragment>
-        )}
+              )}
+              {message.kind !== "text" && message.fileUrl && (
+                <MessageMedia
+                  message={message}
+                  resolveFileUrl={resolveFileUrl}
+                />
+              )}
+              {message.kind !== "text" && message.text && (
+                <div className="mt-3">
+                  <MessageMarkdown
+                    text={message.text}
+                    components={markdownComponents}
+                  />
+                </div>
+              )}
+            </Fragment>
+          )}
 
-        {!isEditing && (
-          <div className="absolute right-2 top-2 opacity-0 transition group-hover:opacity-100">
-            <button
-              type="button"
-              className="rounded-full bg-black/30 px-2 py-1 text-xs text-white/70 transition hover:bg-black/50"
-              onClick={() =>
-                setMenuOpenId(menuOpenId === message.id ? null : message.id)
-              }
-            >
-              •••
-            </button>
-            {menuOpenId === message.id && (
-              <div className="absolute right-0 top-7 flex min-w-[140px] flex-col gap-1 rounded-2xl border border-white/10 bg-[#10101c] p-2 text-xs text-white/70 shadow-lg">
-                {mine && message.kind === "text" && (
+          {!isEditing && (
+            <div className="absolute right-2 top-2 opacity-0 transition group-hover:opacity-100">
+              <button
+                type="button"
+                className="rounded-full bg-black/30 px-2 py-1 text-xs text-white/70 transition hover:bg-black/50"
+                onClick={() =>
+                  setMenuOpenId(menuOpenId === message.id ? null : message.id)
+                }
+              >
+                •••
+              </button>
+              {menuOpenId === message.id && (
+                <div className="absolute right-0 top-7 flex min-w-[140px] flex-col gap-1 rounded-2xl border border-white/10 bg-[#10101c] p-2 text-xs text-white/70 shadow-lg">
+                  {mine && message.kind === "text" && (
+                    <button
+                      type="button"
+                      className="rounded-xl px-3 py-2 text-left transition hover:bg-white/10 hover:text-white"
+                      onClick={() => {
+                        onEdit(message);
+                        setMenuOpenId(null);
+                      }}
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {canHardDelete && message.kind !== "system" && (
+                    <button
+                      type="button"
+                      className="rounded-xl px-3 py-2 text-left text-rose-200 transition hover:bg-rose-500/20 hover:text-white"
+                      onClick={() => {
+                        onHardDelete(message.id);
+                        setMenuOpenId(null);
+                      }}
+                    >
+                      Hard delete
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="rounded-xl px-3 py-2 text-left transition hover:bg-white/10 hover:text-white"
                     onClick={() => {
-                      onEdit(message);
+                      onDelete(message.id);
                       setMenuOpenId(null);
                     }}
                   >
-                    Edit
+                    Delete for me
                   </button>
-                )}
-                {canHardDelete && message.kind !== "system" && (
-                  <button
-                    type="button"
-                    className="rounded-xl px-3 py-2 text-left text-rose-200 transition hover:bg-rose-500/20 hover:text-white"
-                    onClick={() => {
-                      onHardDelete(message.id);
-                      setMenuOpenId(null);
-                    }}
-                  >
-                    Hard delete
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="rounded-xl px-3 py-2 text-left transition hover:bg-white/10 hover:text-white"
-                  onClick={() => {
-                    onDelete(message.id);
-                    setMenuOpenId(null);
-                  }}
-                >
-                  Delete for me
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div
+          className={`mt-2 flex w-full items-center gap-2 text-[11px] ${
+            mine ? "justify-end text-white/60" : "justify-start text-white/55"
+          }`}
+        >
+          <span>{formatTime(message.createdAt)}</span>
+          {message.editedAt && <span>edited</span>}
+        </div>
       </div>
     </div>
   );

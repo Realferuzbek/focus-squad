@@ -10,8 +10,10 @@ import type { AdminInboxThread } from "@/lib/community/admin/server";
 type AdminInboxProps = {
   threads: AdminInboxThread[];
   activeThreadId: string | null;
+  currentAdminId: string;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
+  onThreadOpen?: () => void;
 };
 
 const relativeFormatter = new Intl.RelativeTimeFormat(undefined, {
@@ -45,8 +47,10 @@ function formatTimestamp(value: string | null) {
 export default function AdminInbox({
   threads,
   activeThreadId,
+  currentAdminId,
   isMobileOpen,
   onCloseMobile,
+  onThreadOpen,
 }: AdminInboxProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -54,12 +58,15 @@ export default function AdminInbox({
   const prefersReducedMotion = useReducedMotion();
 
   const sortedThreads = useMemo(() => {
-    return [...threads].sort((a, b) => {
+    const cleaned = threads.filter(
+      (thread) => thread.targetUser?.id !== currentAdminId,
+    );
+    return cleaned.sort((a, b) => {
       const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
       const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
       return bTime - aTime;
     });
-  }, [threads]);
+  }, [threads, currentAdminId]);
 
   const handleSelect = useCallback(
     (threadId: string) => {
@@ -67,8 +74,9 @@ export default function AdminInbox({
       params.set("thread", threadId);
       router.push(`${pathname}?${params.toString()}`, { scroll: false });
       if (onCloseMobile) onCloseMobile();
+      onThreadOpen?.();
     },
-    [pathname, router, searchParams, onCloseMobile],
+    [pathname, router, searchParams, onCloseMobile, onThreadOpen],
   );
 
   const panel = (
@@ -100,13 +108,17 @@ export default function AdminInbox({
             thread.targetUser?.name ??
             thread.targetUser?.email ??
             "Conversation";
+          const lastMessage =
+            thread.lastMessagePreview ??
+            thread.targetUser?.email ??
+            "No messages yet";
 
           return (
             <button
               key={thread.id}
               type="button"
               onClick={() => handleSelect(thread.id)}
-              className={`group flex items-center gap-3 rounded-2xl border border-transparent px-3 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
+              className={`group flex items-center gap-3 rounded-2xl border border-transparent px-3 py-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
                 isActive
                   ? "bg-white/10"
                   : "hover:border-white/15 hover:bg-white/5"
@@ -134,23 +146,20 @@ export default function AdminInbox({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className={`truncate text-sm font-semibold ${isActive ? "text-white" : "text-white/90"}`}>
+                  <span
+                    className={`truncate text-[15px] font-semibold ${isActive ? "text-white" : "text-white/95"}`}
+                  >
                     {label}
                   </span>
                   <span className="shrink-0 text-[11px] uppercase tracking-wide text-white/40">
                     {formatTimestamp(thread.lastMessageAt)}
                   </span>
                 </div>
-                {thread.targetUser?.email && (
-                  <div className="truncate text-xs text-white/50">
-                    {thread.targetUser.email}
-                  </div>
-                )}
-                {!thread.targetUser?.email && (
-                  <div className="text-xs text-white/35">
-                    {thread.status?.toUpperCase() ?? "OPEN"}
-                  </div>
-                )}
+                <div
+                  className={`mt-1 line-clamp-2 text-sm ${thread.unread ? "font-semibold text-white" : "text-white/55"}`}
+                >
+                  {lastMessage}
+                </div>
               </div>
             </button>
           );
