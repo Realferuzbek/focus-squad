@@ -47,22 +47,50 @@ export default function CommunityPage() {
         </header>
 
         <div className="grid gap-6 md:grid-cols-2">
-          {cards.map((card) => (
-            <GlowPanel key={card.title} subtle className="p-6 md:p-8">
-              <div className="flex h-full flex-col justify-between gap-6">
-                <div className="space-y-3">
-                  <span className="pill">{card.tag}</span>
-                  <h2 className="text-2xl font-semibold tracking-tight text-white">
-                    {card.title}
-                  </h2>
-                  <p className="text-sm text-white/65">{card.description}</p>
-                </div>
-                <Link href={card.href} className="btn-primary w-fit px-6">
-                  Open
+          {cards.map((card) => {
+            if (card.href === "/community/admin") {
+              return (
+                <Link
+                  key={card.title}
+                  href={card.href}
+                  className="group block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                >
+                  <GlowPanel
+                    subtle
+                    className="h-full p-6 transition-transform duration-200 group-hover:scale-[1.01] md:p-8"
+                  >
+                    <div className="flex h-full flex-col justify-between gap-6">
+                      <div className="space-y-3">
+                        <span className="pill">{card.tag}</span>
+                        <h2 className="text-2xl font-semibold tracking-tight text-white">
+                          {card.title}
+                        </h2>
+                        <p className="text-sm text-white/65">{card.description}</p>
+                      </div>
+                      <span className="btn-primary w-fit px-6">Open</span>
+                    </div>
+                  </GlowPanel>
                 </Link>
-              </div>
-            </GlowPanel>
-          ))}
+              );
+            }
+
+            return (
+              <GlowPanel key={card.title} subtle className="p-6 md:p-8">
+                <div className="flex h-full flex-col justify-between gap-6">
+                  <div className="space-y-3">
+                    <span className="pill">{card.tag}</span>
+                    <h2 className="text-2xl font-semibold tracking-tight text-white">
+                      {card.title}
+                    </h2>
+                    <p className="text-sm text-white/65">{card.description}</p>
+                  </div>
+                  <Link href={card.href} className="btn-primary w-fit px-6">
+                    Open
+                  </Link>
+                </div>
+              </GlowPanel>
+            );
+          })}
         </div>
       </div>
     </div>

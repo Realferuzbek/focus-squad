@@ -3,11 +3,13 @@
 
 import {
   Fragment,
+  memo,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useId,
   type CSSProperties,
 } from "react";
 import dynamic from "next/dynamic";
@@ -15,11 +17,12 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { hasSubscription, subscribePush, unsubscribePush } from "@/lib/pushClient";
 import GlowPanel from "@/components/GlowPanel";
 import Image from "next/image";
+import { Bell, Inbox, Mic, Paperclip, Search, Smile } from "lucide-react";
 import "@emoji-mart/css/emoji-mart.css";
 
 const EmojiPicker = dynamic(
@@ -38,7 +41,7 @@ const EmojiPicker = dynamic(
   { ssr: false },
 );
 
-type ThreadMeta = {
+export type ThreadMeta = {
   id: string;
   userId: string;
   status: string;
@@ -63,7 +66,7 @@ type Message = {
   highlight?: string | null;
 };
 
-type ChatUser = {
+export type ChatUser = {
   id: string;
   name?: string | null;
   email?: string | null;
@@ -100,9 +103,25 @@ type AuditResponse = {
   nextCursor: string | null;
 };
 
+export type ThreadDisplayMeta = {
+  avatarUrl: string | null;
+  title: string;
+  targetUser: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    avatarUrl: string | null;
+  } | null;
+};
+
 type AdminChatClientProps = {
   initialThread: ThreadMeta | null;
   user: ChatUser;
+  forcedThreadId?: string;
+  threadDisplayMeta?: ThreadDisplayMeta | null;
+  inboxOpen?: boolean;
+  onToggleInbox?: () => void;
+  onCloseInbox?: () => void;
 };
 
 type UploadTask = {
@@ -146,9 +165,46 @@ function clampWords(input: string, limit: number) {
   const words = input.trim().split(/\s+/);
   return words.slice(0, limit).join(" ");
 }
+
+function sortMessagesByCreatedAt(list: Message[]) {
+  return [...list].sort(
+    (a, b) =>
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+}
+
+function mergeMessages(existing: Message[], incoming: Message[]) {
+  const map = new Map<string, Message>();
+  for (const message of existing) {
+    map.set(message.id, message);
+  }
+  for (const message of incoming) {
+    map.set(message.id, message);
+  }
+  return sortMessagesByCreatedAt(Array.from(map.values()));
+}
+
+function isSeedMessage(message: Message) {
+  if (message.kind === "system") return true;
+  const text = (message.text ?? "").trim().toLowerCase();
+  if (!text) return false;
+  return (
+    text.startsWith("hello realtime") || text.startsWith("hello from sql")
+  );
+}
+
+const ACTION_LIMIT = 10;
+const ACTION_WINDOW_MS = 30_000;
+const RATE_LIMIT_FALLBACK =
+  "You’re sending messages too quickly. Please wait a few seconds.";
 export default function AdminChatClient({
   initialThread,
   user,
+  forcedThreadId,
+  threadDisplayMeta,
+  inboxOpen,
+  onToggleInbox,
+  onCloseInbox,
 }: AdminChatClientProps) {
   const [thread, setThread] = useState<ThreadMeta | null>(initialThread);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -158,6 +214,7 @@ export default function AdminChatClient({
   const [composer, setComposer] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rateLimitActive, setRateLimitActive] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
@@ -173,6 +230,11 @@ export default function AdminChatClient({
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [customizeOpen, setCustomizeOpen] = useState(false);
+  const emojiMenuId = useId();
+  const attachMenuId = useId();
+  const [headerMeta, setHeaderMeta] = useState<ThreadDisplayMeta | null>(
+    threadDisplayMeta ?? null,
+  );
   const [metaForm, setMetaForm] = useState({
     avatarUrl: initialThread?.avatarUrl ?? "",
     wallpaperUrl: initialThread?.wallpaperUrl ?? "",
@@ -188,6 +250,19 @@ export default function AdminChatClient({
   const [auditHasMore, setAuditHasMore] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setThread(initialThread);
+    setMetaForm({
+      avatarUrl: initialThread?.avatarUrl ?? "",
+      wallpaperUrl: initialThread?.wallpaperUrl ?? "",
+      description: initialThread?.description ?? "",
+    });
+  }, [initialThread]);
+
+  useEffect(() => {
+    setHeaderMeta(threadDisplayMeta ?? null);
+  }, [threadDisplayMeta]);
+
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<ReturnType<typeof supabaseBrowser.channel> | null>(
@@ -201,36 +276,110 @@ export default function AdminChatClient({
   const fileUrlCache = useRef<Map<string, { url: string; expires: number }>>(
     new Map(),
   );
+  const sizeMapRef = useRef<Map<string, number>>(new Map());
+  const actionHistoryRef = useRef<number[]>([]);
+  const rateLimitTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const errorTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const prefersReducedMotion = useReducedMotion();
   const isDmAdmin = !!user.isDmAdmin;
-  const pushLabel = pushSupported
-    ? pushSubscribed
-      ? "Subscribed"
-      : "Off"
-    : "Unavailable";
-  const pushIcon = pushSupported ? (pushSubscribed ? "🔔" : "🔕") : "🚫";
 
   const virtualizer = useVirtualizer({
     count: messages.length,
+    getItemKey: (index) => messages[index]?.id ?? `ghost-${index}`,
     getScrollElement: () => listRef.current,
-    estimateSize: () => 140,
+    estimateSize: (index) => {
+      const message = messages[index];
+      if (message) {
+        const cached = sizeMapRef.current.get(message.id);
+        if (cached) return cached;
+      }
+      return 140;
+    },
     overscan: 8,
   });
+  const virtualItems = virtualizer.getVirtualItems();
+
+  const measureRow = useCallback(
+    (node: HTMLDivElement | null, key: string) => {
+      if (!node || !key) return;
+      const height = node.getBoundingClientRect().height;
+      if (!height) return;
+      const cached = sizeMapRef.current.get(key);
+      if (!cached || Math.abs(cached - height) > 1) {
+        sizeMapRef.current.set(key, height);
+        virtualizer.measureElement(node);
+      }
+    },
+    [virtualizer],
+  );
+
+  useEffect(() => {
+    if (!messages.length) {
+      sizeMapRef.current.clear();
+    } else {
+      const activeIds = new Set(messages.map((msg) => msg.id));
+      Array.from(sizeMapRef.current.keys()).forEach((key) => {
+        if (!activeIds.has(key)) sizeMapRef.current.delete(key);
+      });
+    }
+  }, [messages]);
 
   const scrollToBottom = useCallback(
     (smooth = false) => {
-      if (messages.length === 0) return;
+      if (!messages.length) return;
       requestAnimationFrame(() => {
         virtualizer.scrollToIndex(messages.length - 1, {
           align: "end",
-          behavior: smooth ? "smooth" : "auto",
+          behavior: smooth && !prefersReducedMotion ? "smooth" : "auto",
         });
       });
     },
-    [messages.length, virtualizer],
+    [messages.length, prefersReducedMotion, virtualizer],
   );
 
-  const memoizedThreadId = thread?.id;
+  const showError = useCallback((message: string) => {
+    setError(message);
+    if (errorTimerRef.current) {
+      clearTimeout(errorTimerRef.current);
+    }
+    errorTimerRef.current = setTimeout(() => {
+      setError(null);
+    }, 4000);
+  }, []);
+
+  const handleRateLimitNotice = useCallback(
+    (message?: string) => {
+      const copy = message && message.trim().length
+        ? message
+        : RATE_LIMIT_FALLBACK;
+      setRateLimitActive(true);
+      showError(copy);
+      if (rateLimitTimerRef.current) {
+        clearTimeout(rateLimitTimerRef.current);
+      }
+      rateLimitTimerRef.current = setTimeout(() => {
+        setRateLimitActive(false);
+      }, 4000);
+    },
+    [showError],
+  );
+
+  const registerAction = useCallback(() => {
+    const now = Date.now();
+    const history = actionHistoryRef.current.filter(
+      (timestamp) => now - timestamp < ACTION_WINDOW_MS,
+    );
+    history.push(now);
+    actionHistoryRef.current = history;
+    if (history.length > ACTION_LIMIT) {
+      handleRateLimitNotice();
+      return false;
+    }
+    return true;
+  }, [handleRateLimitNotice]);
+
+  const memoizedThreadId = forcedThreadId ?? thread?.id ?? null;
 
   const loadMessages = useCallback(
     async (cursor?: string) => {
@@ -239,36 +388,56 @@ export default function AdminChatClient({
       try {
         const params = new URLSearchParams();
         if (cursor) params.set("cursor", cursor);
+        if (isDmAdmin && memoizedThreadId) {
+          params.set("threadId", memoizedThreadId);
+        }
+        const query = params.toString();
         const res = await fetch(
-          `/api/community/adminchat/messages${params.toString() ? `?${params}` : ""}`,
+          `/api/community/adminchat/messages${query ? `?${query}` : ""}`,
           { method: "GET", cache: "no-store" },
         );
         if (!res.ok) throw new Error("Failed to load messages");
         const data: MessagesResponse = await res.json();
+        const sanitized = (data.messages ?? []).filter(
+          (message) => !isSeedMessage(message),
+        );
         setHasMore(data.hasMore);
         setNextCursor(data.nextCursor);
-        setMessages((prev) =>
-          cursor ? [...data.messages, ...prev] : data.messages,
-        );
-        if (!cursor) {
+        if (cursor) {
+          setMessages((prev) => mergeMessages(prev, sanitized));
+        } else {
+          setMessages(sortMessagesByCreatedAt(sanitized));
           scrollToBottom(false);
         }
       } catch (err) {
         console.error(err);
-        setError("Could not load messages.");
+        showError("Could not load messages.");
       } finally {
         setLoadingMessages(false);
       }
     },
-    [memoizedThreadId, scrollToBottom],
+    [isDmAdmin, memoizedThreadId, scrollToBottom, showError],
   );
+
+  useEffect(() => {
+    setMessages([]);
+    setHasMore(false);
+    setNextCursor(null);
+  }, [memoizedThreadId]);
 
   const refreshThread = useCallback(async () => {
     try {
-      const res = await fetch("/api/community/adminchat/thread", {
-        method: "GET",
-        cache: "no-store",
-      });
+      const params = new URLSearchParams();
+      if (isDmAdmin && memoizedThreadId) {
+        params.set("threadId", memoizedThreadId);
+      }
+      const res = await fetch(
+        `/api/community/adminchat/thread${params.toString() ? `?${params}` : ""}`,
+        {
+          method: "GET",
+          cache: "no-store",
+        },
+      );
       if (!res.ok) return;
       const data = await res.json();
       if (data?.thread) {
@@ -278,11 +447,19 @@ export default function AdminChatClient({
           wallpaperUrl: data.thread.wallpaperUrl ?? "",
           description: data.thread.description ?? "",
         });
+        setHeaderMeta((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            avatarUrl:
+              data.thread.avatarUrl ?? prev.targetUser?.avatarUrl ?? prev.avatarUrl ?? null,
+          };
+        });
       }
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [isDmAdmin, memoizedThreadId]);
 
   const loadAudit = useCallback(
     async (cursor?: string) => {
@@ -340,15 +517,15 @@ export default function AdminChatClient({
       console.error(err);
       const message =
         err instanceof Error ? err.message : "Failed to update push notifications.";
-      if (message.toLowerCase().includes("denied")) {
-        setError("Notifications are blocked in your browser settings.");
-      } else {
-        setError("Unable to update push notifications right now.");
-      }
+        if (message.toLowerCase().includes("denied")) {
+          showError("Notifications are blocked in your browser settings.");
+        } else {
+          showError("Unable to update push notifications right now.");
+        }
     } finally {
       setPushLoading(false);
     }
-  }, [pushSupported, pushLoading, pushSubscribed, refreshAuditIfOpen]);
+  }, [pushSupported, pushLoading, pushSubscribed, refreshAuditIfOpen, showError]);
 
   useEffect(() => {
     if (memoizedThreadId) {
@@ -523,7 +700,7 @@ export default function AdminChatClient({
       sendReceipt(false);
     }
   }, [composer, memoizedThreadId, sendReceipt]);
-  const applyFormatting = useCallback((type: "bold" | "italic" | "underline" | "quote" | "spoiler") => {
+  const applyFormatting = useCallback((type: "bold" | "italic" | "quote") => {
     const textarea = composerRef.current;
     if (!textarea) return;
     const start = textarea.selectionStart ?? 0;
@@ -538,17 +715,9 @@ export default function AdminChatClient({
       case "italic":
         before = after = "*";
         break;
-      case "underline":
-        before = "<u>";
-        after = "</u>";
-        break;
       case "quote":
         before = "\n> ";
         after = "\n";
-        break;
-      case "spoiler":
-        before = "||";
-        after = "||";
         break;
     }
     const nextValue =
@@ -634,6 +803,7 @@ export default function AdminChatClient({
     if (!memoizedThreadId || sending) return;
     const trimmed = composer.trim();
     if (!trimmed) return;
+    if (!registerAction()) return;
     setSending(true);
     try {
       const res = await fetch("/api/community/adminchat/message", {
@@ -644,26 +814,41 @@ export default function AdminChatClient({
           threadId: isDmAdmin ? memoizedThreadId : undefined,
         }),
       });
+      if (res.status === 429) {
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          // ignore parse error
+        }
+        handleRateLimitNotice(data?.error);
+        return;
+      }
       if (!res.ok) throw new Error("Failed to send");
       const data = await res.json();
-      setMessages((prev) => {
-        const next = [...prev, data.message as Message];
-        return next.sort(
-          (a, b) =>
-            new Date(a.createdAt).getTime() -
-            new Date(b.createdAt).getTime(),
-        );
-      });
+      if (!isSeedMessage(data.message)) {
+        setMessages((prev) => mergeMessages(prev, [data.message as Message]));
+        scrollToBottom(true);
+      }
       setComposer("");
-      scrollToBottom(true);
       refreshAuditIfOpen();
     } catch (err) {
       console.error(err);
-      setError("Message failed to send.");
+      showError("Message failed to send.");
     } finally {
       setSending(false);
     }
-  }, [composer, isDmAdmin, memoizedThreadId, refreshAuditIfOpen, scrollToBottom, sending]);
+  }, [
+    composer,
+    handleRateLimitNotice,
+    isDmAdmin,
+    memoizedThreadId,
+    refreshAuditIfOpen,
+    registerAction,
+    scrollToBottom,
+    sending,
+    showError,
+  ]);
 
   const handleEditSubmit = useCallback(async () => {
     if (!editingId) return;
@@ -673,12 +858,23 @@ export default function AdminChatClient({
       setEditingText("");
       return;
     }
+    if (!registerAction()) return;
     try {
       const res = await fetch(`/api/community/adminchat/message/${editingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: trimmed }),
       });
+      if (res.status === 429) {
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          // ignore parse error
+        }
+        handleRateLimitNotice(data?.error);
+        return;
+      }
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       setMessages((prev) =>
@@ -693,38 +889,67 @@ export default function AdminChatClient({
       setEditingText("");
     } catch (err) {
       console.error(err);
-      setError("Unable to edit message.");
+      showError("Unable to edit message.");
     }
-  }, [editingId, editingText, refreshAuditIfOpen]);
+  }, [
+    editingId,
+    editingText,
+    handleRateLimitNotice,
+    refreshAuditIfOpen,
+    registerAction,
+    showError,
+  ]);
 
   const handleHide = useCallback(async (messageId: string) => {
+    if (!registerAction()) return;
     try {
       const res = await fetch(
         `/api/community/adminchat/message/${messageId}/hide`,
         { method: "POST" },
       );
+      if (res.status === 429) {
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          // ignore
+        }
+        handleRateLimitNotice(data?.error);
+        return;
+      }
       if (!res.ok) throw new Error("Failed");
       setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
       refreshAuditIfOpen();
     } catch (err) {
       console.error(err);
-      setError("Failed to delete message.");
+      showError("Failed to delete message.");
     }
-  }, [refreshAuditIfOpen]);
+  }, [handleRateLimitNotice, refreshAuditIfOpen, registerAction, showError]);
 
   const handleHardDelete = useCallback(async (messageId: string) => {
+    if (!registerAction()) return;
     try {
       const res = await fetch(`/api/community/adminchat/message/${messageId}`, {
         method: "DELETE",
       });
+      if (res.status === 429) {
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          // ignore
+        }
+        handleRateLimitNotice(data?.error);
+        return;
+      }
       if (!res.ok) throw new Error("Failed");
       setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
       refreshAuditIfOpen();
     } catch (err) {
       console.error(err);
-      setError("Failed to hard delete message.");
+      showError("Failed to hard delete message.");
     }
-  }, [refreshAuditIfOpen]);
+  }, [handleRateLimitNotice, refreshAuditIfOpen, registerAction, showError]);
 
   const compressImage = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) return file;
@@ -765,6 +990,14 @@ export default function AdminChatClient({
         ...prev,
         { id: taskId, filename: file.name, kind, progress: null },
       ]);
+      if (!memoizedThreadId) {
+        setUploadQueue((prev) => prev.filter((task) => task.id !== taskId));
+        return;
+      }
+      if (!registerAction()) {
+        setUploadQueue((prev) => prev.filter((task) => task.id !== taskId));
+        return;
+      }
       try {
         const preparedFile =
           kind === "image" ? await compressImage(file) : file;
@@ -780,6 +1013,7 @@ export default function AdminChatClient({
           filePath: signed.path,
           fileMime: preparedFile.type,
           fileBytes: preparedFile.size,
+          threadId: isDmAdmin ? memoizedThreadId : undefined,
         };
 
         const res = await fetch("/api/community/adminchat/message", {
@@ -787,21 +1021,26 @@ export default function AdminChatClient({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+        if (res.status === 429) {
+          let data: any = null;
+          try {
+            data = await res.json();
+          } catch {
+            // ignore
+          }
+          handleRateLimitNotice(data?.error);
+          return;
+        }
         if (!res.ok) throw new Error("Failed to send media");
         const data = await res.json();
-        setMessages((prev) => {
-          const next = [...prev, data.message as Message];
-          return next.sort(
-            (a, b) =>
-              new Date(a.createdAt).getTime() -
-              new Date(b.createdAt).getTime(),
-          );
-        });
+        if (!isSeedMessage(data.message)) {
+          setMessages((prev) => mergeMessages(prev, [data.message as Message]));
+          scrollToBottom(true);
+        }
         refreshAuditIfOpen();
-        scrollToBottom(true);
       } catch (err: any) {
         console.error(err);
-        setError(err?.message ?? "Upload failed");
+        showError(err?.message ?? "Upload failed");
         setUploadQueue((prev) =>
           prev.map((task) =>
             task.id === taskId ? { ...task, error: err?.message ?? "failed" } : task,
@@ -811,7 +1050,17 @@ export default function AdminChatClient({
         setUploadQueue((prev) => prev.filter((task) => task.id !== taskId));
       }
     },
-    [compressImage, refreshAuditIfOpen, scrollToBottom, signUpload],
+    [
+      compressImage,
+      handleRateLimitNotice,
+      isDmAdmin,
+      memoizedThreadId,
+      refreshAuditIfOpen,
+      registerAction,
+      scrollToBottom,
+      showError,
+      signUpload,
+    ],
   );
 
   const handleFileInput = useCallback(
@@ -857,9 +1106,9 @@ export default function AdminChatClient({
       }, 1000);
     } catch (err) {
       console.error(err);
-      setError("Microphone access denied.");
+      showError("Microphone access denied.");
     }
-  }, [recording, uploadAndSend]);
+  }, [recording, showError, uploadAndSend]);
 
   const stopRecording = useCallback(() => {
     if (!recording) return;
@@ -895,7 +1144,7 @@ export default function AdminChatClient({
     const timeout = setTimeout(async () => {
       try {
         const params = new URLSearchParams({ q: searchQuery.trim() });
-        if (isDmAdmin) params.set("threadId", memoizedThreadId);
+        if (isDmAdmin && memoizedThreadId) params.set("threadId", memoizedThreadId);
         const res = await fetch(
           `/api/community/adminchat/messages?${params.toString()}`,
           {
@@ -906,7 +1155,10 @@ export default function AdminChatClient({
         );
         if (!res.ok) throw new Error("Search failed");
         const data: SearchResponse = await res.json();
-        setSearchResults(data.messages);
+        const sanitized = (data.messages ?? []).filter(
+          (message) => !isSeedMessage(message),
+        );
+        setSearchResults(sanitized);
         setSearchError(null);
       } catch (err) {
         if (controller.signal.aborted) return;
@@ -921,6 +1173,17 @@ export default function AdminChatClient({
     };
   }, [isDmAdmin, memoizedThreadId, searchOpen, searchQuery]);
 
+  useEffect(() => {
+    return () => {
+      if (rateLimitTimerRef.current) {
+        clearTimeout(rateLimitTimerRef.current);
+      }
+      if (errorTimerRef.current) {
+        clearTimeout(errorTimerRef.current);
+      }
+    };
+  }, []);
+
   const scrollToMessage = useCallback(
     (id: string) => {
       const index = messages.findIndex((msg) => msg.id === id);
@@ -928,12 +1191,12 @@ export default function AdminChatClient({
       setActiveHighlight(id);
       virtualizer.scrollToIndex(index, {
         align: "center",
-        behavior: "smooth",
+        behavior: prefersReducedMotion ? "auto" : "smooth",
       });
       setTimeout(() => setActiveHighlight(null), 2000);
       setSearchOpen(false);
     },
-    [messages, virtualizer],
+    [messages, prefersReducedMotion, virtualizer],
   );
 
   const onLoadMore = useCallback(() => {
@@ -956,9 +1219,6 @@ export default function AdminChatClient({
         } else if (event.key.toLowerCase() === "i") {
           event.preventDefault();
           applyFormatting("italic");
-        } else if (event.key.toLowerCase() === "u") {
-          event.preventDefault();
-          applyFormatting("underline");
         }
       }
     },
@@ -986,9 +1246,9 @@ export default function AdminChatClient({
       refreshAuditIfOpen();
     } catch (err) {
       console.error(err);
-      setError("Unable to update thread details.");
+      showError("Unable to update thread details.");
     }
-  }, [memoizedThreadId, metaForm, refreshAuditIfOpen]);
+  }, [memoizedThreadId, metaForm, refreshAuditIfOpen, showError]);
 
   const markdownComponents = useMemo(
     () => ({
@@ -1009,6 +1269,21 @@ export default function AdminChatClient({
     [],
   );
 
+  const headerAvatar =
+    thread?.avatarUrl ??
+    headerMeta?.avatarUrl ??
+    headerMeta?.targetUser?.avatarUrl ??
+    null;
+  const headerTitle = headerMeta?.title ?? "Admin Chat";
+  const headerSubtitle =
+    headerMeta?.targetUser?.email ?? headerMeta?.targetUser?.name ?? null;
+  const statusLabel = thread?.status?.toUpperCase() ?? "OPEN";
+  const pushButtonLabel = pushSupported
+    ? pushSubscribed
+      ? "Disable push notifications"
+      : "Enable push notifications"
+    : "Push notifications not supported";
+
   const wallpaperStyle = useMemo(() => {
     if (!thread?.wallpaperUrl) return undefined;
     return {
@@ -1022,67 +1297,73 @@ export default function AdminChatClient({
       <header className="sticky top-0 z-30 -mx-4 flex flex-col gap-4 border-b border-white/10 bg-[#07070b]/95 px-4 py-4 backdrop-blur md:mx-0 md:rounded-3xl md:border md:px-6 md:py-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 overflow-hidden rounded-2xl border border-white/10 bg-white/10">
-              {thread?.avatarUrl ? (
-                <Image
-                  src={thread.avatarUrl}
-                  alt="Thread avatar"
-                  width={48}
-                  height={48}
-                  className="h-full w-full object-cover"
-                />
+            <div className="relative h-12 w-12 overflow-hidden rounded-2xl border border-white/10 bg-white/10 text-xl text-white/80">
+              {headerAvatar ? (
+                <Image src={headerAvatar} alt="Conversation avatar" fill className="object-cover" />
               ) : (
-                <div className="grid h-full w-full place-items-center text-xl">💬</div>
+                <div className="grid h-full w-full place-items-center">💬</div>
               )}
             </div>
-            <div className="space-y-2">
-              <h1 className="text-2xl font-semibold tracking-tight text-white">
-                Admin Chat
-              </h1>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-white/45">
-                <span className="pill border-white/10 text-white/60">
-                  {thread?.status?.toUpperCase() ?? "OPEN"}
-                </span>
-                {thread?.description && (
-                  <span className="line-clamp-1 max-w-[320px] text-white/60">
-                    {thread.description}
-                  </span>
-                )}
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-2xl font-semibold tracking-tight text-white">
+                  {headerTitle}
+                </h1>
+                <span className="pill border-white/15 text-white/80">{statusLabel}</span>
               </div>
+              {headerSubtitle && (
+                <div className="line-clamp-1 text-sm text-white/60">{headerSubtitle}</div>
+              )}
+              {thread?.description && (
+                <div className="line-clamp-1 text-xs text-white/45">
+                  {thread.description}
+                </div>
+              )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 md:gap-3">
+            {isDmAdmin && onToggleInbox && (
+              <button
+                type="button"
+                className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 md:hidden"
+                aria-label={inboxOpen ? "Close inbox" : "Open inbox"}
+                onClick={() => (inboxOpen ? onCloseInbox?.() : onToggleInbox())}
+              >
+                <Inbox className="h-5 w-5" />
+              </button>
+            )}
             <button
               type="button"
-              className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={handleTogglePush}
               disabled={!pushSupported || pushLoading}
-              title={pushSupported ? "Toggle push notifications" : "Push not supported"}
+              aria-pressed={pushSubscribed}
+              aria-label={pushButtonLabel}
             >
-              <span>{pushIcon}</span>
-              <span>{pushLoading ? "…" : pushLabel}</span>
+              <Bell className="h-5 w-5" fill={pushSubscribed ? "currentColor" : "none"} />
+            </button>
+            <button
+              type="button"
+              className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              onClick={() => setSearchOpen(true)}
+              aria-label="Search messages"
+            >
+              <Search className="h-5 w-5" />
             </button>
             {isDmAdmin && (
               <button
                 type="button"
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/60 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={() => setAuditOpen(true)}
                 disabled={!memoizedThreadId}
               >
                 Recent actions
               </button>
             )}
-            <button
-              type="button"
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/60 transition hover:border-white/30 hover:text-white"
-              onClick={() => setSearchOpen(true)}
-            >
-              Search
-            </button>
             {isDmAdmin && thread && (
               <button
                 type="button"
-                className="btn-secondary h-10 px-4 text-xs"
+                className="btn-secondary min-h-[2.75rem] px-5 text-sm"
                 onClick={() => setCustomizeOpen(true)}
               >
                 Customize
@@ -1091,7 +1372,7 @@ export default function AdminChatClient({
           </div>
         </div>
         {error && (
-          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-100">
+          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-100" role="status" aria-live="assertive">
             {error}
           </div>
         )}
@@ -1122,7 +1403,7 @@ export default function AdminChatClient({
                 await refreshThread();
               } catch (err) {
                 console.error(err);
-                setError("Unable to start chat right now.");
+                showError("Unable to start chat right now.");
               }
             }}
           >
@@ -1133,7 +1414,7 @@ export default function AdminChatClient({
         <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-[#0d0d16]/80 shadow-[0_25px_80px_-28px_rgba(119,88,247,0.55)]">
           <div
             ref={listRef}
-            className="flex max-h-[60vh] flex-col overflow-y-auto px-4 pt-6 md:px-6 md:pt-8"
+            className="flex max-h-[60vh] flex-col overflow-y-auto overscroll-contain px-4 pt-6 pb-32 md:px-6 md:pt-8"
           >
             {hasMore && (
               <button
@@ -1152,19 +1433,21 @@ export default function AdminChatClient({
                 position: "relative",
               }}
             >
-              {virtualizer.getVirtualItems().map((virtualRow) => {
+              {virtualItems.map((virtualRow) => {
                 const message = messages[virtualRow.index];
+                if (!message) return null;
                 return (
                   <div
-                    key={message.id}
+                    key={virtualRow.key}
                     data-index={virtualRow.index}
-                    ref={virtualizer.measureElement}
+                    data-message-id={message.id}
+                    ref={(node) => measureRow(node, message.id)}
                     style={{
                       position: "absolute",
                       top: 0,
                       left: 0,
                       width: "100%",
-                      transform: `translateY(${virtualRow.start}px)`,
+                      transform: `translate3d(0, ${virtualRow.start}px, 0)`,
                       paddingBottom: "16px",
                     }}
                   >
@@ -1176,13 +1459,13 @@ export default function AdminChatClient({
                         setEditingId(msg.id);
                         setEditingText(msg.text ?? "");
                       }}
-                    onDelete={handleHide}
-                    onHardDelete={handleHardDelete}
-                    canHardDelete={isDmAdmin}
-                    menuOpenId={menuOpenId}
-                    setMenuOpenId={setMenuOpenId}
-                    setEditingId={setEditingId}
-                    editingId={editingId}
+                      onDelete={handleHide}
+                      onHardDelete={handleHardDelete}
+                      canHardDelete={isDmAdmin}
+                      menuOpenId={menuOpenId}
+                      setMenuOpenId={setMenuOpenId}
+                      setEditingId={setEditingId}
+                      editingId={editingId}
                       editingText={editingText}
                       setEditingText={setEditingText}
                       onEditSubmit={handleEditSubmit}
@@ -1215,141 +1498,155 @@ export default function AdminChatClient({
           )}
 
           <div className="sticky bottom-0 rounded-3xl border-t border-white/10 bg-[#0d0d16]/95 p-4 md:border md:px-6 md:pb-6 md:pt-4">
-            <div className="flex items-center gap-2 pb-3 text-sm text-white/60">
-              <button
-                type="button"
-                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs transition hover:border-white/30 hover:text-white"
-                onClick={() => applyFormatting("bold")}
-              >
-                B
-              </button>
-              <button
-                type="button"
-                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs transition hover:border-white/30 hover:text-white"
-                onClick={() => applyFormatting("italic")}
-              >
-                I
-              </button>
-              <button
-                type="button"
-                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs transition hover:border-white/30 hover:text-white"
-                onClick={() => applyFormatting("underline")}
-              >
-                U
-              </button>
-              <button
-                type="button"
-                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs transition hover:border-white/30 hover:text-white"
-                onClick={() => applyFormatting("quote")}
-              >
-                &gt;
-              </button>
-              <button
-                type="button"
-                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs transition hover:border-white/30 hover:text-white"
-                onClick={() => applyFormatting("spoiler")}
-              >
-                Spoiler
-              </button>
-              <button
-                type="button"
-                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs transition hover:border-white/30 hover:text-white"
-                onClick={() => setEmojiOpen((v) => !v)}
-              >
-                😊
-              </button>
-              <div className="relative">
-                <button
-                  type="button"
-                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs transition hover:border-white/30 hover:text-white"
-                  onClick={() => setAttachMenuOpen((v) => !v)}
+            {uploadQueue.length > 0 && (
+              <div className="mb-4 space-y-2 rounded-2xl border border-white/10 bg-white/10 p-3 text-xs text-white/80 shadow-[0_16px_40px_rgba(10,10,24,0.45)]" role="status" aria-live="polite">
+                {uploadQueue.map((task) => (
+                  <div key={task.id} className="flex items-center justify-between gap-4 rounded-xl bg-black/30 px-3 py-2">
+                    <span className="max-w-[70%] truncate" title={task.filename}>
+                      {task.filename} · {task.kind.toUpperCase()}
+                    </span>
+                    <span className={task.error ? "text-rose-300" : "text-white/60"}>
+                      {task.error ? task.error : "Uploading…"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {rateLimitActive && (
+              <div className="mb-3 rounded-2xl border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-xs text-amber-100">
+                You’re moving fast—try again in a few seconds.
+              </div>
+            )}
+
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:gap-6">
+              <div className="flex-1 rounded-3xl border border-white/10 bg-[#0b0b15]/95 px-4 py-3 shadow-[0_18px_48px_rgba(9,9,20,0.55)]">
+                <textarea
+                  ref={composerRef}
+                  value={composer}
+                  onChange={(event) => setComposer(event.target.value)}
+                  onKeyDown={handleComposerKey}
+                  disabled={sending}
+                  placeholder="Write a message…"
+                  className="min-h-[80px] w-full resize-none bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+                />
+              </div>
+              <div className="flex w-full flex-col items-end gap-3 md:w-auto">
+                <div className="flex w-full items-center justify-between gap-3 md:w-auto md:justify-end">
+                  <button
+                    type="button"
+                  className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  aria-label="Insert emoji"
+                  aria-expanded={emojiOpen}
+                  aria-controls={emojiMenuId}
+                  onClick={() => setEmojiOpen((value) => !value)}
                 >
-                  Attach
+                  <Smile className="h-5 w-5" />
                 </button>
-                <AnimatePresence>
-                  {attachMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 8 }}
-                      className="absolute right-0 top-10 z-50 min-w-[200px] rounded-2xl border border-white/10 bg-[#10101c] p-3 shadow-xl"
+                <div className="relative">
+                    <button
+                      type="button"
+                      className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                      aria-label="Attach a file"
+                      aria-expanded={attachMenuOpen}
+                      aria-controls={attachMenuId}
+                      onClick={() => setAttachMenuOpen((value) => !value)}
                     >
-                      <div className="flex flex-col gap-2 text-xs text-white/70">
-                        <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
-                          Image · ≤5MB
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(event) => handleFileInput(event, "image")}
-                          />
-                        </label>
-                        <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
-                          Video · ≤50MB
-                          <input
-                            type="file"
-                            accept="video/*"
-                            className="hidden"
-                            onChange={(event) => handleFileInput(event, "video")}
-                          />
-                        </label>
-                        <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
-                          Audio · ≤10MB
-                          <input
-                            type="file"
-                            accept="audio/*"
-                            className="hidden"
-                            onChange={(event) => handleFileInput(event, "audio")}
-                          />
-                        </label>
-                        <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
-                          File · ≤20MB
-                          <input
-                            type="file"
-                            className="hidden"
-                            onChange={(event) => handleFileInput(event, "file")}
-                          />
-                        </label>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      <Paperclip className="h-5 w-5" />
+                    </button>
+                    <AnimatePresence>
+                      {attachMenuOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 8 }}
+                          id={attachMenuId}
+                          className="absolute right-0 top-12 z-50 min-w-[200px] rounded-2xl border border-white/10 bg-[#10101c] p-3 text-xs text-white/70 shadow-xl"
+                        >
+                          <div className="flex flex-col gap-2">
+                            <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
+                              Image · ≤5MB
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(event) => handleFileInput(event, "image")}
+                              />
+                            </label>
+                            <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
+                              Video · ≤50MB
+                              <input
+                                type="file"
+                                accept="video/*"
+                                className="hidden"
+                                onChange={(event) => handleFileInput(event, "video")}
+                              />
+                            </label>
+                            <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
+                              Audio · ≤10MB
+                              <input
+                                type="file"
+                                accept="audio/*"
+                                className="hidden"
+                                onChange={(event) => handleFileInput(event, "audio")}
+                              />
+                            </label>
+                            <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
+                              File · ≤20MB
+                              <input
+                                type="file"
+                                className="hidden"
+                                onChange={(event) => handleFileInput(event, "file")}
+                              />
+                            </label>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  <button
+                    type="button"
+                    className={`rounded-full border p-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
+                      recording
+                        ? "border-rose-300/60 bg-rose-500/20 text-rose-100"
+                        : "border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:text-white"
+                    }`}
+                    aria-label={recording ? "Stop recording voice note" : "Record voice note"}
+                    aria-pressed={recording}
+                    onClick={() => {
+                      if (recording) {
+                        stopRecording();
+                      } else {
+                        startRecording();
+                      }
+                    }}
+                  >
+                    {recording ? (
+                      <span className="flex items-center gap-1 text-xs font-semibold">
+                        <Mic className="h-4 w-4" />
+                        {recordingSeconds}s
+                      </span>
+                    ) : (
+                      <Mic className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
+                <div className="flex w-full items-center justify-between gap-3 md:w-auto md:justify-end">
+                  <div className="text-xs text-white/40 md:hidden">
+                    Enter to send · Shift+Enter for newline
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary inline-flex h-10 min-w-[120px] items-center justify-center px-6 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={handleSend}
+                    disabled={sending || !composer.trim()}
+                  >
+                    {sending ? "Sending…" : "Send"}
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                className={`rounded-full border border-white/10 px-3 py-1 text-xs transition ${recording ? "bg-rose-500/30 border-rose-300/40 text-rose-100" : "bg-white/5 text-white/70 hover:border-white/30 hover:text-white"}`}
-                onClick={() => {
-                  if (recording) {
-                    stopRecording();
-                  } else {
-                    startRecording();
-                  }
-                }}
-              >
-                {recording ? `Stop · ${recordingSeconds}s` : "Mic"}
-              </button>
             </div>
-            <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[inset_0_0_40px_rgba(139,92,246,0.15)]">
-              <textarea
-                ref={composerRef}
-                value={composer}
-                onChange={(event) => setComposer(event.target.value)}
-                onKeyDown={handleComposerKey}
-                disabled={sending}
-                placeholder="Write a message..."
-                className="min-h-[72px] resize-none rounded-2xl border border-transparent bg-transparent text-sm text-white placeholder:text-white/40 focus:border-white/30 focus:outline-none"
-              />
-              <div className="flex items-center justify-between text-xs text-white/40">
-                <span>Enter to send · Shift + Enter for newline</span>
-                <button
-                  type="button"
-                  className="btn-primary h-10 px-8"
-                  onClick={handleSend}
-                  disabled={sending || !composer.trim()}
-                >
-                  {sending ? "Sending…" : "Send"}
-                </button>
-              </div>
+            <div className="hidden text-xs text-white/40 md:block">
+              Enter to send · Shift+Enter for newline
             </div>
           </div>
         </div>
@@ -1360,6 +1657,7 @@ export default function AdminChatClient({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
+            id={emojiMenuId}
             className="fixed bottom-24 right-4 z-50 shadow-2xl md:right-10"
           >
             <GlowPanel subtle className="p-2">
@@ -1615,7 +1913,7 @@ type MessageBubbleProps = {
   markdownComponents: Record<string, any>;
 };
 
-function MessageBubble({
+const MessageBubble = memo(function MessageBubble({
   message,
   currentUserId,
   active,
@@ -1756,14 +2054,15 @@ function MessageBubble({
       </div>
     </div>
   );
-}
+});
+MessageBubble.displayName = "MessageBubble";
 
 type MessageMarkdownProps = {
   text: string;
   components: Record<string, any>;
 };
 
-function MessageMarkdown({ text, components }: MessageMarkdownProps) {
+const MessageMarkdown = memo(function MessageMarkdown({ text, components }: MessageMarkdownProps) {
   const transformed = useMemo(() => {
     let next = text;
     next = next.replace(
@@ -1782,14 +2081,15 @@ function MessageMarkdown({ text, components }: MessageMarkdownProps) {
       {transformed}
     </ReactMarkdown>
   );
-}
+});
+MessageMarkdown.displayName = "MessageMarkdown";
 
 type MessageMediaProps = {
   message: Message;
   resolveFileUrl: (path: string) => Promise<string>;
 };
 
-function MessageMedia({ message, resolveFileUrl }: MessageMediaProps) {
+const MessageMedia = memo(function MessageMedia({ message, resolveFileUrl }: MessageMediaProps) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -1862,7 +2162,8 @@ function MessageMedia({ message, resolveFileUrl }: MessageMediaProps) {
       📎 {message.fileMime ?? "file"} · {message.fileBytes ? formatBytes(message.fileBytes) : "download"}
     </a>
   );
-}
+});
+MessageMedia.displayName = "MessageMedia";
 
 function buildSearchSnippet(message: Message) {
   if (message.highlight) return message.highlight;

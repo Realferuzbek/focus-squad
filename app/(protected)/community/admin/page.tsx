@@ -5,12 +5,63 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { mapThread } from "@/lib/adminchat/server";
-import AdminChatClient from "@/components/community/AdminChatClient";
+import AdminChatClient, {
+  type ChatUser,
+  type ThreadMeta,
+} from "@/components/community/AdminChatClient";
+import AdminChatAdminView from "@/components/community/AdminChatAdminView";
+import {
+  getThreadDisplayMeta,
+  listAdminThreads,
+  loadThreadForAdmin,
+  type AdminInboxThread,
+  type ThreadDisplayMeta,
+} from "@/lib/community/admin/server";
 
-export default async function AdminChatPage() {
+type PageProps = {
+  searchParams?: Record<string, string | string[] | undefined>;
+};
+
+export default async function AdminChatPage({ searchParams }: PageProps) {
   const session = await auth();
   const me = session?.user as any;
   if (!me?.id) redirect("/signin");
+
+  const user: ChatUser = {
+    id: me.id,
+    name: me.display_name ?? me.name ?? me.email,
+    email: me.email,
+    avatarUrl: me.avatar_url ?? null,
+    isDmAdmin: !!me.is_dm_admin,
+  };
+
+  const threadParam = searchParams?.thread;
+  const requestedThreadId =
+    typeof threadParam === "string" ? threadParam : Array.isArray(threadParam) ? threadParam[0] : null;
+
+  if (user.isDmAdmin) {
+    const inboxThreads = await listAdminThreads(user.id);
+    const activeThreadId =
+      requestedThreadId ?? inboxThreads[0]?.id ?? null;
+
+    const threadPromise: Promise<ThreadMeta | null> = activeThreadId
+      ? loadThreadForAdmin(activeThreadId)
+      : Promise.resolve(null);
+    const metaPromise: Promise<ThreadDisplayMeta | null> = activeThreadId
+      ? getThreadDisplayMeta(activeThreadId)
+      : Promise.resolve(null);
+    const [initialThread, threadMeta] = await Promise.all([threadPromise, metaPromise]);
+
+    return (
+      <AdminChatAdminView
+        user={user}
+        inboxThreads={inboxThreads}
+        initialThread={initialThread}
+        activeThreadId={activeThreadId}
+        displayMeta={threadMeta}
+      />
+    );
+  }
 
   const sb = supabaseAdmin();
   const { data, error } = await sb
@@ -30,16 +81,7 @@ export default async function AdminChatPage() {
   return (
     <div className="min-h-[100dvh] bg-[#07070b] px-4 py-8 text-white md:py-12">
       <div className="mx-auto w-full max-w-4xl">
-        <AdminChatClient
-          user={{
-            id: me.id,
-            name: me.display_name ?? me.name ?? me.email,
-            email: me.email,
-            avatarUrl: me.avatar_url ?? null,
-            isDmAdmin: !!me.is_dm_admin,
-          }}
-          initialThread={initialThread}
-        />
+        <AdminChatClient user={user} initialThread={initialThread} />
       </div>
     </div>
   );

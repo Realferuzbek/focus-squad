@@ -70,7 +70,10 @@ export async function GET(req: NextRequest) {
       .from("dm_messages")
       .select(selecting)
       .eq("thread_id", threadId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .neq("kind", "system")
+      .not("text", "ilike", "hello realtime%")
+      .not("text", "ilike", "hello from sql%");
 
     if (usingSearch) {
       query = query.ilike("text", `%${parsed.q}%`).limit(100);
@@ -98,8 +101,16 @@ export async function GET(req: NextRequest) {
       return !hidden;
     });
 
+    const filteredRows = rows.filter((row: any) => {
+      if (row.kind === "system") return false;
+      const normalized = (row.text ?? "").trim().toLowerCase();
+      if (normalized.startsWith("hello realtime")) return false;
+      if (normalized.startsWith("hello from sql")) return false;
+      return true;
+    });
+
     if (usingSearch) {
-      const mapped = rows.map((row: any) => {
+      const mapped = filteredRows.map((row: any) => {
         const message = mapMessage(row);
         const highlight = buildHighlight(message.text ?? "", parsed.q!);
         return { ...message, highlight };
@@ -110,8 +121,8 @@ export async function GET(req: NextRequest) {
         nextCursor: null,
       });
     } else {
-      const paged = rows.slice(0, limit);
-      const hasMore = rows.length > limit;
+      const paged = filteredRows.slice(0, limit);
+      const hasMore = filteredRows.length > limit;
       const nextCursor =
         hasMore && paged.length > 0 ? paged[paged.length - 1].created_at : null;
 

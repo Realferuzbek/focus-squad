@@ -40,6 +40,19 @@ type FilePayload = z.infer<typeof fileSchema>;
 
 const bodySchema = z.union([textSchema, fileSchema]);
 
+type RateBucket = {
+  timestamps: number[];
+  timeout?: NodeJS.Timeout;
+};
+
+const RATE_LIMIT_WINDOW_MS = 10_000;
+const RATE_LIMIT_MAX_HITS = 5;
+const RATE_LIMIT_COOLDOWN_MS = 30_000;
+const RATE_LIMIT_ERROR =
+  "You’re sending messages too quickly. Please wait a few seconds before trying again.";
+
+const messageRateBuckets = new Map<string, RateBucket>();
+
 function isFilePayload(payload: TextPayload | FilePayload): payload is FilePayload {
   return "kind" in payload;
 }
@@ -61,6 +74,44 @@ function buildMessagePreview(kind: string, text: string | null) {
     default:
       return "New message";
   }
+}
+
+function allowMessageAttempt(key: string) {
+  const now = Date.now();
+  const bucket = messageRateBuckets.get(key) ?? { timestamps: [] };
+  const recent = bucket.timestamps.filter(
+    (timestamp) => now - timestamp < RATE_LIMIT_WINDOW_MS,
+  );
+
+  if (recent.length >= RATE_LIMIT_MAX_HITS) {
+    bucket.timestamps = recent;
+    if (!bucket.timeout) {
+      bucket.timeout = setTimeout(() => {
+        const entry = messageRateBuckets.get(key);
+        if (entry?.timeout) {
+          clearTimeout(entry.timeout);
+        }
+        messageRateBuckets.delete(key);
+      }, RATE_LIMIT_COOLDOWN_MS);
+    }
+    messageRateBuckets.set(key, bucket);
+    return false;
+  }
+
+  recent.push(now);
+  bucket.timestamps = recent;
+  if (bucket.timeout) {
+    clearTimeout(bucket.timeout);
+  }
+  bucket.timeout = setTimeout(() => {
+    const entry = messageRateBuckets.get(key);
+    if (entry?.timeout) {
+      clearTimeout(entry.timeout);
+    }
+    messageRateBuckets.delete(key);
+  }, RATE_LIMIT_COOLDOWN_MS);
+  messageRateBuckets.set(key, bucket);
+  return true;
 }
 
 export async function POST(req: NextRequest) {
@@ -104,6 +155,11 @@ export async function POST(req: NextRequest) {
     }
 
     const sb = supabaseAdmin();
+
+    const rateKey = `${threadId}:${userId}`;
+    if (!allowMessageAttempt(rateKey)) {
+      return NextResponse.json({ error: RATE_LIMIT_ERROR }, { status: 429 });
+    }
 
     await ensureParticipant(threadId, userId, admin ? "dm_admin" : "member");
 
