@@ -11,7 +11,7 @@ import {
   useState,
   useId,
 } from "react";
-import type { ChangeEvent, MouseEvent, TouchEvent } from "react";
+import type { ChangeEvent } from "react";
 import dynamic from "next/dynamic";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import ReactMarkdown from "react-markdown";
@@ -299,11 +299,6 @@ export default function AdminChatClient({
   const [auditCursor, setAuditCursor] = useState<string | null>(null);
   const [auditHasMore, setAuditHasMore] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
-  const [formatMenu, setFormatMenu] = useState<{ visible: boolean; x: number; y: number }>({
-    visible: false,
-    x: 0,
-    y: 0,
-  });
 
   useEffect(() => {
     setThread(initialThread);
@@ -330,11 +325,6 @@ export default function AdminChatClient({
     }
   }, []);
 
-  const hideFormatMenu = useCallback(() => {
-    setFormatMenu((prev) => (prev.visible ? { ...prev, visible: false } : prev));
-    selectionPointerRef.current = null;
-  }, []);
-
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<ReturnType<typeof supabaseBrowser.channel> | null>(
@@ -353,8 +343,6 @@ export default function AdminChatClient({
   const rateLimitTimerRef = useRef<NodeJS.Timeout | null>(null);
   const errorTimerRef = useRef<NodeJS.Timeout | null>(null);
   const wallpaperInputRef = useRef<HTMLInputElement | null>(null);
-  const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
-  const selectionPointerRef = useRef<{ x: number; y: number } | null>(null);
 
   const prefersReducedMotion = useReducedMotion();
   const isDmAdmin = !!user.isDmAdmin;
@@ -374,55 +362,6 @@ export default function AdminChatClient({
     overscan: 8,
   });
   const virtualItems = virtualizer.getVirtualItems();
-
-  useEffect(() => {
-    const textarea = composerRef.current;
-    if (!textarea) return;
-
-    const handleSelectionChange = () => {
-      const node = composerRef.current;
-      if (!node) return;
-      if (document.activeElement !== node) {
-        hideFormatMenu();
-        return;
-      }
-      const start = node.selectionStart ?? 0;
-      const end = node.selectionEnd ?? 0;
-      selectionRef.current = { start, end };
-      if (end - start <= 0) {
-        hideFormatMenu();
-        return;
-      }
-      const rect = node.getBoundingClientRect();
-      const pointer = selectionPointerRef.current;
-      const clientX = pointer?.x ?? rect.left + rect.width / 2;
-      const clientY = pointer?.y ?? rect.top;
-      setFormatMenu({
-        visible: true,
-        x: clientX + window.scrollX,
-        y: clientY + window.scrollY - 56,
-      });
-    };
-
-    const handleBlur = () => hideFormatMenu();
-
-    document.addEventListener("selectionchange", handleSelectionChange);
-    window.addEventListener("resize", hideFormatMenu);
-    textarea.addEventListener("blur", handleBlur);
-    textarea.addEventListener("scroll", hideFormatMenu);
-    return () => {
-      document.removeEventListener("selectionchange", handleSelectionChange);
-      window.removeEventListener("resize", hideFormatMenu);
-      textarea.removeEventListener("blur", handleBlur);
-      textarea.removeEventListener("scroll", hideFormatMenu);
-    };
-  }, [hideFormatMenu]);
-
-  useEffect(() => {
-    if (!composer.trim()) {
-      hideFormatMenu();
-    }
-  }, [composer, hideFormatMenu]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -564,6 +503,21 @@ export default function AdminChatClient({
     setHasMore(false);
     setNextCursor(null);
   }, [memoizedThreadId]);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      if (!hasMore || !nextCursor || loadingMessages) return;
+      if (el.scrollTop <= 80) {
+        loadMessages(nextCursor);
+      }
+    };
+    el.addEventListener("scroll", handleScroll);
+    return () => {
+      el.removeEventListener("scroll", handleScroll);
+    };
+  }, [hasMore, loadMessages, loadingMessages, nextCursor]);
 
   const refreshThread = useCallback(async () => {
     try {
@@ -840,14 +794,45 @@ export default function AdminChatClient({
       sendReceipt(false);
     }
   }, [composer, memoizedThreadId, sendReceipt]);
+
+  const requireThreadId = useCallback(async () => {
+    if (memoizedThreadId) return memoizedThreadId;
+    if (isDmAdmin) {
+      throw new Error("Select a conversation before sending a message.");
+    }
+    try {
+      const res = await fetch("/api/community/adminchat/start", {
+        method: "POST",
+      });
+      if (!res.ok) {
+        throw new Error("Unable to start chat right now.");
+      }
+      const data = await res.json();
+      const thread = data?.thread;
+      if (!thread?.id) {
+        throw new Error("Unable to start chat right now.");
+      }
+      setThread(thread);
+      setMetaForm({
+        avatarUrl: thread.avatarUrl ?? "",
+        wallpaperUrl: thread.wallpaperUrl ?? "",
+        description: thread.description ?? "",
+      });
+      return thread.id as string;
+    } catch (err) {
+      console.error(err);
+      if (err instanceof Error) {
+        throw err;
+      }
+      throw new Error("Unable to start chat right now.");
+    }
+  }, [isDmAdmin, memoizedThreadId]);
   const applyFormatting = useCallback(
     (type: FormatAction) => {
       const textarea = composerRef.current;
       if (!textarea) return;
-      const start =
-        textarea.selectionStart ?? selectionRef.current.start ?? 0;
-      const end =
-        textarea.selectionEnd ?? selectionRef.current.end ?? start;
+      const start = textarea.selectionStart ?? 0;
+      const end = textarea.selectionEnd ?? start;
       if (start === end) return;
       const selected = composer.slice(start, end);
       let nextValue = composer;
@@ -892,14 +877,12 @@ export default function AdminChatClient({
       }
 
       setComposer(nextValue);
-      selectionRef.current = { start: nextStart, end: nextEnd };
       requestAnimationFrame(() => {
         textarea.focus();
         textarea.setSelectionRange(nextStart, nextEnd);
       });
-      hideFormatMenu();
     },
-    [composer, hideFormatMenu],
+    [composer],
   );
 
   const handleInsertEmoji = useCallback(
@@ -923,15 +906,15 @@ export default function AdminChatClient({
 
   const signUpload = useCallback(
     async (
+      threadId: string,
       kind: "image" | "video" | "audio" | "file",
       file: File,
     ): Promise<{ path: string; token: string; expiresIn: number }> => {
-      if (!memoizedThreadId) throw new Error("No thread");
       const res = await fetch("/api/community/adminchat/sign-upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          threadId: memoizedThreadId,
+          threadId,
           kind,
           filename: file.name,
           mime: file.type,
@@ -944,7 +927,7 @@ export default function AdminChatClient({
       }
       return res.json();
     },
-    [memoizedThreadId],
+    [],
   );
 
   const resolveFileUrl = useCallback(
@@ -972,18 +955,32 @@ export default function AdminChatClient({
   );
 
   const handleSend = useCallback(async () => {
-    if (!memoizedThreadId || sending) return;
+    if (sending) return;
     const trimmed = composer.trim();
     if (!trimmed) return;
     if (!registerAction()) return;
     setSending(true);
+    let threadIdForSend = memoizedThreadId;
+    if (!threadIdForSend) {
+      try {
+        threadIdForSend = await requireThreadId();
+      } catch (err) {
+        if (err instanceof Error) {
+          showError(err.message);
+        } else {
+          showError("Unable to start chat right now.");
+        }
+        setSending(false);
+        return;
+      }
+    }
     try {
       const res = await fetch("/api/community/adminchat/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: trimmed,
-          threadId: isDmAdmin ? memoizedThreadId : undefined,
+          threadId: threadIdForSend ?? undefined,
         }),
       });
       if (res.status === 429) {
@@ -1013,10 +1010,10 @@ export default function AdminChatClient({
   }, [
     composer,
     handleRateLimitNotice,
-    isDmAdmin,
     memoizedThreadId,
     refreshAuditIfOpen,
     registerAction,
+    requireThreadId,
     scrollToBottom,
     sending,
     showError,
@@ -1162,18 +1159,15 @@ export default function AdminChatClient({
         ...prev,
         { id: taskId, filename: file.name, kind, progress: null },
       ]);
-      if (!memoizedThreadId) {
-        setUploadQueue((prev) => prev.filter((task) => task.id !== taskId));
-        return;
-      }
       if (!registerAction()) {
         setUploadQueue((prev) => prev.filter((task) => task.id !== taskId));
         return;
       }
       try {
+        const threadId = await requireThreadId();
         const preparedFile =
           kind === "image" ? await compressImage(file) : file;
-        const signed = await signUpload(kind, preparedFile);
+        const signed = await signUpload(threadId, kind, preparedFile);
         const { error: uploadError } = await supabaseBrowser
           .storage
           .from("dm-uploads")
@@ -1185,7 +1179,7 @@ export default function AdminChatClient({
           filePath: signed.path,
           fileMime: preparedFile.type,
           fileBytes: preparedFile.size,
-          threadId: isDmAdmin ? memoizedThreadId : undefined,
+          threadId,
         };
 
         const res = await fetch("/api/community/adminchat/message", {
@@ -1225,13 +1219,12 @@ export default function AdminChatClient({
     [
       compressImage,
       handleRateLimitNotice,
-      isDmAdmin,
-      memoizedThreadId,
       refreshAuditIfOpen,
       registerAction,
       scrollToBottom,
       showError,
       signUpload,
+      requireThreadId,
     ],
   );
 
@@ -1371,11 +1364,6 @@ export default function AdminChatClient({
     [messages, prefersReducedMotion, virtualizer],
   );
 
-  const onLoadMore = useCallback(() => {
-    if (!hasMore || !nextCursor) return;
-    loadMessages(nextCursor);
-  }, [hasMore, loadMessages, nextCursor]);
-
   const handleComposerKey = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (event.key === "Enter" && !event.shiftKey) {
@@ -1398,27 +1386,6 @@ export default function AdminChatClient({
       }
     },
     [applyFormatting, handleSend],
-  );
-
-  const rememberPointer = useCallback((clientX: number, clientY: number) => {
-    selectionPointerRef.current = { x: clientX, y: clientY };
-  }, []);
-
-  const handleComposerMouseUp = useCallback(
-    (event: MouseEvent<HTMLTextAreaElement>) => {
-      rememberPointer(event.clientX, event.clientY);
-    },
-    [rememberPointer],
-  );
-
-  const handleComposerTouchEnd = useCallback(
-    (event: TouchEvent<HTMLTextAreaElement>) => {
-      const touch = event.changedTouches?.[0];
-      if (touch) {
-        rememberPointer(touch.clientX, touch.clientY);
-      }
-    },
-    [rememberPointer],
   );
 
   const handleMetaSave = useCallback(async () => {
@@ -1533,9 +1500,8 @@ export default function AdminChatClient({
     if (composerDisabled) {
       setAttachMenuOpen(false);
       setEmojiOpen(false);
-      hideFormatMenu();
     }
-  }, [composerDisabled, hideFormatMenu]);
+  }, [composerDisabled]);
   return (
     <div className="relative flex flex-col gap-6">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -1691,17 +1657,6 @@ export default function AdminChatClient({
             ref={listRef}
             className="flex max-h-[60vh] flex-col overflow-y-auto overscroll-contain px-4 pt-6 pb-32 md:px-6 md:pt-8"
           >
-            {hasMore && (
-              <button
-                type="button"
-                className="mx-auto mb-4 rounded-full border border-white/10 px-4 py-1 text-xs text-white/65 transition hover:border-white/25 hover:text-white"
-                onClick={onLoadMore}
-                disabled={loadingMessages}
-              >
-                {loadingMessages ? "Loading…" : "Load previous"}
-              </button>
-            )}
-
             <div
               style={{
                 height: `${virtualizer.getTotalSize()}px`,
@@ -1875,8 +1830,6 @@ export default function AdminChatClient({
                   value={composer}
                   onChange={(event) => setComposer(event.target.value)}
                   onKeyDown={handleComposerKey}
-                  onMouseUp={handleComposerMouseUp}
-                  onTouchEnd={handleComposerTouchEnd}
                   disabled={composerDisabled}
                   minRows={1}
                   maxRows={5}
@@ -2241,55 +2194,6 @@ export default function AdminChatClient({
       </AnimatePresence>
     </div>
 
-    {formatMenu.visible && (
-      <div
-        className="pointer-events-none fixed z-50"
-        style={{ top: formatMenu.y, left: formatMenu.x }}
-      >
-        <div className="admin-format-bubble pointer-events-auto">
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => applyFormatting("bold")}
-            aria-label="Bold"
-          >
-            B
-          </button>
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => applyFormatting("italic")}
-            aria-label="Italic"
-          >
-            I
-          </button>
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => applyFormatting("underline")}
-            aria-label="Underline"
-          >
-            U
-          </button>
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => applyFormatting("quote")}
-            aria-label="Quote"
-          >
-            &gt;
-          </button>
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => applyFormatting("spoiler")}
-            aria-label="Spoiler"
-          >
-            ||
-          </button>
-        </div>
-      </div>
-    )}
   </div>
   );
 }

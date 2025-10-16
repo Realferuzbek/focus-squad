@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import {
+  buildMessagePreview,
+  ensureAdminParticipants,
   ensureParticipant,
+  ensureUserThread,
   fetchThreadById,
-  fetchThreadByUserId,
   isDmAdmin,
   mapMessage,
 } from "@/lib/adminchat/server";
@@ -55,25 +57,6 @@ const messageRateBuckets = new Map<string, RateBucket>();
 
 function isFilePayload(payload: TextPayload | FilePayload): payload is FilePayload {
   return "kind" in payload;
-}
-
-function buildMessagePreview(kind: string, text: string | null) {
-  const trimmed = text?.trim();
-  if (trimmed) {
-    return trimmed.length > 140 ? `${trimmed.slice(0, 137)}…` : trimmed;
-  }
-  switch (kind) {
-    case "image":
-      return "[image]";
-    case "video":
-      return "[video]";
-    case "audio":
-      return "[audio]";
-    case "file":
-      return "[file]";
-    default:
-      return "New message";
-  }
 }
 
 function allowMessageAttempt(key: string) {
@@ -133,35 +116,42 @@ export async function POST(req: NextRequest) {
   const admin = isDmAdmin(user);
 
   try {
+    const sb = supabaseAdmin();
     let threadId: string | null = null;
-    if (admin && payload.threadId) {
+    if (admin) {
+      if (!payload.threadId) {
+        return NextResponse.json({ error: "Thread required" }, { status: 400 });
+      }
       const thread = await fetchThreadById(payload.threadId);
       if (!thread) {
         return NextResponse.json({ error: "Thread not found" }, { status: 404 });
       }
       threadId = thread.id;
+      await ensureAdminParticipants(threadId, sb);
     } else {
-      const thread = await fetchThreadByUserId(userId);
-      if (!thread) {
-        return NextResponse.json(
-          { error: "Thread not started" },
-          { status: 400 },
-        );
+      if (payload.threadId) {
+        const thread = await fetchThreadById(payload.threadId);
+        if (!thread) {
+          return NextResponse.json({ error: "Thread not found" }, { status: 404 });
+        }
+        if (thread.user_id !== userId) {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+        threadId = thread.id;
+        await ensureParticipant(threadId, userId, "member", sb);
+        await ensureAdminParticipants(threadId, sb);
+      } else {
+        const thread = await ensureUserThread(userId);
+        threadId = thread.id;
       }
-      if (!admin && thread.user_id !== userId) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
-      threadId = thread.id;
     }
-
-    const sb = supabaseAdmin();
 
     const rateKey = `${threadId}:${userId}`;
     if (!allowMessageAttempt(rateKey)) {
       return NextResponse.json({ error: RATE_LIMIT_ERROR }, { status: 429 });
     }
 
-    await ensureParticipant(threadId, userId, admin ? "dm_admin" : "member");
+    await ensureParticipant(threadId, userId, admin ? "dm_admin" : "member", sb);
 
     let insertPayload: Record<string, any>;
 
@@ -216,7 +206,12 @@ export async function POST(req: NextRequest) {
       .from("dm_receipts")
       .upsert({ thread_id: threadId, user_id: userId, last_read_at: nowIso, typing: false });
 
-    const preview = buildMessagePreview(data.kind, data.text);
+    const preview = buildMessagePreview(
+      data.kind,
+      data.text,
+      data.file_mime,
+      data.file_bytes,
+    );
     const { error: auditError } = await sb.from("dm_audit").insert({
       thread_id: threadId,
       actor_id: userId,

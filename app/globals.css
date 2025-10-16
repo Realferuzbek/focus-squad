@@ -1,38 +1,3 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-.admin-format-bubble {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 9999px;
-  background: rgba(8, 8, 19, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  transform: translate(-50%, -120%);
-  backdrop-filter: blur(12px);
-}
-
-.admin-format-bubble button {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
-  padding: 0.25rem 0.4rem;
-  border-radius: 0.65rem;
-  border: none;
-  background: transparent;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.admin-format-bubble button:hover,
-.admin-format-bubble button:focus-visible {
-  background: rgba(255, 255, 255, 0.14);
-  color: #ffffff;
-  outline: none;
-}
-
-.admin-format-bubble button:focus-visible {
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
-}

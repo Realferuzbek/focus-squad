@@ -14,6 +14,7 @@ type AdminInboxProps = {
   isMobileOpen: boolean;
   onCloseMobile: () => void;
   onThreadOpen?: () => void;
+  onSelectThread?: (threadId: string) => void;
 };
 
 const relativeFormatter = new Intl.RelativeTimeFormat(undefined, {
@@ -51,6 +52,7 @@ export default function AdminInbox({
   isMobileOpen,
   onCloseMobile,
   onThreadOpen,
+  onSelectThread,
 }: AdminInboxProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -70,13 +72,14 @@ export default function AdminInbox({
 
   const handleSelect = useCallback(
     (threadId: string) => {
+      onSelectThread?.(threadId);
       const params = new URLSearchParams(searchParams?.toString() ?? "");
       params.set("thread", threadId);
       router.push(`${pathname}?${params.toString()}`, { scroll: false });
       if (onCloseMobile) onCloseMobile();
       onThreadOpen?.();
     },
-    [pathname, router, searchParams, onCloseMobile, onThreadOpen],
+    [pathname, router, searchParams, onCloseMobile, onThreadOpen, onSelectThread],
   );
 
   const panel = (

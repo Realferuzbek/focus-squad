@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseServer";
-import { mapThread, type ThreadRow } from "@/lib/adminchat/server";
+import { buildMessagePreview, mapThread, type ThreadRow } from "@/lib/adminchat/server";
 
 export type AdminInboxThread = {
   id: string;
@@ -147,20 +147,7 @@ export async function listAdminThreads(adminId: string): Promise<AdminInboxThrea
 
   function buildPreview(row: LastMessageRow | undefined): string | null {
     if (!row) return null;
-    if (row.kind === "text" && row.text) {
-      const trimmed = row.text.replace(/\s+/g, " ").trim();
-      if (!trimmed) return null;
-      return trimmed.slice(0, 120);
-    }
-    if (row.kind === "audio") return "Voice message";
-    if (row.kind === "video") return "Video";
-    if (row.kind === "image") return "Photo";
-    if (row.kind === "file") {
-      if (row.file_mime?.startsWith("application/pdf")) return "PDF";
-      if (row.file_mime?.startsWith("application/zip")) return "Archive";
-      return "File";
-    }
-    return row.kind ? row.kind.charAt(0).toUpperCase() + row.kind.slice(1) : null;
+    return buildMessagePreview(row.kind, row.text, row.file_mime, row.file_bytes);
   }
 
   return orderedThreads.map((row) => {

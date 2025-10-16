@@ -62,8 +62,9 @@ export async function ensureParticipant(
   threadId: string,
   userId: string,
   role: "member" | "dm_admin",
+  sbInstance?: ReturnType<typeof supabaseAdmin>,
 ) {
-  const sb = supabaseAdmin();
+  const sb = sbInstance ?? supabaseAdmin();
   const { error } = await sb
     .from("dm_participants")
     .upsert(
@@ -75,6 +76,66 @@ export async function ensureParticipant(
       { onConflict: "thread_id,user_id" },
     );
   if (error) throw error;
+}
+
+export async function ensureAdminParticipants(
+  threadId: string,
+  sbInstance?: ReturnType<typeof supabaseAdmin>,
+) {
+  const sb = sbInstance ?? supabaseAdmin();
+  const { data: adminRows, error: adminsError } = await sb
+    .from("users")
+    .select("id")
+    .eq("is_dm_admin", true);
+  if (adminsError) throw adminsError;
+  const adminIds = (adminRows ?? [])
+    .map((row: any) => row.id as string | null)
+    .filter((id): id is string => !!id);
+  if (!adminIds.length) return;
+  const upserts = adminIds.map((id) => ({
+    thread_id: threadId,
+    user_id: id,
+    role: "dm_admin" as const,
+  }));
+  const { error } = await sb
+    .from("dm_participants")
+    .upsert(upserts, { onConflict: "thread_id,user_id" });
+  if (error) throw error;
+}
+
+export async function ensureUserThread(
+  userId: string,
+): Promise<ThreadRow> {
+  const existing = await fetchThreadByUserId(userId);
+  const sb = supabaseAdmin();
+  if (existing) {
+    await ensureParticipant(existing.id, userId, "member", sb);
+    await ensureAdminParticipants(existing.id, sb);
+    await sb
+      .from("dm_receipts")
+      .upsert({ thread_id: existing.id, user_id: userId, typing: false });
+    return existing;
+  }
+
+  const { data, error } = await sb
+    .from("dm_threads")
+    .insert({ user_id: userId, status: "open" })
+    .select(THREAD_COLUMNS)
+    .single();
+
+  if (error || !data) {
+    if (error) throw error;
+    throw new Error("Failed to create thread");
+  }
+
+  const thread = data as ThreadRow;
+  await ensureParticipant(thread.id, userId, "member", sb);
+  await ensureAdminParticipants(thread.id, sb);
+  await sb
+    .from("dm_receipts")
+    .upsert({ thread_id: thread.id, user_id: userId, typing: false });
+
+  return thread;
 }
 
 export async function getParticipant(
@@ -136,3 +197,32 @@ export function isDmAdmin(user: any): boolean {
 }
 
 export { THREAD_COLUMNS, MESSAGE_COLUMNS };
+
+export function buildMessagePreview(
+  kind: string,
+  text: string | null,
+  fileMime?: string | null,
+  fileBytes?: number | null,
+) {
+  const trimmed = text?.trim();
+  if (trimmed) {
+    return trimmed.length > 140 ? `${trimmed.slice(0, 137)}…` : trimmed;
+  }
+  switch (kind) {
+    case "image":
+      return "[image]";
+    case "video":
+      return "[video]";
+    case "audio":
+      return "[audio]";
+    case "file":
+      if (fileMime?.startsWith("application/pdf")) return "PDF";
+      if (fileMime?.startsWith("application/zip")) return "Archive";
+      if (fileMime?.startsWith("application/vnd")) return "Document";
+      return fileMime ?? (fileBytes ? "File" : "[file]");
+    case "system":
+      return "New activity";
+    default:
+      return "New message";
+  }
+}
