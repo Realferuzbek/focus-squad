@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import {
   LiveAdminError,
   addAdmin,
   appendAudit,
+  listAdmins,
   removeAdmin,
   requireAdmin,
+  searchAdminCandidates,
 } from "@/lib/live/admin";
 
 function handleError(error: unknown) {
@@ -16,7 +18,34 @@ function handleError(error: unknown) {
   return NextResponse.json({ error: "Internal error" }, { status: 500 });
 }
 
-export async function POST(req: Request) {
+export async function GET(req: NextRequest) {
+  const session = await auth();
+
+  let context;
+  try {
+    context = await requireAdmin(session);
+  } catch (error) {
+    return handleError(error);
+  }
+
+  const q = req.nextUrl.searchParams.get("q");
+  try {
+    if (q) {
+      const [admins, matches] = await Promise.all([
+        listAdmins(context),
+        searchAdminCandidates(context, q),
+      ]);
+      return NextResponse.json({ admins, matches });
+    }
+
+    const admins = await listAdmins(context);
+    return NextResponse.json({ admins, matches: [] });
+  } catch (error) {
+    return handleError(error);
+  }
+}
+
+export async function POST(req: NextRequest) {
   const session = await auth();
 
   let context;

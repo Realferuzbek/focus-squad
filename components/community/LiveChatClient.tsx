@@ -99,7 +99,11 @@ const MEMBER_FORMAT = new Intl.NumberFormat("en-US");
 type Notice = {
   id: number;
   text: string;
+  variant: "error" | "success";
 };
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
 
 export type LiveAdminStateSnapshot = {
   isLive: boolean;
@@ -145,6 +149,11 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
   const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(
     adminState?.wallpaperUrl ?? null,
   );
+  const [wallpaperReadyUrl, setWallpaperReadyUrl] = useState<string | null>(null);
+  const [wallpaperVisible, setWallpaperVisible] = useState(false);
+  const [wallpaperFit, setWallpaperFit] = useState<"cover" | "contain">("cover");
+  const [isNarrowViewport, setIsNarrowViewport] = useState(false);
+  const [wallpaperParallax, setWallpaperParallax] = useState(0);
   const [adminActiveMembers, setAdminActiveMembers] = useState(
     adminState?.activeMembers ?? adminState?.subscribersCount ?? 0,
   );
@@ -212,18 +221,35 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     overscan: 12,
   });
 
-  const pushError = useCallback((message: string) => {
-    if (!message) return;
-    const id = Number(Date.now() + Math.random());
-    setNotices((prev) => [...prev, { id, text: message }]);
-    if (typeof window !== "undefined") {
-      const timeoutId = window.setTimeout(() => {
-        setNotices((prev) => prev.filter((notice) => notice.id !== id));
-        noticeTimeoutsRef.current.delete(id);
-      }, 5000);
-      noticeTimeoutsRef.current.set(id, timeoutId);
-    }
-  }, []);
+  const pushNotice = useCallback(
+    (message: string, variant: Notice["variant"] = "error") => {
+      if (!message) return;
+      const id = Number(Date.now() + Math.random());
+      setNotices((prev) => [...prev, { id, text: message, variant }]);
+      if (typeof window !== "undefined") {
+        const timeoutId = window.setTimeout(() => {
+          setNotices((prev) => prev.filter((notice) => notice.id !== id));
+          noticeTimeoutsRef.current.delete(id);
+        }, 5000);
+        noticeTimeoutsRef.current.set(id, timeoutId);
+      }
+    },
+    [],
+  );
+
+  const pushError = useCallback(
+    (message: string) => {
+      pushNotice(message, "error");
+    },
+    [pushNotice],
+  );
+
+  const pushSuccess = useCallback(
+    (message: string) => {
+      pushNotice(message, "success");
+    },
+    [pushNotice],
+  );
 
   const openAdminPanel = useCallback(
     (tab: typeof adminDrawerTab = "general") => {
@@ -292,15 +318,20 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     () => MEMBER_FORMAT.format(memberCount),
     [memberCount],
   );
-  const wallpaperStyle = useMemo<CSSProperties | undefined>(
-    () =>
-      wallpaperUrl
-        ? {
-            backgroundImage: `url(${wallpaperUrl})`,
-          }
-        : undefined,
-    [wallpaperUrl],
-  );
+  const wallpaperStyle = useMemo<CSSProperties | undefined>(() => {
+    if (!wallpaperReadyUrl) return undefined;
+    return {
+      backgroundImage: `url(${wallpaperReadyUrl})`,
+      backgroundSize: wallpaperFit,
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
+      opacity: wallpaperVisible ? 1 : 0,
+      transform: prefersReducedMotion ? undefined : `translateY(${wallpaperParallax}px)`,
+      transition: prefersReducedMotion
+        ? "opacity 0.25s ease"
+        : "opacity 0.4s ease, transform 0.6s ease",
+    } as CSSProperties;
+  }, [prefersReducedMotion, wallpaperFit, wallpaperParallax, wallpaperReadyUrl, wallpaperVisible]);
   const liveStatusLabel = isLive ? "Open" : "Locked";
 
   useEffect(() => {
@@ -325,6 +356,82 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     mq.addListener(handleMotion);
     return () => mq.removeListener(handleMotion);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      setWallpaperReadyUrl(wallpaperUrl ?? null);
+      setWallpaperVisible(!!wallpaperUrl);
+      return;
+    }
+    if (!wallpaperUrl) {
+      setWallpaperReadyUrl(null);
+      setWallpaperVisible(false);
+      return;
+    }
+    let active = true;
+    const image = new window.Image();
+    image.src = wallpaperUrl;
+    if (image.complete) {
+      setWallpaperReadyUrl(wallpaperUrl);
+      setWallpaperVisible(true);
+      return () => {
+        active = false;
+      };
+    }
+    setWallpaperVisible(false);
+    image.onload = () => {
+      if (!active) return;
+      setWallpaperReadyUrl(wallpaperUrl);
+      setWallpaperVisible(true);
+    };
+    image.onerror = () => {
+      if (!active) return;
+      setWallpaperReadyUrl(null);
+      setWallpaperVisible(false);
+    };
+    return () => {
+      active = false;
+    };
+  }, [wallpaperUrl]);
+
+  const updateWallpaperFit = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const width = window.innerWidth;
+    setWallpaperFit(width < 520 ? "contain" : "cover");
+    setIsNarrowViewport(width < 768);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    updateWallpaperFit();
+    window.addEventListener("resize", updateWallpaperFit);
+    return () => window.removeEventListener("resize", updateWallpaperFit);
+  }, [updateWallpaperFit]);
+
+  useEffect(() => {
+    if (prefersReducedMotion || typeof window === "undefined") {
+      setWallpaperParallax(0);
+      return;
+    }
+    if (!wallpaperReadyUrl) {
+      setWallpaperParallax(0);
+      return;
+    }
+    let ticking = false;
+    const maxShift = isNarrowViewport ? 12 : 26;
+    const handleScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(() => {
+        const offset = clamp(window.scrollY * 0.08, -maxShift, maxShift);
+        setWallpaperParallax(offset);
+        ticking = false;
+      });
+    };
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [isNarrowViewport, prefersReducedMotion, wallpaperReadyUrl]);
 
   useEffect(() => {
     const timeoutMap = noticeTimeoutsRef.current;
@@ -1069,7 +1176,11 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
               key={notice.id}
               role="status"
               aria-live="assertive"
-              className="pointer-events-auto rounded-2xl border border-rose-400/60 bg-rose-500/20 px-4 py-3 text-sm text-rose-100 shadow-lg backdrop-blur"
+              className={`pointer-events-auto rounded-2xl border px-4 py-3 text-sm shadow-lg backdrop-blur ${
+                notice.variant === "success"
+                  ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-100"
+                  : "border-rose-400/60 bg-rose-500/20 text-rose-100"
+              }`}
             >
               {notice.text}
             </div>
@@ -1081,15 +1192,18 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
           prefersReducedMotion ? "" : "shadow-[0_20px_60px_rgba(118,76,255,0.35)]"
         }`}
       >
-        {wallpaperUrl && (
-          <div
-            aria-hidden="true"
-            className={`absolute inset-0 bg-cover bg-center ${
-              prefersReducedMotion ? "opacity-30" : "opacity-45"
-            }`}
-            style={wallpaperStyle}
-          />
-        )}
+        <div className="absolute inset-0 overflow-hidden">
+          {wallpaperStyle && (
+            <div
+              aria-hidden="true"
+              className={`absolute inset-0 bg-no-repeat ${
+                prefersReducedMotion ? "" : "will-change-transform"
+              }`}
+              style={wallpaperStyle}
+            />
+          )}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#050515]/65 via-[#050515]/25 to-[#050515]/80" />
+        </div>
         <div
           className={`relative flex flex-col gap-6 p-6 sm:p-8 ${
             prefersReducedMotion ? "bg-black/30" : "bg-white/5 backdrop-blur-md"
@@ -1626,6 +1740,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
           activeTab={adminDrawerTab}
           onOpenChange={handleAdminDrawerChange}
           onTabChange={setAdminDrawerTab}
+          viewerId={user.id}
           state={{
             groupName,
             groupDescription,
@@ -1639,6 +1754,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
           saving={adminSaving}
           onSave={handleAdminStateSave}
           onError={pushError}
+          onNotice={pushSuccess}
           onRefresh={fetchState}
         />
       )}

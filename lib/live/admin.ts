@@ -52,6 +52,23 @@ export type ListedRemoved = {
   avatarUrl: string | null;
 };
 
+export type ListedAdmin = {
+  userId: string;
+  addedAt: string | null;
+  displayName: string | null;
+  email: string | null;
+  avatarUrl: string | null;
+};
+
+export type AdminCandidate = {
+  userId: string;
+  displayName: string | null;
+  email: string | null;
+  avatarUrl: string | null;
+  isAdmin: boolean;
+  addedAt: string | null;
+};
+
 export type ListResponse<T> = {
   items: T[];
   nextCursor: string | null;
@@ -505,6 +522,17 @@ export async function addAdmin(
   userId: string,
 ) {
   const { client } = context;
+  const { data: membership, error: membershipError } = await client
+    .from("live_stream_members")
+    .select("user_id")
+    .eq("user_id", userId)
+    .is("left_at", null)
+    .maybeSingle();
+
+  if (membershipError) throw membershipError;
+  if (!membership) {
+    throw new LiveAdminError("Only active members can be promoted to admin", 400);
+  }
 
   const { error } = await client
     .from("live_stream_admins")
@@ -518,8 +546,29 @@ export async function removeAdmin(
   userId: string,
 ) {
   const { client, userId: actor } = context;
-  if (actor === userId) {
-    throw new LiveAdminError("You cannot remove yourself", 400);
+
+  const { data: admins, error: adminError } = await client
+    .from("live_stream_admins")
+    .select("user_id")
+    .order("added_at", { ascending: true });
+
+  if (adminError) throw adminError;
+
+  const adminIds = (admins ?? []).map((row) => row.user_id).filter(Boolean);
+  const isTargetAdmin = adminIds.includes(userId);
+
+  if (!isTargetAdmin) {
+    throw new LiveAdminError("User is not an admin", 400);
+  }
+
+  if (adminIds.length <= 1) {
+    if (actor === userId) {
+      throw new LiveAdminError(
+        "You are the final admin. Assign someone else before leaving.",
+        400,
+      );
+    }
+    throw new LiveAdminError("At least one admin must remain", 400);
   }
 
   const { error } = await client
@@ -528,6 +577,92 @@ export async function removeAdmin(
     .eq("user_id", userId);
 
   if (error) throw error;
+}
+
+export async function listAdmins(
+  context: LiveAdminContext,
+): Promise<ListedAdmin[]> {
+  const { client } = context;
+  const { data, error } = await client
+    .from("live_stream_admins")
+    .select("user_id,added_at")
+    .order("added_at", { ascending: true });
+
+  if (error) throw error;
+
+  const rows = data ?? [];
+  const ids = rows.map((row) => row.user_id).filter(Boolean);
+  const profiles = await fetchUsersByIds(client, ids);
+
+  return rows.map((row) => {
+    const profile = profiles.get(row.user_id) ?? null;
+    return {
+      userId: row.user_id,
+      addedAt: row.added_at ?? null,
+      displayName: profile?.display_name ?? null,
+      email: profile?.email ?? null,
+      avatarUrl: profile?.avatar_url ?? null,
+    };
+  });
+}
+
+export async function searchAdminCandidates(
+  context: LiveAdminContext,
+  query: string,
+): Promise<AdminCandidate[]> {
+  const { client } = context;
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const pattern = `%${escapeLikeTerm(trimmed)}%`;
+  const { data: matches, error: matchesError } = await client
+    .from("users")
+    .select("id,display_name,email,avatar_url")
+    .or(`display_name.ilike.${pattern},email.ilike.${pattern}`)
+    .limit(50);
+
+  if (matchesError) throw matchesError;
+
+  const users = matches ?? [];
+  const ids = users.map((row) => row.id).filter(Boolean);
+  if (!ids.length) return [];
+
+  const [{ data: subscriberRows, error: subscriberError }, { data: adminRows, error: adminRowsError }] =
+    await Promise.all([
+      client
+        .from("live_stream_members")
+        .select("user_id")
+        .in("user_id", ids)
+        .is("left_at", null),
+      client
+        .from("live_stream_admins")
+        .select("user_id,added_at")
+        .in("user_id", ids),
+    ]);
+
+  if (subscriberError) throw subscriberError;
+  if (adminRowsError) throw adminRowsError;
+
+  const subscriberSet = new Set(
+    (subscriberRows ?? []).map((row) => row.user_id).filter(Boolean),
+  );
+  const adminMap = new Map<string, string | null>();
+  (adminRows ?? []).forEach((row) => {
+    if (row?.user_id) {
+      adminMap.set(row.user_id, row.added_at ?? null);
+    }
+  });
+
+  return users
+    .filter((row) => subscriberSet.has(row.id))
+    .map((row) => ({
+      userId: row.id,
+      displayName: row.display_name ?? null,
+      email: row.email ?? null,
+      avatarUrl: row.avatar_url ?? null,
+      isAdmin: adminMap.has(row.id),
+      addedAt: adminMap.get(row.id) ?? null,
+    }));
 }
 
 export async function appendAudit(
