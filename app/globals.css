@@ -1,3 +1,34 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ---- Chat: hide native scroll chrome (no floating widgets), keep wheel/touch scrolling ---- */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Composer should not show resize handles or number spinners ever */
+.chat-input {
+  resize: none;
+  overflow-y: auto;
+  max-height: 40vh;
+  scrollbar-width: none;
+}
+.chat-input::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safety: if any input accidentally is type="number" in composer, remove spinners */
+.chat-input[type="number"] {
+  appearance: textfield;
+}
+.chat-input::-webkit-outer-spin-button,
+.chat-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

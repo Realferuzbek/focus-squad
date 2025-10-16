@@ -1655,7 +1655,7 @@ export default function AdminChatClient({
         <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-[#0d0d16]/80 shadow-[0_25px_80px_-28px_rgba(119,88,247,0.55)]">
           <div
             ref={listRef}
-            className="flex max-h-[60vh] flex-col overflow-y-auto overscroll-contain px-4 pt-6 pb-32 md:px-6 md:pt-8"
+            className="flex max-h-[60vh] flex-col overflow-y-auto overscroll-contain px-4 pt-6 pb-32 md:px-6 md:pt-8 hide-scrollbar"
           >
             <div
               style={{
@@ -1834,7 +1834,7 @@ export default function AdminChatClient({
                   minRows={1}
                   maxRows={5}
                   placeholder="Write a message…"
-                  className="max-h-40 flex-1 resize-none bg-transparent px-1 text-sm text-white placeholder:text-white/40 focus:outline-none disabled:opacity-60"
+                  className="chat-input max-h-40 flex-1 resize-none bg-transparent px-1 text-sm text-white placeholder:text-white/40 focus:outline-none disabled:opacity-60"
                 />
 
                 <div className="flex items-end gap-1.5">
