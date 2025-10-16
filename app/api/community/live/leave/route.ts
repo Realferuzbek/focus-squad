@@ -11,9 +11,10 @@ export async function POST() {
 
   const sb = supabaseAdmin();
   const { error } = await sb
-    .from("live_members")
-    .delete()
-    .eq("user_id", user.id as string);
+    .from("live_stream_members")
+    .update({ left_at: new Date().toISOString() })
+    .eq("user_id", user.id as string)
+    .is("left_at", null);
 
   if (error) {
     console.error(error);

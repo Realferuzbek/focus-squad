@@ -99,7 +99,9 @@ export function buildLivePreview(
 export async function fetchLiveState(client: LiveSupabaseClient) {
   const { data, error } = await client
     .from("live_stream_state")
-    .select("is_live, updated_at")
+    .select(
+      "is_live,updated_at,group_name,group_avatar_url,group_description,wallpaper_url,subscribers_count",
+    )
     .eq("id", 1)
     .maybeSingle();
 
@@ -110,14 +112,20 @@ export async function fetchLiveState(client: LiveSupabaseClient) {
   return {
     isLive: data?.is_live ?? false,
     updatedAt: data?.updated_at ?? null,
+    groupName: data?.group_name ?? "Live Stream Chat",
+    groupAvatarUrl: data?.group_avatar_url ?? null,
+    groupDescription: data?.group_description ?? null,
+    wallpaperUrl: data?.wallpaper_url ?? null,
+    subscribersCount: data?.subscribers_count ?? 0,
   };
 }
 
 export async function isLiveMember(client: LiveSupabaseClient, userId: string) {
   const { data, error } = await client
-    .from("live_members")
+    .from("live_stream_members")
     .select("user_id")
     .eq("user_id", userId)
+    .is("left_at", null)
     .maybeSingle();
 
   if (error && error.code !== "PGRST116") {
@@ -129,8 +137,9 @@ export async function isLiveMember(client: LiveSupabaseClient, userId: string) {
 
 export async function countLiveMembers(client: LiveSupabaseClient) {
   const { count, error } = await client
-    .from("live_members")
-    .select("*", { head: true, count: "exact" });
+    .from("live_stream_members")
+    .select("*", { head: true, count: "exact" })
+    .is("left_at", null);
 
   if (error) {
     throw error;

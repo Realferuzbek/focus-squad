@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseServer";
-import { countLiveMembers, fetchLiveState } from "@/lib/live/server";
+import { fetchLiveState } from "@/lib/live/server";
 
 export async function GET() {
   const session = await auth();
@@ -12,14 +12,15 @@ export async function GET() {
 
   const sb = supabaseAdmin();
   try {
-    const [state, memberCount] = await Promise.all([
-      fetchLiveState(sb),
-      countLiveMembers(sb),
-    ]);
+    const state = await fetchLiveState(sb);
 
     return NextResponse.json({
       isLive: state.isLive,
-      memberCount,
+      memberCount: state.subscribersCount,
+      groupName: state.groupName,
+      groupAvatarUrl: state.groupAvatarUrl,
+      groupDescription: state.groupDescription,
+      wallpaperUrl: state.wallpaperUrl,
     });
   } catch (err) {
     console.error(err);
