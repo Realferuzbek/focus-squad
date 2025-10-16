@@ -20,3 +20,7 @@ export function pickPath(threadId: string, filename: string) {
 export function pickLivePath(filename: string) {
   return `live-uploads/${crypto.randomUUID()}-${slugify(filename)}`;
 }
+
+export function pickLiveAssetPath(filename: string, variant: "avatar" | "wallpaper") {
+  return `live-assets/${variant}/${crypto.randomUUID()}-${slugify(filename)}`;
+}

@@ -7,9 +7,11 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type FormEvent,
   type MouseEvent,
   type PointerEvent,
+  type ReactNode,
 } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -17,10 +19,12 @@ import TextareaAutosize from "react-textarea-autosize";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Bell,
+  Clock,
   Loader2,
   Mic,
   MoreVertical,
   Paperclip,
+  Pencil,
   Search,
   Send,
   Smile,
@@ -28,6 +32,7 @@ import {
 import "@emoji-mart/css/emoji-mart.css";
 
 import GlowPanel from "@/components/GlowPanel";
+import LiveAdminDrawer from "@/components/community/LiveAdminDrawer";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { trackLiveEvent } from "@/lib/analytics";
 
@@ -79,6 +84,10 @@ type MessagesResponse = {
 type StateResponse = {
   isLive: boolean;
   memberCount: number;
+  groupName: string;
+  groupDescription: string | null;
+  groupAvatarUrl: string | null;
+  wallpaperUrl: string | null;
 };
 
 type SearchResponse = {
@@ -92,6 +101,25 @@ type Notice = {
   text: string;
 };
 
+export type LiveAdminStateSnapshot = {
+  isLive: boolean;
+  updatedAt: string | null;
+  groupName: string;
+  groupAvatarUrl: string | null;
+  groupDescription: string | null;
+  wallpaperUrl: string | null;
+  subscribersCount: number;
+  activeMembers: number;
+  removedMembers: number;
+};
+
+type AdminStateUpdatePayload = {
+  groupName: string;
+  groupDescription: string | null;
+  groupAvatarUrl: string | null;
+  wallpaperUrl: string | null;
+};
+
 const STATUS_MESSAGES: Record<number, string> = {
   401: "Please sign back in to chat.",
   403: "Join the livestream chat to participate.",
@@ -101,11 +129,28 @@ const STATUS_MESSAGES: Record<number, string> = {
 
 type LiveChatClientProps = {
   user: LiveUser;
+  adminState?: LiveAdminStateSnapshot | null;
 };
 
-export default function LiveChatClient({ user }: LiveChatClientProps) {
-  const [isLive, setIsLive] = useState(false);
-  const [memberCount, setMemberCount] = useState(0);
+export default function LiveChatClient({ user, adminState }: LiveChatClientProps) {
+  const [isLive, setIsLive] = useState(adminState?.isLive ?? false);
+  const [memberCount, setMemberCount] = useState(adminState?.subscribersCount ?? 0);
+  const [groupName, setGroupName] = useState(adminState?.groupName ?? "Live Stream Chat");
+  const [groupDescription, setGroupDescription] = useState<string | null>(
+    adminState?.groupDescription ?? null,
+  );
+  const [groupAvatarUrl, setGroupAvatarUrl] = useState<string | null>(
+    adminState?.groupAvatarUrl ?? null,
+  );
+  const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(
+    adminState?.wallpaperUrl ?? null,
+  );
+  const [adminActiveMembers, setAdminActiveMembers] = useState(
+    adminState?.activeMembers ?? adminState?.subscribersCount ?? 0,
+  );
+  const [adminRemovedMembers, setAdminRemovedMembers] = useState(
+    adminState?.removedMembers ?? 0,
+  );
   const [joined, setJoined] = useState(false);
   const joinedRef = useRef(false);
   const [messages, setMessages] = useState<LiveMessage[]>([]);
@@ -126,8 +171,32 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
+  const [adminDrawerTab, setAdminDrawerTab] = useState<
+    "general" | "members" | "removed" | "appearance" | "admins" | "recent"
+  >("general");
+  const [adminSaving, setAdminSaving] = useState(false);
+  const [mobileAdminMenuOpen, setMobileAdminMenuOpen] = useState(false);
   const [notices, setNotices] = useState<Notice[]>([]);
   const noticeTimeoutsRef = useRef<Map<number, number>>(new Map());
+
+  useEffect(() => {
+    if (!adminState) return;
+    setIsLive(adminState.isLive);
+    setMemberCount(adminState.subscribersCount ?? 0);
+    setGroupName(adminState.groupName ?? "Live Stream Chat");
+    setGroupDescription(adminState.groupDescription ?? null);
+    setGroupAvatarUrl(adminState.groupAvatarUrl ?? null);
+    setWallpaperUrl(adminState.wallpaperUrl ?? null);
+    setAdminActiveMembers(adminState.activeMembers ?? adminState.subscribersCount ?? 0);
+    setAdminRemovedMembers(adminState.removedMembers ?? 0);
+  }, [adminState]);
+
+  useEffect(() => {
+    if (!adminDrawerOpen) {
+      setMobileAdminMenuOpen(false);
+    }
+  }, [adminDrawerOpen]);
   const [unreadCount, setUnreadCount] = useState(0);
   const pageHiddenRef = useRef(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -156,9 +225,83 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
     }
   }, []);
 
+  const openAdminPanel = useCallback(
+    (tab: typeof adminDrawerTab = "general") => {
+      setAdminDrawerTab(tab);
+      setAdminDrawerOpen(true);
+    },
+    [],
+  );
+
+  const handleAdminDrawerChange = useCallback((open: boolean) => {
+    if (!open) {
+      setAdminDrawerTab("general");
+    }
+    setAdminDrawerOpen(open);
+  }, []);
+
+  const closeAllMenus = useCallback(() => {
+    setMenuOpen(false);
+    setMobileAdminMenuOpen(false);
+  }, []);
+
+  const handleAdminStateSave = useCallback(
+    async (payload: AdminStateUpdatePayload) => {
+      setAdminSaving(true);
+      try {
+        const res = await fetch("/api/community/live/admin/state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          pushError(data.error ?? "Unable to save changes right now.");
+          return false;
+        }
+        const data = await res.json().catch(() => ({}));
+        const state: LiveAdminStateSnapshot | undefined = data?.state;
+        if (state) {
+          setIsLive(state.isLive);
+          setMemberCount(state.subscribersCount ?? 0);
+          setGroupName(state.groupName ?? "Live Stream Chat");
+          setGroupDescription(state.groupDescription ?? null);
+          setGroupAvatarUrl(state.groupAvatarUrl ?? null);
+          setWallpaperUrl(state.wallpaperUrl ?? null);
+          setAdminActiveMembers(state.activeMembers ?? state.subscribersCount ?? 0);
+          setAdminRemovedMembers(state.removedMembers ?? 0);
+        }
+        return true;
+      } catch (error) {
+        console.error("admin-state-save", error);
+        pushError("Unable to save changes right now.");
+        return false;
+      } finally {
+        setAdminSaving(false);
+      }
+    },
+    [pushError],
+  );
+
   const interactiveTransition = prefersReducedMotion ? "" : "transition duration-200";
   const focusRing =
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c1a]";
+  const headerButtonClass = `flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/80 ${interactiveTransition} ${focusRing} hover:border-white/40 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40`;
+  const menuItemClass = `flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm text-white/80 ${interactiveTransition} ${focusRing} hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40`;
+  const displayMemberCount = useMemo(
+    () => MEMBER_FORMAT.format(memberCount),
+    [memberCount],
+  );
+  const wallpaperStyle = useMemo<CSSProperties | undefined>(
+    () =>
+      wallpaperUrl
+        ? {
+            backgroundImage: `url(${wallpaperUrl})`,
+          }
+        : undefined,
+    [wallpaperUrl],
+  );
+  const liveStatusLabel = isLive ? "Open" : "Locked";
 
   useEffect(() => {
     joinedRef.current = joined;
@@ -237,13 +380,22 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
     virtualizer.scrollToIndex(sortedMessages.length - 1, { align: "end" });
   }, [sortedMessages, virtualizer]);
 
+  const isLiveAdmin = useMemo(() => Boolean(adminState), [adminState]);
+
   const fetchState = useCallback(async () => {
     const res = await fetch("/api/community/live/state", { cache: "no-store" });
     if (!res.ok) throw new Error("state");
     const data: StateResponse = await res.json();
     setIsLive(data.isLive);
     setMemberCount(data.memberCount);
-  }, []);
+    setGroupName(data.groupName ?? "Live Stream Chat");
+    setGroupDescription(data.groupDescription ?? null);
+    setGroupAvatarUrl(data.groupAvatarUrl ?? null);
+    setWallpaperUrl(data.wallpaperUrl ?? null);
+    if (!isLiveAdmin) {
+      setAdminActiveMembers(data.memberCount);
+    }
+  }, [isLiveAdmin]);
 
   const mergeMessages = useCallback(
     (incoming: LiveMessage[], options?: { replace?: boolean }) => {
@@ -908,7 +1060,8 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
   );
 
   return (
-    <div className="flex min-h-[calc(100dvh-4rem)] flex-col gap-6 text-white">
+    <>
+      <div className="flex min-h-[calc(100dvh-4rem)] flex-col gap-6 text-white">
       {notices.length > 0 && (
         <div className="pointer-events-none fixed bottom-6 right-4 z-50 flex w-full max-w-xs flex-col gap-3 sm:pointer-events-auto">
           {notices.map((notice) => (
@@ -923,79 +1076,287 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
           ))}
         </div>
       )}
-      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.4em] text-white/50">Live Energy</p>
-          <h1 className="mt-1 text-3xl font-semibold md:text-4xl">Live Stream Chat</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="inline-flex items-center rounded-full bg-white/10 px-4 py-2 text-sm text-white/80">
-            {MEMBER_FORMAT.format(memberCount)} members
-          </span>
-          {joined && unreadCount > 0 && (
-            <span
-              className="inline-flex items-center rounded-full border border-violet-400/60 bg-violet-500/20 px-3 py-1 text-xs font-semibold text-violet-100"
-              aria-live="polite"
-            >
-              {unreadCount} new
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => togglePush(!pushEnabled)}
-            disabled={pushBusy}
-            aria-label={pushEnabled ? "Disable live notifications" : "Enable live notifications"}
-            aria-pressed={pushEnabled}
-            title={pushEnabled ? "Disable live notifications" : "Enable live notifications"}
-            className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/20 ${interactiveTransition} ${focusRing} hover:border-white/40 hover:bg-white/10 ${pushEnabled ? "text-white" : "text-white/70"}`}
-          >
-            {pushBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Bell className="h-5 w-5" />}
-          </button>
-          <button
-            type="button"
-            onClick={() => joined && setShowSearch(true)}
-            disabled={!joined}
-            aria-label="Search chat"
-            aria-disabled={!joined}
-            title={joined ? "Search messages" : "Join chat to search the archive"}
-            className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/80 ${interactiveTransition} ${focusRing} hover:border-white/40 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40`}
-          >
-            <Search className="h-5 w-5" />
-          </button>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setMenuOpen((prev) => !prev)}
-              aria-label="Chat menu"
-              aria-expanded={menuOpen}
-              className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/80 ${interactiveTransition} ${focusRing} hover:border-white/40 hover:bg-white/10`}
-            >
-              <MoreVertical className="h-5 w-5" />
-            </button>
-            {menuOpen && (
-              <div className="absolute right-0 top-12 z-20 w-48 rounded-2xl border border-white/10 bg-[#161624]/95 p-2 shadow-xl backdrop-blur">
-                <button
-                  type="button"
-                  onClick={() => handleLeave().catch((err) => console.error(err))}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm text-white/80 ${interactiveTransition} ${focusRing} hover:bg-white/10`}
-                >
-                  Leave chat
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSearch(true);
-                    setMenuOpen(false);
-                  }}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm text-white/70 ${interactiveTransition} ${focusRing} hover:bg-white/10`}
-                >
-                  About
-                </button>
+      <section
+        className={`relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-[#181832] via-[#10102a] to-[#1e1335] ${
+          prefersReducedMotion ? "" : "shadow-[0_20px_60px_rgba(118,76,255,0.35)]"
+        }`}
+      >
+        {wallpaperUrl && (
+          <div
+            aria-hidden="true"
+            className={`absolute inset-0 bg-cover bg-center ${
+              prefersReducedMotion ? "opacity-30" : "opacity-45"
+            }`}
+            style={wallpaperStyle}
+          />
+        )}
+        <div
+          className={`relative flex flex-col gap-6 p-6 sm:p-8 ${
+            prefersReducedMotion ? "bg-black/30" : "bg-white/5 backdrop-blur-md"
+          }`}
+        >
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-4">
+              <GroupAvatar name={groupName} avatarUrl={groupAvatarUrl} />
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.4em] text-white/50">Live Energy</p>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <h1 className="truncate text-3xl font-semibold md:text-4xl">{groupName}</h1>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white/80">
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        isLive ? "bg-emerald-400" : "bg-white/40"
+                      } ${!prefersReducedMotion && isLive ? "animate-pulse" : ""}`}
+                    />
+                    {liveStatusLabel}
+                  </span>
+                </div>
+                {groupDescription && (
+                  <p className="mt-2 max-w-xl text-sm text-white/70">{groupDescription}</p>
+                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/70">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1">
+                    {displayMemberCount} subscribers
+                  </span>
+                  {isLiveAdmin && (
+                    <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1">
+                      {adminActiveMembers} active · {adminRemovedMembers} removed
+                    </span>
+                  )}
+                  {joined && unreadCount > 0 && (
+                    <span
+                      className="inline-flex items-center gap-2 rounded-full border border-violet-400/60 bg-violet-500/20 px-3 py-1 text-xs font-semibold text-violet-100"
+                      aria-live="polite"
+                    >
+                      {unreadCount} new
+                    </span>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
+            <div className="hidden items-center gap-2 md:flex">
+              {isLiveAdmin ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => openAdminPanel("general")}
+                    title="Edit group"
+                    aria-label="Edit group"
+                    className={headerButtonClass}
+                  >
+                    <Pencil className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => togglePush(!pushEnabled)}
+                    disabled={pushBusy}
+                    aria-label={pushEnabled ? "Disable live notifications" : "Enable live notifications"}
+                    aria-pressed={pushEnabled}
+                    title={pushEnabled ? "Disable live notifications" : "Enable live notifications"}
+                    className={`${headerButtonClass} ${pushEnabled ? "text-white" : ""}`}
+                  >
+                    {pushBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Bell className="h-5 w-5" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => joined && setShowSearch(true)}
+                    disabled={!joined}
+                    aria-label="Search chat"
+                    aria-disabled={!joined}
+                    title={joined ? "Search messages" : "Join chat to search the archive"}
+                    className={`${headerButtonClass} ${!joined ? "opacity-40" : ""}`}
+                  >
+                    <Search className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openAdminPanel("recent")}
+                    title="Recent actions"
+                    aria-label="Recent actions"
+                    className={headerButtonClass}
+                  >
+                    <Clock className="h-5 w-5" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => togglePush(!pushEnabled)}
+                    disabled={pushBusy}
+                    aria-label={pushEnabled ? "Disable live notifications" : "Enable live notifications"}
+                    aria-pressed={pushEnabled}
+                    title={pushEnabled ? "Disable live notifications" : "Enable live notifications"}
+                    className={`${headerButtonClass} ${pushEnabled ? "text-white" : ""}`}
+                  >
+                    {pushBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Bell className="h-5 w-5" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => joined && setShowSearch(true)}
+                    disabled={!joined}
+                    aria-label="Search chat"
+                    aria-disabled={!joined}
+                    title={joined ? "Search messages" : "Join chat to search the archive"}
+                    className={`${headerButtonClass} ${!joined ? "opacity-40" : ""}`}
+                  >
+                    <Search className="h-5 w-5" />
+                  </button>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setMenuOpen((prev) => !prev)}
+                      aria-label="Chat menu"
+                      aria-expanded={menuOpen}
+                      className={headerButtonClass}
+                    >
+                      <MoreVertical className="h-5 w-5" />
+                    </button>
+                    {menuOpen && (
+                      <div className="absolute right-0 top-12 z-20 w-48 rounded-2xl border border-white/10 bg-[#161624]/95 p-2 shadow-xl backdrop-blur">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeAllMenus();
+                            handleLeave().catch((err) => console.error(err));
+                          }}
+                          className={menuItemClass}
+                        >
+                          Leave chat
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowSearch(true);
+                            closeAllMenus();
+                          }}
+                          className={`${menuItemClass} text-white/70`}
+                        >
+                          About
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center justify-end md:hidden">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() =>
+                  isLiveAdmin
+                    ? setMobileAdminMenuOpen((prev) => !prev)
+                    : setMenuOpen((prev) => !prev)
+                }
+                aria-label="More actions"
+                aria-expanded={isLiveAdmin ? mobileAdminMenuOpen : menuOpen}
+                className={headerButtonClass}
+              >
+                <MoreVertical className="h-5 w-5" />
+              </button>
+              {(isLiveAdmin ? mobileAdminMenuOpen : menuOpen) && (
+                <div className="absolute right-0 top-12 z-30 w-56 rounded-2xl border border-white/10 bg-[#161624]/95 p-2 shadow-xl backdrop-blur">
+                  {isLiveAdmin ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          openAdminPanel("general");
+                          closeAllMenus();
+                        }}
+                        className={menuItemClass}
+                      >
+                        Edit group
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          openAdminPanel("recent");
+                          closeAllMenus();
+                        }}
+                        className={menuItemClass}
+                      >
+                        Recent actions
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          togglePush(!pushEnabled);
+                          closeAllMenus();
+                        }}
+                        disabled={pushBusy}
+                        className={menuItemClass}
+                      >
+                        {pushEnabled ? "Disable notifications" : "Enable notifications"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!joined) return;
+                          setShowSearch(true);
+                          closeAllMenus();
+                        }}
+                        disabled={!joined}
+                        className={`${menuItemClass} ${!joined ? "opacity-40" : ""}`}
+                      >
+                        Search
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeAllMenus();
+                          handleLeave().catch((err) => console.error(err));
+                        }}
+                        className={`${menuItemClass} text-white/70`}
+                      >
+                        Leave chat
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          togglePush(!pushEnabled);
+                          closeAllMenus();
+                        }}
+                        disabled={pushBusy}
+                        className={menuItemClass}
+                      >
+                        {pushEnabled ? "Disable notifications" : "Enable notifications"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!joined) return;
+                          setShowSearch(true);
+                          closeAllMenus();
+                        }}
+                        disabled={!joined}
+                        className={`${menuItemClass} ${!joined ? "opacity-40" : ""}`}
+                      >
+                        Search
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeAllMenus();
+                          handleLeave().catch((err) => console.error(err));
+                        }}
+                        className={`${menuItemClass} text-white/70`}
+                      >
+                        Leave chat
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </header>
+      </section>
 
       <GlowPanel className="flex flex-1 flex-col overflow-hidden bg-gradient-to-br from-[#0c0c1a] via-[#101032] to-[#0c0c1a]">
         <div className="space-y-3 border-b border-white/10 px-6 py-4">
@@ -1258,7 +1619,30 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
         className="hidden"
         onChange={handleFileSelected}
       />
-    </div>
+      </div>
+      {isLiveAdmin && (
+        <LiveAdminDrawer
+          open={adminDrawerOpen}
+          activeTab={adminDrawerTab}
+          onOpenChange={handleAdminDrawerChange}
+          onTabChange={setAdminDrawerTab}
+          state={{
+            groupName,
+            groupDescription,
+            groupAvatarUrl,
+            wallpaperUrl,
+            subscribersCount: memberCount,
+            isLive,
+            activeMembers: adminActiveMembers,
+            removedMembers: adminRemovedMembers,
+          }}
+          saving={adminSaving}
+          onSave={handleAdminStateSave}
+          onError={pushError}
+          onRefresh={fetchState}
+        />
+      )}
+    </>
   );
 }
 
@@ -1435,6 +1819,36 @@ function MediaAttachment({ message, url }: MediaAttachmentProps) {
       📎 {message.fileMime ?? "Attachment"} ·{" "}
       {message.fileBytes ? formatBytes(message.fileBytes) : "download"}
     </a>
+  );
+}
+
+type GroupAvatarProps = {
+  name: string | null;
+  avatarUrl: string | null;
+};
+
+function GroupAvatar({ name, avatarUrl }: GroupAvatarProps) {
+  if (avatarUrl) {
+    return (
+      <Image
+        src={avatarUrl}
+        alt={name ?? "Group avatar"}
+        width={96}
+        height={96}
+        className="h-16 w-16 rounded-2xl border border-white/20 object-cover shadow-lg"
+      />
+    );
+  }
+  const initials = name
+    ?.split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+  return (
+    <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-lg font-semibold uppercase text-white/80">
+      {initials || "✨"}
+    </div>
   );
 }
 
