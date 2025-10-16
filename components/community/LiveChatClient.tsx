@@ -8,6 +8,8 @@ import {
   useState,
   type ChangeEvent,
   type FormEvent,
+  type MouseEvent,
+  type PointerEvent,
 } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -27,6 +29,7 @@ import "@emoji-mart/css/emoji-mart.css";
 
 import GlowPanel from "@/components/GlowPanel";
 import { supabaseBrowser } from "@/lib/supabaseClient";
+import { trackLiveEvent } from "@/lib/analytics";
 
 const EmojiPicker = dynamic(
   () =>
@@ -84,6 +87,18 @@ type SearchResponse = {
 
 const MEMBER_FORMAT = new Intl.NumberFormat("en-US");
 
+type Notice = {
+  id: number;
+  text: string;
+};
+
+const STATUS_MESSAGES: Record<number, string> = {
+  401: "Please sign back in to chat.",
+  403: "Join the livestream chat to participate.",
+  409: "Chat is locked until we go live.",
+  429: "You’re sending messages too quickly. Take a breather.",
+};
+
 type LiveChatClientProps = {
   user: LiveUser;
 };
@@ -111,6 +126,11 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const noticeTimeoutsRef = useRef<Map<number, number>>(new Map());
+  const [unreadCount, setUnreadCount] = useState(0);
+  const pageHiddenRef = useRef(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -123,12 +143,83 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
     overscan: 12,
   });
 
+  const pushError = useCallback((message: string) => {
+    if (!message) return;
+    const id = Number(Date.now() + Math.random());
+    setNotices((prev) => [...prev, { id, text: message }]);
+    if (typeof window !== "undefined") {
+      const timeoutId = window.setTimeout(() => {
+        setNotices((prev) => prev.filter((notice) => notice.id !== id));
+        noticeTimeoutsRef.current.delete(id);
+      }, 5000);
+      noticeTimeoutsRef.current.set(id, timeoutId);
+    }
+  }, []);
+
+  const interactiveTransition = prefersReducedMotion ? "" : "transition duration-200";
+  const focusRing =
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c1a]";
+
   useEffect(() => {
     joinedRef.current = joined;
   }, [joined]);
 
   useEffect(() => {
     autoScrollRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const handleMotion = () => {
+      setPrefersReducedMotion(mq.matches);
+    };
+    handleMotion();
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", handleMotion);
+      return () => mq.removeEventListener("change", handleMotion);
+    }
+    mq.addListener(handleMotion);
+    return () => mq.removeListener(handleMotion);
+  }, []);
+
+  useEffect(() => {
+    const timeoutMap = noticeTimeoutsRef.current;
+    return () => {
+      if (typeof window === "undefined") return;
+      timeoutMap.forEach((timeoutId) => window.window.clearTimeout(timeoutId));
+      timeoutMap.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const handleVisibility = () => {
+      const hidden = document.hidden;
+      pageHiddenRef.current = hidden;
+      if (!hidden) {
+        setUnreadCount(0);
+      }
+    };
+    handleVisibility();
+
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    if (typeof window !== "undefined") {
+      const handleFocus = () => {
+        pageHiddenRef.current = false;
+        setUnreadCount(0);
+      };
+      window.addEventListener("focus", handleFocus);
+      return () => {
+        document.removeEventListener("visibilitychange", handleVisibility);
+        window.removeEventListener("focus", handleFocus);
+      };
+    }
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   const sortedMessages = useMemo(
@@ -155,49 +246,85 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
   }, []);
 
   const mergeMessages = useCallback(
-    (incoming: LiveMessage[], replace = false) => {
+    (incoming: LiveMessage[], options?: { replace?: boolean }) => {
       setMessages((prev) => {
-        let base = replace ? [] : [...prev];
+        let base = options?.replace ? [] : [...prev];
+        let addedByOthers = false;
+
         incoming.forEach((msg) => {
-          const key = msg.realId ? String(msg.realId) : msg.id;
           const existingIndex = base.findIndex((item) =>
-            item.realId ? String(item.realId) === key : item.id === key,
+            msg.realId && item.realId
+              ? item.realId === msg.realId
+              : item.id === msg.id,
           );
           if (existingIndex >= 0) {
-            base[existingIndex] = { ...base[existingIndex], ...msg, optimistic: false };
+            base[existingIndex] = {
+              ...base[existingIndex],
+              ...msg,
+              optimistic: false,
+            };
           } else {
             base.push(msg);
+            if (msg.authorId && msg.authorId !== user.id) {
+              addedByOthers = true;
+            }
           }
         });
+
         base.sort(
           (a, b) =>
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
         );
+
         if (!joinedRef.current && base.length > 10) {
-          return base.slice(base.length - 10);
+          base = base.slice(base.length - 10);
         }
+
+        if (
+          !options?.replace &&
+          addedByOthers &&
+          pageHiddenRef.current &&
+          joinedRef.current
+        ) {
+          setUnreadCount((value) => value + 1);
+        }
+
         return base;
       });
     },
-    [],
+    [user.id],
   );
 
   const loadMessages = useCallback(
     async (cursor?: string | null, replace = false) => {
-      const params = new URLSearchParams();
-      if (cursor) params.set("cursor", cursor);
-      const res = await fetch(
-        `/api/community/live/messages${params.size ? `?${params}` : ""}`,
-        { cache: "no-store" },
-      );
-      if (!res.ok) throw new Error("messages");
-      const data: MessagesResponse = await res.json();
-      setHasMore(data.hasMore);
-      setNextCursor(data.nextCursor);
-      setJoined(data.joined);
-      mergeMessages(data.messages, replace);
+      try {
+        const params = new URLSearchParams();
+        if (cursor) params.set("cursor", cursor);
+        const res = await fetch(
+          `/api/community/live/messages${params.size ? `?${params}` : ""}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) {
+          const status = res.status;
+          const data = await res.json().catch(() => ({}));
+          pushError(
+            STATUS_MESSAGES[status] ?? data.error ?? "Unable to load messages.",
+          );
+          return;
+        }
+        const data: MessagesResponse = await res.json();
+        setHasMore(data.hasMore);
+        setNextCursor(data.nextCursor);
+        setJoined(data.joined);
+        mergeMessages(data.messages, { replace });
+      } catch (err) {
+        console.error("messages", err);
+        if (!replace) {
+          pushError("Unable to load messages.");
+        }
+      }
     },
-    [mergeMessages],
+    [mergeMessages, pushError],
   );
 
   useEffect(() => {
@@ -322,7 +449,10 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
       file?: { file: File; kind: "image" | "video" | "audio" | "file" };
     }) => {
       if (sending) return;
-      if (!joined) throw new Error("join required");
+      if (!joined) {
+        pushError(STATUS_MESSAGES[403]);
+        return;
+      }
       setSending(true);
       try {
         let body: Record<string, any> = {};
@@ -332,7 +462,11 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
           const { error } = await supabaseBrowser.storage
             .from("dm-uploads")
             .uploadToSignedUrl(signed.path, signed.token, file);
-          if (error) throw error;
+          if (error) {
+            console.error("upload", error);
+            pushError("Upload failed. Please try again.");
+            return;
+          }
           body = {
             kind,
             filePath: signed.path,
@@ -385,15 +519,65 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.error ?? "send failed");
+          const status = res.status;
+          pushError(
+            STATUS_MESSAGES[status] ?? data.error ?? "Message failed to send.",
+          );
+          return;
         }
         const data = await res.json();
         mergeMessages([data.message]);
+        trackLiveEvent("live_send", { kind: data.message.kind });
+      } catch (err) {
+        console.error("send", err);
+        pushError("Message failed to send.");
       } finally {
         setSending(false);
       }
     },
-    [joined, mergeMessages, sending, signUpload, user.avatarUrl, user.id, user.name],
+    [
+      joined,
+      mergeMessages,
+      pushError,
+      sending,
+      signUpload,
+      user.avatarUrl,
+      user.id,
+      user.name,
+    ],
+  );
+
+  const handleDeleteMessage = useCallback(
+    async (message: LiveMessage) => {
+      if (!message.realId) return;
+      try {
+        const res = await fetch(`/api/community/live/messages/${message.realId}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) {
+          const status = res.status;
+          const data = await res.json().catch(() => ({}));
+          pushError(
+            STATUS_MESSAGES[status] ??
+              data.error ??
+              "Unable to delete that message right now.",
+          );
+          return;
+        }
+        trackLiveEvent("live_delete", { id: message.realId });
+        setMessages((prev) =>
+          prev.filter((item) =>
+            item.realId
+              ? item.realId !== message.realId
+              : item.id !== message.id,
+          ),
+        );
+      } catch (err) {
+        console.error("delete", err);
+        pushError("Unable to delete that message right now.");
+      }
+    },
+    [pushError],
   );
 
   const handleSendText = useCallback(async () => {
@@ -421,50 +605,80 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
         if (composer.trim()) setComposer("");
       } catch (err) {
         console.error("send file", err);
+        pushError("Upload failed. Please try again.");
       }
     },
-    [composer, sendMessage],
+    [composer, pushError, sendMessage],
   );
 
   const handleJoin = useCallback(async () => {
-    const res = await fetch("/api/community/live/join", { method: "POST" });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error ?? "join failed");
+    try {
+      const res = await fetch("/api/community/live/join", { method: "POST" });
+      if (!res.ok) {
+        const status = res.status;
+        const data = await res.json().catch(() => ({}));
+        pushError(
+          STATUS_MESSAGES[status] ?? data.error ?? "Unable to join right now.",
+        );
+        return;
+      }
+      setJoined(true);
+      joinedRef.current = true;
+      trackLiveEvent("live_join");
+      await Promise.all([fetchState(), loadMessages(undefined, true)]);
+    } catch (err) {
+      console.error("join", err);
+      pushError("Unable to join right now.");
     }
-    setJoined(true);
-    joinedRef.current = true;
-    await Promise.all([fetchState(), loadMessages(undefined, true)]);
-  }, [fetchState, loadMessages]);
+  }, [fetchState, loadMessages, pushError]);
 
   const handleLeave = useCallback(async () => {
-    const res = await fetch("/api/community/live/leave", { method: "POST" });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error ?? "leave failed");
+    try {
+      const res = await fetch("/api/community/live/leave", { method: "POST" });
+      if (!res.ok) {
+        const status = res.status;
+        const data = await res.json().catch(() => ({}));
+        pushError(
+          STATUS_MESSAGES[status] ?? data.error ?? "Unable to leave right now.",
+        );
+        return;
+      }
+      setJoined(false);
+      joinedRef.current = false;
+      trackLiveEvent("live_leave");
+      await Promise.all([fetchState(), loadMessages(undefined, true)]);
+      setMenuOpen(false);
+    } catch (err) {
+      console.error("leave", err);
+      pushError("Unable to leave right now.");
     }
-    setJoined(false);
-    joinedRef.current = false;
-    await Promise.all([fetchState(), loadMessages(undefined, true)]);
-    setMenuOpen(false);
-  }, [fetchState, loadMessages]);
+  }, [fetchState, loadMessages, pushError]);
 
   const fetchSearch = useCallback(
     async (query: string) => {
       setSearching(true);
       try {
         const res = await fetch(`/api/community/live/search?q=${encodeURIComponent(query)}`);
-        if (!res.ok) throw new Error("search");
+        if (!res.ok) {
+          const status = res.status;
+          const data = await res.json().catch(() => ({}));
+          pushError(
+            STATUS_MESSAGES[status] ?? data.error ?? "Search failed. Try again soon.",
+          );
+          setSearchResults([]);
+          return;
+        }
         const data: SearchResponse = await res.json();
         setSearchResults(data.messages);
       } catch (err) {
         console.error("search", err);
         setSearchResults([]);
+        pushError("Search failed. Try again soon.");
       } finally {
         setSearching(false);
       }
     },
-    [],
+    [pushError],
   );
 
   const handleSearchSubmit = useCallback(
@@ -525,18 +739,34 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
         if (enable && !subscription) {
           if (typeof Notification !== "undefined") {
             const permission = await Notification.requestPermission();
-            if (permission !== "granted") throw new Error("permission");
+            if (permission !== "granted") {
+              pushError("Enable notifications in your browser to subscribe.");
+              setPushBusy(false);
+              return;
+            }
           }
           const keyRes = await fetch("/api/community/live/push/public-key");
-          if (!keyRes.ok) throw new Error("vapid");
+          if (!keyRes.ok) {
+            pushError("Unable to configure notifications right now.");
+            setPushBusy(false);
+            return;
+          }
           const keyJson = await keyRes.json();
-          if (!keyJson.key) throw new Error("vapid");
+          if (!keyJson.key) {
+            pushError("Notifications are not available for this browser.");
+            setPushBusy(false);
+            return;
+          }
           subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: toUint8(keyJson.key as string),
           });
         }
-        if (!subscription) throw new Error("subscription");
+        if (!subscription) {
+          pushError("Notifications are not available on this device.");
+          setPushBusy(false);
+          return;
+        }
         if (enable) {
           const payload = {
             endpoint: subscription.endpoint,
@@ -548,23 +778,45 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
-          if (!res.ok) throw new Error("subscribe");
+          if (!res.ok) {
+            const status = res.status;
+            const data = await res.json().catch(() => ({}));
+            pushError(
+              STATUS_MESSAGES[status] ??
+                data.error ??
+                "Unable to enable notifications right now.",
+            );
+            setPushBusy(false);
+            return;
+          }
         } else {
           const res = await fetch("/api/community/live/push/unsubscribe", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ endpoint: subscription.endpoint }),
           });
-          if (!res.ok) throw new Error("unsubscribe");
+          if (!res.ok) {
+            const status = res.status;
+            const data = await res.json().catch(() => ({}));
+            pushError(
+              STATUS_MESSAGES[status] ??
+                data.error ??
+                "Unable to disable notifications right now.",
+            );
+            setPushBusy(false);
+            return;
+          }
         }
         setPushEnabled(enable);
+        trackLiveEvent("live_toggle_notifications", { enabled: enable });
       } catch (err) {
         console.error("push toggle", err);
+        pushError("Unable to update notifications right now.");
       } finally {
         setPushBusy(false);
       }
     },
-    [ensureRegistration, fromBuffer, toUint8],
+    [ensureRegistration, fromBuffer, toUint8, pushError],
   );
 
   useEffect(() => {
@@ -622,6 +874,7 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
         } catch (err) {
           console.error("voice", err);
           setRecordingError("Voice upload failed");
+          pushError("Voice upload failed.");
         }
       });
       recorder.start();
@@ -634,13 +887,16 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
       console.error("mic", err);
       resetRecording();
       setRecordingError("Microphone access denied");
+      pushError("Microphone access denied.");
     }
-  }, [recording, resetRecording, sendMessage]);
+  }, [pushError, recording, resetRecording, sendMessage]);
 
   const composerDisabled = !joined || !isLive || sending;
   const showJoinBanner = !joined;
   const showLockBanner = joined && !isLive;
   const [searchFocused, setSearchFocused] = useState(false);
+
+  const lockedTooltip = !isLive ? "Opens during livestream" : undefined;
 
   const handleEmoji = useCallback(
     (emoji: any) => {
@@ -653,6 +909,20 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
 
   return (
     <div className="flex min-h-[calc(100dvh-4rem)] flex-col gap-6 text-white">
+      {notices.length > 0 && (
+        <div className="pointer-events-none fixed bottom-6 right-4 z-50 flex w-full max-w-xs flex-col gap-3 sm:pointer-events-auto">
+          {notices.map((notice) => (
+            <div
+              key={notice.id}
+              role="status"
+              aria-live="assertive"
+              className="pointer-events-auto rounded-2xl border border-rose-400/60 bg-rose-500/20 px-4 py-3 text-sm text-rose-100 shadow-lg backdrop-blur"
+            >
+              {notice.text}
+            </div>
+          ))}
+        </div>
+      )}
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.4em] text-white/50">Live Energy</p>
@@ -662,11 +932,22 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
           <span className="inline-flex items-center rounded-full bg-white/10 px-4 py-2 text-sm text-white/80">
             {MEMBER_FORMAT.format(memberCount)} members
           </span>
+          {joined && unreadCount > 0 && (
+            <span
+              className="inline-flex items-center rounded-full border border-violet-400/60 bg-violet-500/20 px-3 py-1 text-xs font-semibold text-violet-100"
+              aria-live="polite"
+            >
+              {unreadCount} new
+            </span>
+          )}
           <button
             type="button"
             onClick={() => togglePush(!pushEnabled)}
             disabled={pushBusy}
-            className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/20 transition hover:border-white/40 hover:bg-white/10 ${pushEnabled ? "text-white" : "text-white/70"}`}
+            aria-label={pushEnabled ? "Disable live notifications" : "Enable live notifications"}
+            aria-pressed={pushEnabled}
+            title={pushEnabled ? "Disable live notifications" : "Enable live notifications"}
+            className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/20 ${interactiveTransition} ${focusRing} hover:border-white/40 hover:bg-white/10 ${pushEnabled ? "text-white" : "text-white/70"}`}
           >
             {pushBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Bell className="h-5 w-5" />}
           </button>
@@ -674,7 +955,10 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
             type="button"
             onClick={() => joined && setShowSearch(true)}
             disabled={!joined}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/80 transition hover:border-white/40 hover:bg-white/10 disabled:opacity-40"
+            aria-label="Search chat"
+            aria-disabled={!joined}
+            title={joined ? "Search messages" : "Join chat to search the archive"}
+            className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/80 ${interactiveTransition} ${focusRing} hover:border-white/40 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40`}
           >
             <Search className="h-5 w-5" />
           </button>
@@ -682,7 +966,9 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
             <button
               type="button"
               onClick={() => setMenuOpen((prev) => !prev)}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/80 transition hover:border-white/40 hover:bg-white/10"
+              aria-label="Chat menu"
+              aria-expanded={menuOpen}
+              className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/80 ${interactiveTransition} ${focusRing} hover:border-white/40 hover:bg-white/10`}
             >
               <MoreVertical className="h-5 w-5" />
             </button>
@@ -691,7 +977,7 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
                 <button
                   type="button"
                   onClick={() => handleLeave().catch((err) => console.error(err))}
-                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm text-white/80 transition hover:bg-white/10"
+                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm text-white/80 ${interactiveTransition} ${focusRing} hover:bg-white/10`}
                 >
                   Leave chat
                 </button>
@@ -701,7 +987,7 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
                     setShowSearch(true);
                     setMenuOpen(false);
                   }}
-                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm text-white/70 transition hover:bg-white/10"
+                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm text-white/70 ${interactiveTransition} ${focusRing} hover:bg-white/10`}
                 >
                   About
                 </button>
@@ -756,6 +1042,8 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
                       message={message}
                       me={user}
                       resolveFileUrl={resolveFileUrl}
+                      onDelete={handleDeleteMessage}
+                      joined={joined}
                     />
                   </div>
                 );
@@ -785,7 +1073,7 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
               <button
                 type="button"
                 onClick={() => handleJoin().catch((err) => console.error(err))}
-                className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#0f0f1f] transition hover:bg-white/80"
+                className={`rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#0f0f1f] ${interactiveTransition} ${focusRing} hover:bg-white/80`}
               >
                 Join chat
               </button>
@@ -796,7 +1084,10 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
               type="button"
               disabled={composerDisabled}
               onClick={() => fileInputRef.current?.click()}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-40"
+              aria-label="Attach a file"
+              aria-disabled={composerDisabled}
+              title={!isLive ? lockedTooltip : "Attach a file"}
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white ${interactiveTransition} ${focusRing} hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40`}
             >
               <Paperclip className="h-5 w-5" />
             </button>
@@ -826,7 +1117,10 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
                 type="button"
                 disabled={composerDisabled}
                 onClick={() => setShowEmoji((prev) => !prev)}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-40"
+                aria-label="Insert emoji"
+                aria-disabled={composerDisabled}
+                title={!isLive ? lockedTooltip : "Insert emoji"}
+                className={`flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white ${interactiveTransition} ${focusRing} hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40`}
               >
                 <Smile className="h-5 w-5" />
               </button>
@@ -834,7 +1128,12 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
                 type="button"
                 disabled={composerDisabled}
                 onClick={() => handleMic().catch((err) => console.error(err))}
-                className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white transition hover:bg-white/10 disabled:opacity-40 ${recording ? "border-rose-400 bg-rose-500/20" : ""}`}
+                aria-label={recording ? "Stop voice recording" : "Record a voice message"}
+                aria-disabled={composerDisabled}
+                title={
+                  !isLive ? lockedTooltip : recording ? "Stop recording" : "Record a voice message"
+                }
+                className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white ${interactiveTransition} ${focusRing} hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 ${recording ? "border-rose-400 bg-rose-500/20" : ""}`}
               >
                 <Mic className="h-5 w-5" />
               </button>
@@ -842,7 +1141,10 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
                 type="button"
                 onClick={() => handleSendText()}
                 disabled={composerDisabled || !composer.trim()}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-500 text-white transition hover:bg-violet-400 disabled:opacity-40"
+                aria-label="Send message"
+                title={!isLive ? lockedTooltip : "Send message"}
+                aria-disabled={composerDisabled || !composer.trim()}
+                className={`flex h-11 w-11 items-center justify-center rounded-full bg-violet-500 text-white ${interactiveTransition} ${focusRing} hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-40`}
               >
                 <Send className="h-5 w-5" />
               </button>
@@ -853,7 +1155,7 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
               <span>Recording · {formatDuration(recordingSeconds)}</span>
               <button
                 type="button"
-                className="rounded-full border border-rose-100/40 px-3 py-1 text-xs uppercase tracking-wide"
+                className={`rounded-full border border-rose-100/40 px-3 py-1 text-xs uppercase tracking-wide ${interactiveTransition} ${focusRing}`}
                 onClick={() => handleMic().catch((err) => console.error(err))}
               >
                 Stop
@@ -871,7 +1173,8 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
           <div className="relative w-full max-w-xl rounded-3xl border border-white/10 bg-[#121228] p-4 shadow-2xl">
             <button
               type="button"
-              className="absolute right-4 top-4 text-sm text-white/60"
+              aria-label="Close emoji picker"
+              className={`absolute right-4 top-4 text-sm text-white/60 ${interactiveTransition} ${focusRing}`}
               onClick={() => setShowEmoji(false)}
             >
               close
@@ -889,7 +1192,8 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
               <button
                 type="button"
                 onClick={() => setShowSearch(false)}
-                className="rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 transition hover:bg-white/10"
+                aria-label="Close search"
+                className={`rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 ${interactiveTransition} ${focusRing} hover:bg-white/10`}
               >
                 Close
               </button>
@@ -906,7 +1210,8 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
               <button
                 type="submit"
                 disabled={!searchQuery.trim()}
-                className="rounded-2xl bg-violet-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-40"
+                aria-disabled={!searchQuery.trim()}
+                className={`rounded-2xl bg-violet-500 px-4 py-3 text-sm font-semibold text-white ${interactiveTransition} ${focusRing} hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-40`}
               >
                 Search
               </button>
@@ -928,7 +1233,7 @@ export default function LiveChatClient({ user }: LiveChatClientProps) {
                   key={`${message.realId}-${message.createdAt}`}
                   type="button"
                   onClick={() => handleSearchSelect(message)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/10 p-4 text-left text-sm text-white/80 transition hover:border-white/30 hover:bg-white/15"
+                  className={`w-full rounded-2xl border border-white/10 bg-white/10 p-4 text-left text-sm text-white/80 ${interactiveTransition} ${focusRing} hover:border-white/30 hover:bg-white/15`}
                 >
                   <p className="text-xs uppercase text-white/40">
                     {formatTimestamp(message.createdAt)}
@@ -961,12 +1266,22 @@ type MessageBubbleProps = {
   message: LiveMessage;
   me: LiveUser;
   resolveFileUrl: (path: string) => Promise<string>;
+  onDelete: (message: LiveMessage) => void | Promise<void>;
+  joined: boolean;
 };
 
-function MessageBubble({ message, me, resolveFileUrl }: MessageBubbleProps) {
+function MessageBubble({
+  message,
+  me,
+  resolveFileUrl,
+  onDelete,
+  joined,
+}: MessageBubbleProps) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const isMine = message.authorId === me.id;
+  const allowDelete = joined && isMine && !!message.realId;
+  const longPressTimer = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -989,8 +1304,61 @@ function MessageBubble({ message, me, resolveFileUrl }: MessageBubbleProps) {
     };
   }, [message.filePath, resolveFileUrl]);
 
+  useEffect(
+    () => () => {
+      if (longPressTimer.current) {
+        window.clearTimeout(longPressTimer.current);
+      }
+    },
+    [],
+  );
+
+  const clearLongPress = () => {
+    if (longPressTimer.current) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const requestDelete = () => {
+    if (!allowDelete) return;
+    if (typeof window === "undefined") return;
+    clearLongPress();
+    if (window.confirm("Delete this message?")) {
+      void onDelete(message);
+    }
+  };
+
+  const handleContextMenu = (event: MouseEvent<HTMLDivElement>) => {
+    if (!allowDelete) return;
+    event.preventDefault();
+    requestDelete();
+  };
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (!allowDelete) return;
+    if (event.pointerType === "touch" || event.pointerType === "pen") {
+      clearLongPress();
+      longPressTimer.current = window.setTimeout(() => {
+        requestDelete();
+      }, 650);
+    }
+  };
+
+  const handlePointerEnd = () => {
+    clearLongPress();
+  };
+
   return (
-    <div className={`flex gap-3 py-2 ${isMine ? "justify-end" : "justify-start"}`}>
+    <div
+      className={`flex gap-3 py-2 ${isMine ? "justify-end" : "justify-start"}`}
+      onContextMenu={handleContextMenu}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerEnd}
+      onPointerLeave={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+      title={allowDelete ? "Long press or right-click to delete" : undefined}
+    >
       {!isMine && (
         <AvatarBadge name={message.authorName} avatarUrl={message.authorAvatar} />
       )}
