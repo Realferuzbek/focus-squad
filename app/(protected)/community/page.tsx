@@ -3,30 +3,17 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import GlowPanel from "@/components/GlowPanel";
+import LiveStreamCard from "@/components/community/LiveStreamCard";
 
-const cards = [
-  {
-    title: "Admin Chat",
-    description: "Direct line to the team. Get help, share wins, and stay aligned.",
-    href: "/community/admin",
-    tag: "Live",
-  },
-  {
-    title: "Live Stream Chat",
-    description: "Drop into focused sessions with the squad and stay accountable.",
-    href: "#",
-    tag: "Soon",
-  },
+const upcomingCards = [
   {
     title: "Groups Chat",
     description: "Spin up micro-communities to tackle shared goals together.",
-    href: "#",
     tag: "Soon",
   },
   {
     title: "Anonymous Chat",
     description: "Share candid updates and feedback—no names attached.",
-    href: "#",
     tag: "Soon",
   },
 ];
@@ -47,50 +34,47 @@ export default function CommunityPage() {
         </header>
 
         <div className="grid gap-6 md:grid-cols-2">
-          {cards.map((card) => {
-            if (card.href === "/community/admin") {
-              return (
-                <Link
-                  key={card.title}
-                  href={card.href}
-                  className="group block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                >
-                  <GlowPanel
-                    subtle
-                    className="h-full p-6 transition-transform duration-200 group-hover:scale-[1.01] md:p-8"
-                  >
-                    <div className="flex h-full flex-col justify-between gap-6">
-                      <div className="space-y-3">
-                        <span className="pill">{card.tag}</span>
-                        <h2 className="text-2xl font-semibold tracking-tight text-white">
-                          {card.title}
-                        </h2>
-                        <p className="text-sm text-white/65">{card.description}</p>
-                      </div>
-                      <span className="btn-primary w-fit px-6">Open</span>
-                    </div>
-                  </GlowPanel>
-                </Link>
-              );
-            }
-
-            return (
-              <GlowPanel key={card.title} subtle className="p-6 md:p-8">
-                <div className="flex h-full flex-col justify-between gap-6">
-                  <div className="space-y-3">
-                    <span className="pill">{card.tag}</span>
-                    <h2 className="text-2xl font-semibold tracking-tight text-white">
-                      {card.title}
-                    </h2>
-                    <p className="text-sm text-white/65">{card.description}</p>
-                  </div>
-                  <Link href={card.href} className="btn-primary w-fit px-6">
-                    Open
-                  </Link>
+          <Link
+            href="/community/admin"
+            className="group block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          >
+            <GlowPanel
+              subtle
+              className="h-full p-6 transition-transform duration-200 group-hover:scale-[1.01] md:p-8"
+            >
+              <div className="flex h-full flex-col justify-between gap-6">
+                <div className="space-y-3">
+                  <span className="pill">Live</span>
+                  <h2 className="text-2xl font-semibold tracking-tight text-white">
+                    Admin Chat
+                  </h2>
+                  <p className="text-sm text-white/65">
+                    Direct line to the team. Get help, share wins, and stay aligned.
+                  </p>
                 </div>
-              </GlowPanel>
-            );
-          })}
+                <span className="btn-primary w-fit px-6">Open</span>
+              </div>
+            </GlowPanel>
+          </Link>
+
+          <LiveStreamCard />
+
+          {upcomingCards.map((card) => (
+            <GlowPanel key={card.title} subtle className="p-6 md:p-8">
+              <div className="flex h-full flex-col justify-between gap-6">
+                <div className="space-y-3">
+                  <span className="pill">{card.tag}</span>
+                  <h2 className="text-2xl font-semibold tracking-tight text-white">
+                    {card.title}
+                  </h2>
+                  <p className="text-sm text-white/65">{card.description}</p>
+                </div>
+                <span className="btn-primary w-fit cursor-not-allowed px-6 opacity-60">
+                  Coming soon
+                </span>
+              </div>
+            </GlowPanel>
+          ))}
         </div>
       </div>
     </div>
