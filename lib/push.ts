@@ -19,6 +19,17 @@ type SupabaseClient = ReturnType<typeof supabaseAdmin>;
 
 let configured = false;
 
+type SubscriptionOptions = {
+  topic?: string;
+};
+
+type SubscriptionRow = {
+  id: number;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+};
+
 function initPush() {
   if (configured) return true;
   const publicKey = process.env.VAPID_PUBLIC_KEY;
@@ -33,6 +44,25 @@ function initPush() {
   webPush.setVapidDetails(subject, publicKey, privateKey);
   configured = true;
   return true;
+}
+
+function normalizeMeta(meta: any) {
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
+    return { topics: {} as Record<string, boolean> };
+  }
+
+  const cloned: Record<string, any> = { ...meta };
+  const topics = cloned.topics;
+  const normalizedTopics: Record<string, boolean> = {};
+  if (topics && typeof topics === "object" && !Array.isArray(topics)) {
+    for (const [key, value] of Object.entries(topics)) {
+      if (value) {
+        normalizedTopics[key] = true;
+      }
+    }
+  }
+  cloned.topics = normalizedTopics;
+  return cloned;
 }
 
 async function collectThreadIds(client: SupabaseClient, userId: string) {
@@ -60,6 +90,38 @@ async function collectThreadIds(client: SupabaseClient, userId: string) {
   }
 
   return Array.from(threadIds);
+}
+
+async function deliverPayload(
+  client: SupabaseClient,
+  rows: SubscriptionRow[],
+  payload: PushPayload,
+) {
+  if (!rows.length) return;
+
+  await Promise.all(
+    rows.map(async (sub) => {
+      try {
+        await webPush.sendNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: sub.p256dh,
+              auth: sub.auth,
+            },
+          },
+          JSON.stringify(payload),
+        );
+      } catch (err: any) {
+        const status = err?.statusCode ?? err?.code;
+        if (status === 404 || status === 410) {
+          await client.from("push_subscriptions").delete().eq("id", sub.id);
+        } else {
+          console.error("[push] send error", err);
+        }
+      }
+    }),
+  );
 }
 
 async function logAudit(
@@ -99,37 +161,66 @@ async function logAudit(
 export async function saveSubscription(
   userId: string,
   subscription: SubscriptionInput,
+  options?: SubscriptionOptions,
 ) {
   const client = supabaseAdmin();
   const { endpoint, p256dh, auth } = subscription;
+  const topic = options?.topic;
 
-  const { error } = await client
+  const { data: existing, error: fetchError } = await client
     .from("push_subscriptions")
-    .upsert(
-      {
+    .select("id,meta")
+    .eq("endpoint", endpoint)
+    .maybeSingle();
+
+  if (fetchError && fetchError.code !== "PGRST116") {
+    console.error("[push] failed to load subscription meta", fetchError);
+    throw fetchError;
+  }
+
+  const meta = normalizeMeta(existing?.meta);
+  if (topic) {
+    meta.topics[topic] = true;
+  }
+
+  let error;
+  if (existing?.id) {
+    ({ error } = await client
+      .from("push_subscriptions")
+      .update({
         user_id: userId,
-        endpoint,
         p256dh,
         auth,
-      },
-      { onConflict: "endpoint" },
-    );
+        meta,
+      })
+      .eq("id", existing.id));
+  } else {
+    ({ error } = await client.from("push_subscriptions").insert({
+      user_id: userId,
+      endpoint,
+      p256dh,
+      auth,
+      meta,
+    }));
+  }
 
   if (error) {
     console.error("[push] failed to save subscription", error);
     throw error;
   }
 
-  const threadIds = await collectThreadIds(client, userId);
-  await logAudit(
-    client,
-    threadIds.map((threadId) => ({
-      threadId,
-      actorId: userId,
-      action: "subscribe_push",
-      meta: { endpoint },
-    })),
-  );
+  if (!topic) {
+    const threadIds = await collectThreadIds(client, userId);
+    await logAudit(
+      client,
+      threadIds.map((threadId) => ({
+        threadId,
+        actorId: userId,
+        action: "subscribe_push",
+        meta: { endpoint },
+      })),
+    );
+  }
 }
 
 export async function removeSubscription(userId: string, endpoint: string) {
@@ -157,6 +248,50 @@ export async function removeSubscription(userId: string, endpoint: string) {
   );
 }
 
+export async function removeSubscriptionTopic(
+  userId: string,
+  endpoint: string,
+  topic: string,
+) {
+  const client = supabaseAdmin();
+  const { data: existing, error: fetchError } = await client
+    .from("push_subscriptions")
+    .select("id,meta")
+    .eq("user_id", userId)
+    .eq("endpoint", endpoint)
+    .maybeSingle();
+
+  if (fetchError && fetchError.code !== "PGRST116") {
+    console.error("[push] failed to load subscription topic", fetchError);
+    throw fetchError;
+  }
+
+  if (!existing) return;
+
+  const meta = normalizeMeta(existing.meta);
+  if (!meta.topics[topic]) return;
+
+  delete meta.topics[topic];
+
+  const { error } = await client
+    .from("push_subscriptions")
+    .update({ meta })
+    .eq("id", existing.id);
+
+  if (error) {
+    console.error("[push] failed to remove subscription topic", error);
+    throw error;
+  }
+}
+
+export async function saveSubscriptionTopic(
+  userId: string,
+  subscription: SubscriptionInput,
+  topic: string,
+) {
+  await saveSubscription(userId, subscription, { topic });
+}
+
 export async function sendToUser(
   userId: string,
   payload: PushPayload,
@@ -177,29 +312,7 @@ export async function sendToUser(
 
   if (!data?.length) return;
 
-  await Promise.all(
-    data.map(async (sub: any) => {
-      try {
-        await webPush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: {
-              p256dh: sub.p256dh,
-              auth: sub.auth,
-            },
-          },
-          JSON.stringify(payload),
-        );
-      } catch (err: any) {
-        const status = err?.statusCode ?? err?.code;
-        if (status === 404 || status === 410) {
-          await client.from("push_subscriptions").delete().eq("id", sub.id);
-        } else {
-          console.error("[push] send error", err);
-        }
-      }
-    }),
-  );
+  await deliverPayload(client, data as SubscriptionRow[], payload);
 }
 
 export async function notifyThreadNewMessage(
@@ -248,4 +361,27 @@ export async function notifyThreadNewMessage(
       await sendToUser(userId, payload, client);
     }),
   );
+}
+
+export async function sendToTopic(
+  topic: string,
+  payload: PushPayload,
+  clientOverride?: SupabaseClient,
+) {
+  if (!initPush()) return;
+
+  const client = clientOverride ?? supabaseAdmin();
+  const { data, error } = await client
+    .from("push_subscriptions")
+    .select("id,endpoint,p256dh,auth")
+    .contains("meta", { topics: { [topic]: true } });
+
+  if (error) {
+    console.error("[push] failed to load topic subscriptions", error);
+    return;
+  }
+
+  if (!data?.length) return;
+
+  await deliverPayload(client, data as SubscriptionRow[], payload);
 }

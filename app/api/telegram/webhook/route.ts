@@ -82,6 +82,12 @@ async function consumeLinkToken(token: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  const incomingSecret = req.nextUrl.searchParams.get("secret");
+  if (!expectedSecret || incomingSecret !== expectedSecret) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ ok: true });
 
@@ -89,6 +95,27 @@ export async function POST(req: NextRequest) {
   const text: string = message.text || "";
   const from = message.from || {};
   const chatId = message.chat?.id;
+
+  const videoChatStarted = message.video_chat_started;
+  const videoChatEnded = message.video_chat_ended;
+  const targetGroupId = process.env.TELEGRAM_GROUP_ID;
+  const isTargetGroup =
+    targetGroupId && chatId !== undefined && String(chatId) === String(targetGroupId);
+
+  if (isTargetGroup && (videoChatStarted || videoChatEnded)) {
+    const sb = supabaseAdmin();
+    const isLive = !!videoChatStarted && !videoChatEnded;
+    const { error } = await sb
+      .from("live_stream_state")
+      .update({ is_live: isLive, updated_at: new Date().toISOString() })
+      .eq("id", 1);
+
+    if (error) {
+      console.error("Failed to update live stream state", error);
+      return NextResponse.json({ error: "Server error" }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  }
 
   if (!chatId) return NextResponse.json({ ok: true });
 

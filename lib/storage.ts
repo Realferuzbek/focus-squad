@@ -16,3 +16,7 @@ export function slugify(name: string) {
 export function pickPath(threadId: string, filename: string) {
   return `dm-uploads/${threadId}/${crypto.randomUUID()}-${slugify(filename)}`;
 }
+
+export function pickLivePath(filename: string) {
+  return `live-uploads/${crypto.randomUUID()}-${slugify(filename)}`;
+}
