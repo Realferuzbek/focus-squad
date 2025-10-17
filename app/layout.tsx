@@ -69,6 +69,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="font-sans bg-[#07070b] text-white">
         <NextTopLoader showSpinner={false} />
         {children}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
