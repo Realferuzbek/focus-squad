@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     try {
       await removeMember(context, removeId);
       await appendAudit(context, {
-        action: "member_remove",
+        action: "members.remove",
         targetUser: removeId,
       });
       return NextResponse.json({ ok: true });
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
   try {
     await restoreMember(context, restoreId);
     await appendAudit(context, {
-      action: "member_restore",
+      action: "members.restore",
       targetUser: restoreId,
     });
     return NextResponse.json({ ok: true });

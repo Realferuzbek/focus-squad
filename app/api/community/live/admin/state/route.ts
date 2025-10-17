@@ -47,14 +47,12 @@ export async function POST(req: NextRequest) {
   }
 
   const updateInput: UpdateStateInput = {};
-  const changes: Record<string, string | null> = {};
 
   if (Object.prototype.hasOwnProperty.call(body, "groupName")) {
     if (body.groupName !== null && typeof body.groupName !== "string") {
       return NextResponse.json({ error: "groupName must be a string" }, { status: 400 });
     }
     updateInput.groupName = body.groupName;
-    changes.groupName = body.groupName;
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "groupDescription")) {
@@ -65,7 +63,6 @@ export async function POST(req: NextRequest) {
       );
     }
     updateInput.groupDescription = body.groupDescription;
-    changes.groupDescription = body.groupDescription;
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "groupAvatarUrl")) {
@@ -76,7 +73,6 @@ export async function POST(req: NextRequest) {
       );
     }
     updateInput.groupAvatarUrl = body.groupAvatarUrl;
-    changes.groupAvatarUrl = body.groupAvatarUrl;
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "wallpaperUrl")) {
@@ -87,7 +83,6 @@ export async function POST(req: NextRequest) {
       );
     }
     updateInput.wallpaperUrl = body.wallpaperUrl;
-    changes.wallpaperUrl = body.wallpaperUrl;
   }
 
   const hasUpdates = Object.values(updateInput).some(
@@ -95,16 +90,15 @@ export async function POST(req: NextRequest) {
   );
 
   try {
-    const state = await updateState(context, updateInput);
+    const result = await updateState(context, updateInput);
 
     if (hasUpdates) {
-      await appendAudit(context, {
-        action: "state_update",
-        toText: JSON.stringify(changes),
-      });
+      for (const entry of result.auditEntries) {
+        await appendAudit(context, entry);
+      }
     }
 
-    return NextResponse.json({ state });
+    return NextResponse.json({ state: result.state });
   } catch (error) {
     return handleError(error);
   }

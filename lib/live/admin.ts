@@ -162,10 +162,15 @@ export type UpdateStateInput = {
   wallpaperUrl?: string | null;
 };
 
+export type UpdateStateResult = {
+  state: AdminState;
+  auditEntries: AuditEntry[];
+};
+
 export async function updateState(
   context: LiveAdminContext,
   payload: UpdateStateInput,
-): Promise<AdminState> {
+): Promise<UpdateStateResult> {
   const { client } = context;
 
   const trimmedName =
@@ -203,7 +208,10 @@ export async function updateState(
   }
 
   if (!Object.keys(updatePayload).length) {
-    return getAdminState(context);
+    return {
+      state: await getAdminState(context),
+      auditEntries: [],
+    };
   }
 
   const { data: before, error: beforeError } = await client
@@ -227,32 +235,77 @@ export async function updateState(
 
   if (updateError) throw updateError;
 
-  const headerChanged =
-    (trimmedName !== undefined &&
-      (before?.group_name ?? "Live Stream Chat") !==
-        (after?.group_name ?? "Live Stream Chat")) ||
-    (payload.groupAvatarUrl !== undefined &&
-      (before?.group_avatar_url ?? null) !==
-        (after?.group_avatar_url ?? null)) ||
-    (payload.wallpaperUrl !== undefined &&
-      (before?.wallpaper_url ?? null) !==
-        (after?.wallpaper_url ?? null));
+  const auditEntries: AuditEntry[] = [];
 
-  if (headerChanged) {
+  if (
+    trimmedName !== undefined &&
+    (before?.group_name ?? "Live Stream Chat") !==
+      (after?.group_name ?? "Live Stream Chat")
+  ) {
+    auditEntries.push({
+      action: "settings.group_name",
+      fromText: before?.group_name ?? null,
+      toText: after?.group_name ?? null,
+    });
+  }
+
+  if (
+    normalizedDescription !== undefined &&
+    (before?.group_description ?? null) !== (after?.group_description ?? null)
+  ) {
+    auditEntries.push({
+      action: "settings.description",
+      fromText: before?.group_description ?? null,
+      toText: after?.group_description ?? null,
+    });
+  }
+
+  if (
+    payload.groupAvatarUrl !== undefined &&
+    (before?.group_avatar_url ?? null) !== (after?.group_avatar_url ?? null)
+  ) {
+    auditEntries.push({
+      action: "settings.avatar",
+      fromText: before?.group_avatar_url ?? null,
+      toText: after?.group_avatar_url ?? null,
+    });
+  }
+
+  if (
+    payload.wallpaperUrl !== undefined &&
+    (before?.wallpaper_url ?? null) !== (after?.wallpaper_url ?? null)
+  ) {
+    auditEntries.push({
+      action: "settings.wallpaper",
+      fromText: before?.wallpaper_url ?? null,
+      toText: after?.wallpaper_url ?? null,
+    });
+  }
+
+  const visualsChanged = auditEntries.some((entry) =>
+    ["settings.group_name", "settings.avatar", "settings.wallpaper"].includes(
+      entry.action,
+    ),
+  );
+
+  if (visualsChanged) {
     await safeBroadcast("Live stream updated", "Group visuals changed");
   }
 
   return {
-    isLive: after?.is_live ?? false,
-    updatedAt: after?.updated_at ?? null,
-    groupName: after?.group_name ?? "Live Stream Chat",
-    groupAvatarUrl: after?.group_avatar_url ?? null,
-    groupDescription: after?.group_description ?? null,
-    wallpaperUrl: after?.wallpaper_url ?? null,
-    subscribersCount: after?.subscribers_count ?? 0,
-    activeMembers:
-      after?.subscribers_count ?? (await countActiveMembers(client)),
-    removedMembers: await countRemovedMembers(client),
+    state: {
+      isLive: after?.is_live ?? false,
+      updatedAt: after?.updated_at ?? null,
+      groupName: after?.group_name ?? "Live Stream Chat",
+      groupAvatarUrl: after?.group_avatar_url ?? null,
+      groupDescription: after?.group_description ?? null,
+      wallpaperUrl: after?.wallpaper_url ?? null,
+      subscribersCount: after?.subscribers_count ?? 0,
+      activeMembers:
+        after?.subscribers_count ?? (await countActiveMembers(client)),
+      removedMembers: await countRemovedMembers(client),
+    },
+    auditEntries,
   };
 }
 
@@ -665,21 +718,56 @@ export async function searchAdminCandidates(
     }));
 }
 
+export type AuditInsertPayload = {
+  actor: string | null;
+  action: string;
+  targetUser?: string | null;
+  messageId?: number | null;
+  fromText?: string | null;
+  toText?: string | null;
+};
+
+async function insertAudit(
+  client: LiveSupabaseClient,
+  payload: AuditInsertPayload,
+) {
+  const { error } = await client.from("live_stream_audit").insert({
+    action: payload.action,
+    actor: payload.actor,
+    target_user: payload.targetUser ?? null,
+    message_id: payload.messageId ?? null,
+    from_text: payload.fromText ?? null,
+    to_text: payload.toText ?? null,
+  });
+  if (error) throw error;
+}
+
 export async function appendAudit(
   context: LiveAdminContext,
   entry: AuditEntry,
 ) {
   const { client, userId } = context;
-
-  const payload: Record<string, any> = {
-    action: entry.action,
+  await insertAudit(client, {
     actor: userId,
-    target_user: entry.targetUser ?? null,
-    message_id: entry.messageId ?? null,
-    from_text: entry.fromText ?? null,
-    to_text: entry.toText ?? null,
-  };
+    action: entry.action,
+    targetUser: entry.targetUser,
+    messageId: entry.messageId ?? null,
+    fromText: entry.fromText,
+    toText: entry.toText,
+  });
+}
 
-  const { error } = await client.from("live_stream_audit").insert(payload);
-  if (error) throw error;
+export async function appendAuditDirect(
+  actor: string | null,
+  entry: AuditEntry,
+) {
+  const client = supabaseAdmin();
+  await insertAudit(client, {
+    actor,
+    action: entry.action,
+    targetUser: entry.targetUser,
+    messageId: entry.messageId ?? null,
+    fromText: entry.fromText,
+    toText: entry.toText,
+  });
 }

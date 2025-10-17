@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     try {
       await addAdmin(context, addId);
-      await appendAudit(context, { action: "admin_add", targetUser: addId });
+      await appendAudit(context, { action: "settings.admin.add", targetUser: addId });
       return NextResponse.json({ ok: true });
     } catch (error) {
       return handleError(error);
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await removeAdmin(context, removeId);
-    await appendAudit(context, { action: "admin_remove", targetUser: removeId });
+    await appendAudit(context, { action: "settings.admin.remove", targetUser: removeId });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return handleError(error);

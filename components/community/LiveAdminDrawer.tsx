@@ -346,6 +346,144 @@ function MemberAvatar({ name, email, avatarUrl }: MemberAvatarProps) {
   );
 }
 
+type AuditFilter = "all" | "messages" | "members" | "settings";
+
+const AUDIT_FILTERS: Array<{ key: AuditFilter; label: string }> = [
+  { key: "all", label: "All" },
+  { key: "messages", label: "Messages" },
+  { key: "members", label: "Members" },
+  { key: "settings", label: "Settings" },
+];
+
+const AUDIT_FILTER_LABEL: Record<AuditFilter, string> = {
+  all: "General",
+  messages: "Messages",
+  members: "Members",
+  settings: "Settings",
+};
+
+const RELATIVE_TIME_FORMAT = new Intl.RelativeTimeFormat("en", {
+  numeric: "auto",
+});
+
+function formatRelativeTime(iso: string) {
+  const target = new Date(iso).getTime();
+  if (Number.isNaN(target)) return "";
+  const now = Date.now();
+  const diffMs = target - now;
+  const diffSeconds = Math.round(diffMs / 1000);
+  const absSeconds = Math.abs(diffSeconds);
+  if (absSeconds < 60) {
+    return RELATIVE_TIME_FORMAT.format(Math.round(diffSeconds / 1), "second");
+  }
+  const diffMinutes = Math.round(diffSeconds / 60);
+  if (Math.abs(diffMinutes) < 60) {
+    return RELATIVE_TIME_FORMAT.format(diffMinutes, "minute");
+  }
+  const diffHours = Math.round(diffMinutes / 60);
+  if (Math.abs(diffHours) < 24) {
+    return RELATIVE_TIME_FORMAT.format(diffHours, "hour");
+  }
+  const diffDays = Math.round(diffHours / 24);
+  if (Math.abs(diffDays) < 7) {
+    return RELATIVE_TIME_FORMAT.format(diffDays, "day");
+  }
+  const diffWeeks = Math.round(diffDays / 7);
+  if (Math.abs(diffWeeks) < 4) {
+    return RELATIVE_TIME_FORMAT.format(diffWeeks, "week");
+  }
+  const diffMonths = Math.round(diffDays / 30);
+  if (Math.abs(diffMonths) < 12) {
+    return RELATIVE_TIME_FORMAT.format(diffMonths, "month");
+  }
+  const diffYears = Math.round(diffDays / 365);
+  return RELATIVE_TIME_FORMAT.format(diffYears, "year");
+}
+
+function displayName(
+  profile: { displayName: string | null } | null | undefined,
+  fallback: string | null | undefined,
+) {
+  return profile?.displayName?.trim() || fallback || "Someone";
+}
+
+function truncateText(text: string, limit = 140) {
+  if (!text) return "";
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+}
+
+function categorizeAction(action: string): AuditFilter {
+  if (action.startsWith("message." ) || action.startsWith("message_")) {
+    return "messages";
+  }
+  if (action.startsWith("members.") || action.startsWith("member_")) {
+    return "members";
+  }
+  if (
+    action.startsWith("settings.") ||
+    action.startsWith("admin_") ||
+    action === "state_update"
+  ) {
+    return "settings";
+  }
+  return "all";
+}
+
+function summarizeAuditEntry(entry: AuditEntry) {
+  const actorName = displayName(entry.actorProfile, entry.actor);
+  const targetName = displayName(entry.targetProfile, entry.targetUser);
+  switch (entry.action) {
+    case "message.delete": {
+      if (entry.actor === entry.targetUser || !entry.targetUser) {
+        return `${actorName} deleted a message`;
+      }
+      return `${actorName} deleted ${targetName}'s message`;
+    }
+    case "message.edit": {
+      if (entry.actor === entry.targetUser || !entry.targetUser) {
+        return `${actorName} edited a message`;
+      }
+      return `${actorName} edited ${targetName}'s message`;
+    }
+    case "message_delete": {
+      if (entry.actor === entry.targetUser || !entry.targetUser) {
+        return `${actorName} deleted a message`;
+      }
+      return `${actorName} deleted ${targetName}'s message`;
+    }
+    case "message_edit": {
+      if (entry.actor === entry.targetUser || !entry.targetUser) {
+        return `${actorName} edited a message`;
+      }
+      return `${actorName} edited ${targetName}'s message`;
+    }
+    case "members.remove":
+    case "member_remove":
+      return `${actorName} removed ${targetName}`;
+    case "members.restore":
+    case "member_restore":
+      return `${actorName} restored ${targetName}`;
+    case "settings.group_name":
+      return `${actorName} renamed the group`;
+    case "settings.description":
+      return `${actorName} updated the description`;
+    case "settings.avatar":
+      return `${actorName} updated the avatar`;
+    case "settings.wallpaper":
+      return `${actorName} set the wallpaper`;
+    case "settings.admin.add":
+    case "admin_add":
+      return `${actorName} granted admin to ${targetName}`;
+    case "settings.admin.remove":
+    case "admin_remove":
+      return `${actorName} removed admin from ${targetName}`;
+    case "state_update":
+      return `${actorName} updated the live stream settings`;
+    default:
+      return `${actorName} updated the live chat`;
+  }
+}
+
 export default function LiveAdminDrawer({
   open,
   activeTab,
@@ -416,10 +554,12 @@ export default function LiveAdminDrawer({
   const membersParentRef = useRef<HTMLDivElement>(null);
   const removedParentRef = useRef<HTMLDivElement>(null);
 
-  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
-  const [auditCursor, setAuditCursor] = useState<string | null>(null);
-  const [auditHasMore, setAuditHasMore] = useState(false);
-  const [auditLoading, setAuditLoading] = useState(false);
+const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+const [auditCursor, setAuditCursor] = useState<string | null>(null);
+const [auditHasMore, setAuditHasMore] = useState(false);
+const [auditLoading, setAuditLoading] = useState(false);
+const [auditFilter, setAuditFilter] = useState<AuditFilter>("all");
+const auditParentRef = useRef<HTMLDivElement>(null);
 
   const membersVirtualizer = useVirtualizer({
     count: currentTab === "members"
@@ -443,6 +583,16 @@ export default function LiveAdminDrawer({
 
   const adminIdSet = useMemo(() => new Set(admins.map((admin) => admin.userId)), [admins]);
   const lastAdminId = admins.length === 1 ? admins[0]?.userId ?? null : null;
+
+  const auditVirtualizer = useVirtualizer({
+    count: currentTab === "recent"
+      ? auditEntries.length + (auditHasMore || auditLoading ? 1 : 0)
+      : 0,
+    getScrollElement: () => auditParentRef.current,
+    estimateSize: () => 76,
+    overscan: 8,
+  });
+  const auditVirtualItems = auditVirtualizer.getVirtualItems();
 
   useEffect(() => {
     setCurrentTab(activeTab);
@@ -1112,6 +1262,9 @@ export default function LiveAdminDrawer({
         if (!reset && auditCursor) {
           params.set("cursor", auditCursor);
         }
+        if (auditFilter !== "all") {
+          params.set("filter", auditFilter);
+        }
         const res = await fetch(
           `/api/community/live/admin/audit?${params.toString()}`,
           { cache: "no-store" },
@@ -1134,7 +1287,7 @@ export default function LiveAdminDrawer({
         setAuditLoading(false);
       }
     },
-    [auditCursor, auditLoading, onError, open],
+    [auditCursor, auditFilter, auditLoading, onError, open],
   );
 
   const loadAdmins = useCallback(async () => {
@@ -1192,6 +1345,9 @@ export default function LiveAdminDrawer({
   useEffect(() => {
     if (!open) return;
     if (currentTab === "recent") {
+      setAuditCursor(null);
+      setAuditEntries([]);
+      setAuditHasMore(false);
       void loadAudit(true);
     } else if (currentTab === "admins") {
       void loadAdmins();
@@ -1209,8 +1365,36 @@ export default function LiveAdminDrawer({
   }, [currentTab, loadRemoved, open, removedQuery]);
 
   useEffect(() => {
+    if (!open || currentTab !== "recent") return;
+    setAuditCursor(null);
+    setAuditEntries([]);
+    setAuditHasMore(false);
+    void loadAudit(true);
+  }, [auditFilter, currentTab, loadAudit, open]);
+
+  useEffect(() => {
     void refreshAdminSearch();
   }, [refreshAdminSearch]);
+
+  useEffect(() => {
+    if (currentTab !== "recent") return;
+    if (!auditHasMore || auditLoading) return;
+    const parent = auditParentRef.current;
+    if (!parent) return;
+    const virtualItems = auditVirtualizer.getVirtualItems();
+    if (!virtualItems.length) return;
+    const distance = parent.scrollHeight - (parent.scrollTop + parent.clientHeight);
+    const lastItem = virtualItems[virtualItems.length - 1];
+    if (lastItem.index < auditEntries.length && distance >= 200) return;
+    void loadAudit(false);
+  }, [
+    auditEntries.length,
+    auditHasMore,
+    auditLoading,
+    auditVirtualizer,
+    currentTab,
+    loadAudit,
+  ]);
 
   const handleRemoveMember = useCallback(
     async (userId: string) => {
@@ -2148,49 +2332,96 @@ export default function LiveAdminDrawer({
           )}
 
           {currentTab === "recent" && (
-            <section className="space-y-3">
-              {auditLoading && auditEntries.length === 0 && (
-                <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white/70">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading actions…
-                </div>
-              )}
-              {auditEntries.map((entry) => (
-                <article
-                  key={entry.id}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80"
-                >
-                  <header className="flex items-center justify-between text-xs uppercase text-white/40">
-                    <span>{new Date(entry.at).toLocaleString()}</span>
-                    <span>{entry.action.replace(/_/g, " ")}</span>
-                  </header>
-                  <p className="mt-2 text-sm text-white">
-                    {entry.actorProfile?.displayName ?? "Someone"} →{" "}
-                    {entry.targetProfile?.displayName ?? entry.targetUser ?? "—"}
-                  </p>
-                  {entry.fromText && (
-                    <p className="mt-1 text-xs text-white/60">from: {entry.fromText}</p>
-                  )}
-                  {entry.toText && (
-                    <p className="mt-1 text-xs text-white/60">to: {entry.toText}</p>
-                  )}
-                </article>
-              ))}
-              {auditEntries.length === 0 && !auditLoading && (
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/60">
-                  No audit entries yet.
-                </div>
-              )}
-              {auditHasMore && (
-                <button
-                  type="button"
-                  onClick={() => loadAudit(false)}
-                  disabled={auditLoading}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10 disabled:opacity-50"
-                >
-                  {auditLoading ? "Loading…" : "Load more"}
-                </button>
-              )}
+            <section className="flex h-full min-h-[320px] flex-col gap-4">
+              <div className="flex flex-wrap gap-2">
+                {AUDIT_FILTERS.map((filter) => {
+                  const selected = auditFilter === filter.key;
+                  return (
+                    <button
+                      key={filter.key}
+                      type="button"
+                      onClick={() => setAuditFilter(filter.key)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                        selected
+                          ? "border-white bg-white text-[#080814]"
+                          : "border-white/15 bg-white/10 text-white/70 hover:border-white/30 hover:text-white"
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div
+                ref={auditParentRef}
+                className="relative flex-1 overflow-y-auto rounded-2xl border border-white/10 bg-white/5"
+              >
+                {auditLoading && auditEntries.length === 0 ? (
+                  <div className="flex h-full items-center justify-center gap-2 text-sm text-white/70">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading actions…
+                  </div>
+                ) : auditEntries.length === 0 ? (
+                  <div className="flex h-full items-center justify-center px-6 text-center text-sm text-white/60">
+                    No activity yet.
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      height: auditVirtualizer.getTotalSize(),
+                      position: "relative",
+                    }}
+                  >
+                    {auditVirtualItems.map((virtualRow) => {
+                      const index = virtualRow.index;
+                      const entry = auditEntries[index];
+                      const isLoader = index >= auditEntries.length;
+                      return (
+                        <div
+                          key={virtualRow.key}
+                          className="absolute left-0 right-0 px-3"
+                          style={{
+                            transform: `translateY(${virtualRow.start}px)`,
+                            height: `${virtualRow.size}px`,
+                          }}
+                        >
+                          {isLoader ? (
+                            <div className="flex h-full items-center justify-center gap-2 text-sm text-white/60">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading more…
+                            </div>
+                          ) : (
+                            <article className="flex h-full flex-col justify-center gap-3 rounded-xl border border-white/10 bg-[#0c0c1c]/80 px-4 py-3 text-sm text-white/80 backdrop-blur">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2 text-xs uppercase text-white/40">
+                                  <span className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/60">
+                                    {AUDIT_FILTER_LABEL[categorizeAction(entry.action)]}
+                                  </span>
+                                </div>
+                                <span className="whitespace-nowrap text-xs uppercase text-white/40">
+                                  {formatRelativeTime(entry.at)}
+                                </span>
+                              </div>
+                              <p className="font-medium text-white">{summarizeAuditEntry(entry)}</p>
+                              {entry.fromText && entry.fromText !== entry.toText && (
+                                <div className="space-y-1 text-xs text-white/50">
+                                  <p className="truncate text-white/40">Previous: {truncateText(entry.fromText)}</p>
+                                  {entry.toText && (
+                                    <p className="truncate text-white/50">New: {truncateText(entry.toText)}</p>
+                                  )}
+                                </div>
+                              )}
+                              {!entry.fromText && entry.toText && (
+                                <p className="truncate text-xs text-white/50">Value: {truncateText(entry.toText)}</p>
+                              )}
+                            </article>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </section>
           )}
         </div>

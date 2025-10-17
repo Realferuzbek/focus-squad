@@ -35,6 +35,23 @@ function parseCursor(value: string | null) {
   return parsed;
 }
 
+const FILTER_KEYS = new Set(["all", "messages", "members", "settings"]);
+
+const FILTER_PATTERNS: Record<string, string[]> = {
+  messages: ["action.like.message.%", "action.eq.message_delete", "action.eq.message_edit"],
+  members: [
+    "action.like.members.%",
+    "action.eq.member_remove",
+    "action.eq.member_restore",
+  ],
+  settings: [
+    "action.like.settings.%",
+    "action.eq.admin_add",
+    "action.eq.admin_remove",
+    "action.eq.state_update",
+  ],
+};
+
 export async function GET(req: NextRequest) {
   const session = await auth();
 
@@ -49,10 +66,16 @@ export async function GET(req: NextRequest) {
 
   let limit: number;
   let cursor: number | undefined;
+  let filter: string | null;
 
   try {
     limit = parseLimit(searchParams.get("limit"));
     cursor = parseCursor(searchParams.get("cursor"));
+    const rawFilter = searchParams.get("filter");
+    filter = rawFilter ? rawFilter.toLowerCase() : null;
+    if (filter && !FILTER_KEYS.has(filter)) {
+      throw new LiveAdminError("Invalid filter", 400);
+    }
   } catch (error) {
     if (error instanceof LiveAdminError) {
       return handleError(error);
@@ -70,6 +93,13 @@ export async function GET(req: NextRequest) {
 
   if (cursor) {
     query = query.lt("id", cursor);
+  }
+
+  if (filter && filter !== "all") {
+    const patterns = FILTER_PATTERNS[filter];
+    if (patterns?.length) {
+      query = query.or(patterns.join(","));
+    }
   }
 
   const { data, error } = await query;
