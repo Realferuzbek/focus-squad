@@ -4,6 +4,7 @@ import NextTopLoader from 'nextjs-toploader';
 import type { ReactNode } from 'react';
 import { Inter } from 'next/font/google';
 import { SpeedInsights } from '@vercel/speed-insights/next' 
+import { Analytics } from "@vercel/analytics/next"
 
 const siteUrl = 'https://studywithferuzbek.vercel.app';
 const siteTitle = 'Studywithferuzbek';
