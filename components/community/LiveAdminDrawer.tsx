@@ -1136,46 +1136,6 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     removedParentRef.current?.scrollTo({ top: 0 });
   }, [currentTab, removedQuery]);
 
-  useEffect(() => {
-    if (currentTab !== "members") return;
-    if (!membersHasMore || membersLoading) return;
-    const parent = membersParentRef.current;
-    if (!parent) return;
-    const virtualItems = memberVirtualItems;
-    if (!virtualItems.length) return;
-    const distance = parent.scrollHeight - (parent.scrollTop + parent.clientHeight);
-    const lastItem = virtualItems[virtualItems.length - 1];
-    if (lastItem.index < members.length && distance >= 200) return;
-    void loadMembers(false);
-  }, [
-    currentTab,
-    loadMembers,
-    memberVirtualItems,
-    members.length,
-    membersHasMore,
-    membersLoading,
-  ]);
-
-  useEffect(() => {
-    if (currentTab !== "removed") return;
-    if (!removedHasMore || removedLoading) return;
-    const parent = removedParentRef.current;
-    if (!parent) return;
-    const virtualItems = removedVirtualItems;
-    if (!virtualItems.length) return;
-    const distance = parent.scrollHeight - (parent.scrollTop + parent.clientHeight);
-    const lastItem = virtualItems[virtualItems.length - 1];
-    if (lastItem.index < removed.length && distance >= 200) return;
-    void loadRemoved(false);
-  }, [
-    currentTab,
-    loadRemoved,
-    removed.length,
-    removedHasMore,
-    removedLoading,
-    removedVirtualItems,
-  ]);
-
   const loadMembers = useCallback(
     async (reset: boolean) => {
       if (!open) return;
@@ -1251,6 +1211,46 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     },
     [onError, open, removedCursor, removedLoading, removedQuery],
   );
+
+  useEffect(() => {
+    if (currentTab !== "members") return;
+    if (!membersHasMore || membersLoading) return;
+    const parent = membersParentRef.current;
+    if (!parent) return;
+    const virtualItems = memberVirtualItems;
+    if (!virtualItems.length) return;
+    const distance = parent.scrollHeight - (parent.scrollTop + parent.clientHeight);
+    const lastItem = virtualItems[virtualItems.length - 1];
+    if (lastItem.index < members.length && distance >= 200) return;
+    void loadMembers(false);
+  }, [
+    currentTab,
+    loadMembers,
+    memberVirtualItems,
+    members.length,
+    membersHasMore,
+    membersLoading,
+  ]);
+
+  useEffect(() => {
+    if (currentTab !== "removed") return;
+    if (!removedHasMore || removedLoading) return;
+    const parent = removedParentRef.current;
+    if (!parent) return;
+    const virtualItems = removedVirtualItems;
+    if (!virtualItems.length) return;
+    const distance = parent.scrollHeight - (parent.scrollTop + parent.clientHeight);
+    const lastItem = virtualItems[virtualItems.length - 1];
+    if (lastItem.index < removed.length && distance >= 200) return;
+    void loadRemoved(false);
+  }, [
+    currentTab,
+    loadRemoved,
+    removed.length,
+    removedHasMore,
+    removedLoading,
+    removedVirtualItems,
+  ]);
 
   const loadAudit = useCallback(
     async (reset: boolean) => {
