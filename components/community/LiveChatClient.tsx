@@ -312,7 +312,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
   const interactiveTransition = prefersReducedMotion ? "" : "transition duration-200";
   const focusRing =
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c1a]";
-  const headerButtonClass = `flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white/80 ${interactiveTransition} ${focusRing} hover:border-white/40 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40`;
+  const headerButtonClass = `flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-white/80 ${interactiveTransition} ${focusRing} hover:border-white/40 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 sm:h-11 sm:w-11`;
   const menuItemClass = `flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm text-white/80 ${interactiveTransition} ${focusRing} hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40`;
   const displayMemberCount = useMemo(
     () => MEMBER_FORMAT.format(memberCount),
@@ -504,6 +504,14 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     }
   }, [isLiveAdmin]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const interval = window.setInterval(() => {
+      fetchState().catch((err) => console.error("state refresh", err));
+    }, 30000);
+    return () => window.clearInterval(interval);
+  }, [fetchState]);
+
   const mergeMessages = useCallback(
     (incoming: LiveMessage[], options?: { replace?: boolean }) => {
       setMessages((prev) => {
@@ -627,6 +635,22 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
       supabaseBrowser.removeChannel(channel);
     };
   }, [mergeMessages]);
+
+  useEffect(() => {
+    const channel = supabaseBrowser
+      .channel("live_stream_state")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "live_stream_state", filter: "id=eq.1" },
+        () => {
+          fetchState().catch((err) => console.error("state update", err));
+        },
+      )
+      .subscribe();
+    return () => {
+      supabaseBrowser.removeChannel(channel);
+    };
+  }, [fetchState]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -1150,12 +1174,20 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     }
   }, [pushError, recording, resetRecording, sendMessage]);
 
-  const composerDisabled = !joined || !isLive || sending;
-  const showJoinBanner = !joined;
-  const showLockBanner = joined && !isLive;
+  const composerDisabled = (!joined && !isLiveAdmin) || (!isLive && !isLiveAdmin) || sending;
+  const showJoinBanner = !joined && !isLiveAdmin;
+  const lockBannerText = !isLive
+    ? isLiveAdmin
+      ? "Chat is currently locked. Lock toggles with the Telegram live session."
+      : "Chat opens while the stream is live – we’ll ping you when we go on air."
+    : null;
   const [searchFocused, setSearchFocused] = useState(false);
 
-  const lockedTooltip = !isLive ? "Opens during livestream" : undefined;
+  const lockedTooltip = !isLive
+    ? isLiveAdmin
+      ? "Lock toggles with the Telegram live session"
+      : "Opens during livestream"
+    : undefined;
 
   const handleEmoji = useCallback(
     (emoji: any) => {
@@ -1205,7 +1237,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#050515]/65 via-[#050515]/25 to-[#050515]/80" />
         </div>
         <div
-          className={`relative flex flex-col gap-6 p-6 sm:p-8 ${
+          className={`relative flex flex-col gap-6 p-4 sm:p-8 ${
             prefersReducedMotion ? "bg-black/30" : "bg-white/5 backdrop-blur-md"
           }`}
         >
@@ -1215,7 +1247,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
               <div className="min-w-0">
                 <p className="text-xs uppercase tracking-[0.4em] text-white/50">Live Energy</p>
                 <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <h1 className="truncate text-3xl font-semibold md:text-4xl">{groupName}</h1>
+                  <h1 className="truncate text-2xl font-semibold sm:text-3xl md:text-4xl">{groupName}</h1>
                   <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white/80">
                     <span
                       className={`h-2 w-2 rounded-full ${
@@ -1479,9 +1511,9 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
               Join to chat and unlock the complete live history.
             </div>
           )}
-          {showLockBanner && (
+          {lockBannerText && (
             <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-              Chat opens while the stream is live – we’ll ping you when we go on air.
+              {lockBannerText}
             </div>
           )}
         </div>
@@ -1552,6 +1584,11 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
               >
                 Join chat
               </button>
+            </div>
+          )}
+          {lockBannerText && !showJoinBanner && !isLiveAdmin && (
+            <div className="mb-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+              {lockBannerText}
             </div>
           )}
           <div className="flex items-end gap-3 rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur">

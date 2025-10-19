@@ -550,6 +550,16 @@ export default function LiveAdminDrawer({
   const [adminSearchValue, setAdminSearchValue] = useState("");
   const [adminQuery, setAdminQuery] = useState("");
   const [adminActionId, setAdminActionId] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<
+    | {
+        type: "member" | "admin";
+        userId: string;
+        name: string;
+        body: string;
+      }
+    | null
+  >(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   const membersParentRef = useRef<HTMLDivElement>(null);
   const removedParentRef = useRef<HTMLDivElement>(null);
@@ -1396,12 +1406,8 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     loadAudit,
   ]);
 
-  const handleRemoveMember = useCallback(
+  const performRemoveMember = useCallback(
     async (userId: string) => {
-      const confirmed = window.confirm(
-        "Remove this member from the live chat? They will be moved to the removed list.",
-      );
-      if (!confirmed) return;
       setMemberActionId(userId);
       const snapshotMembers = members;
       const snapshotRemoved = removed;
@@ -1439,6 +1445,18 @@ const auditParentRef = useRef<HTMLDivElement>(null);
       }
     },
     [loadMembers, loadRemoved, members, onError, onNotice, onRefresh, removed],
+  );
+
+  const handleRemoveMember = useCallback(
+    (member: ListedMember) => {
+      setConfirmDialog({
+        type: "member",
+        userId: member.userId,
+        name: member.displayName ?? member.email ?? "Member",
+        body: "They will be unable to join until restored.",
+      });
+    },
+    [],
   );
 
   const handleRestoreMember = useCallback(
@@ -1533,18 +1551,12 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     ],
   );
 
-  const handleRemoveAdmin = useCallback(
+  const performRemoveAdmin = useCallback(
     async (userId: string) => {
-      if (userId === viewerId && lastAdminId === viewerId) {
+      if (admins.length <= 1) {
         onError("You are the final admin. Add another admin before stepping down.");
         return;
       }
-      const confirmed = window.confirm(
-        userId === viewerId
-          ? "Remove yourself as an admin? You will lose access to moderation tools."
-          : "Remove this admin from the roster?",
-      );
-      if (!confirmed) return;
       setAdminActionId(userId);
       const snapshotAdmins = admins;
       const snapshotMatches = adminMatches;
@@ -1578,18 +1590,44 @@ const auditParentRef = useRef<HTMLDivElement>(null);
         setAdminActionId(null);
       }
     },
-    [
-      adminMatches,
-      admins,
-      lastAdminId,
-      loadAdmins,
-      onError,
-      onNotice,
-      onRefresh,
-      refreshAdminSearch,
-      viewerId,
-    ],
+    [adminMatches, admins, loadAdmins, onError, onNotice, onRefresh, refreshAdminSearch],
   );
+
+  const handleRemoveAdmin = useCallback(
+    (admin: { userId: string; displayName: string | null; email: string | null }) => {
+      if (admins.length <= 1 || (admin.userId === viewerId && admins.length <= 1)) {
+        onError("You are the final admin. Add another admin before stepping down.");
+        return;
+      }
+      setConfirmDialog({
+        type: "admin",
+        userId: admin.userId,
+        name: admin.displayName ?? admin.email ?? "Admin",
+        body: "You’ll lose access if this is the last admin.",
+      });
+    },
+    [admins.length, onError, viewerId],
+  );
+
+  const handleConfirmCancel = useCallback(() => {
+    if (confirmBusy) return;
+    setConfirmDialog(null);
+  }, [confirmBusy]);
+
+  const handleConfirmSubmit = useCallback(async () => {
+    if (!confirmDialog) return;
+    setConfirmBusy(true);
+    try {
+      if (confirmDialog.type === "member") {
+        await performRemoveMember(confirmDialog.userId);
+      } else {
+        await performRemoveAdmin(confirmDialog.userId);
+      }
+      setConfirmDialog(null);
+    } finally {
+      setConfirmBusy(false);
+    }
+  }, [confirmDialog, performRemoveAdmin, performRemoveMember]);
 
   const refreshCurrentTab = useCallback(() => {
     if (currentTab === "members") {
@@ -1637,17 +1675,20 @@ const auditParentRef = useRef<HTMLDivElement>(null);
         aria-modal="true"
         aria-label="Live community admin"
         tabIndex={-1}
-        className={`relative ml-auto flex h-full w-full max-w-[460px] flex-col bg-[#080814] text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] ${
+        className={`relative ml-0 sm:ml-auto flex h-full w-full flex-col rounded-t-3xl bg-[#080814] text-white shadow-[0_20px_60px_rgba(0,0,0,0.45)] sm:max-w-[460px] sm:rounded-none sm:border-l sm:border-white/10 ${
           prefersReducedMotion ? "" : "transition duration-300"
         }`}
       >
-        <header className="flex items-start justify-between border-b border-white/10 px-6 py-5">
+        <header className="flex items-start justify-between border-b border-white/10 px-4 py-4 sm:px-6 sm:py-5">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-white/40">Live Control</p>
-            <h2 className="mt-1 text-2xl font-semibold leading-tight">{state.groupName}</h2>
+            <h2 className="mt-1 text-xl font-semibold leading-tight sm:text-2xl">{state.groupName}</h2>
             <p className="mt-2 text-xs text-white/50">
               {state.subscribersCount.toLocaleString("en-US")} subscribers ·{" "}
               {state.isLive ? "Open" : "Locked"}
+            </p>
+            <p className="mt-1 text-[11px] text-white/40">
+              Lock toggles with the Telegram live session.
             </p>
           </div>
           <button
@@ -1661,32 +1702,34 @@ const auditParentRef = useRef<HTMLDivElement>(null);
         </header>
 
         <nav
-          className="flex gap-2 overflow-x-auto border-b border-white/10 px-6 py-3"
+          className="border-b border-white/10 px-4 py-3 sm:px-6 sm:py-3"
           role="tablist"
         >
-          {TABS.map((tab) => {
-            const selected = currentTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                onClick={() => setCurrentTab(tab.key)}
-                aria-selected={selected}
-                tabIndex={selected ? 0 : -1}
-                className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
-                  selected
-                    ? "bg-white text-[#090912]"
-                    : "border border-white/10 text-white/70 hover:border-white/20 hover:text-white"
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2">
+            {TABS.map((tab) => {
+              const selected = currentTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  onClick={() => setCurrentTab(tab.key)}
+                  aria-selected={selected}
+                  tabIndex={selected ? 0 : -1}
+                  className={`rounded-full px-3 py-2 text-sm font-medium transition ${
+                    selected
+                      ? "bg-white text-[#090912]"
+                      : "border border-white/10 text-white/70 hover:border-white/20 hover:text-white"
+                  } flex-1 sm:flex-none`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
         </nav>
 
-        <div className="flex-1 overflow-hidden px-6 py-6">
+        <div className="flex-1 overflow-hidden px-4 py-6 sm:px-6">
           {currentTab === "general" && (
             <div className="h-full overflow-y-auto pr-1">
               <div className="space-y-6">
@@ -2048,7 +2091,7 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                               </div>
                               <button
                                 type="button"
-                                onClick={() => handleRemoveMember(member.userId)}
+                                onClick={() => handleRemoveMember(member)}
                                 disabled={memberActionId === member.userId}
                                 className="inline-flex items-center gap-2 rounded-full bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                               >
@@ -2236,7 +2279,7 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                             </div>
                             <button
                               type="button"
-                              onClick={() => handleRemoveAdmin(admin.userId)}
+                              onClick={() => handleRemoveAdmin(admin)}
                               disabled={disableSelf || busy}
                               className="inline-flex items-center gap-2 rounded-full bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                             >
@@ -2276,7 +2319,6 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                         const isAdmin = candidate.isAdmin;
                         const disableSelf =
                           isAdmin && candidate.userId === viewerId && lastAdminId === viewerId;
-                        const action = isAdmin ? handleRemoveAdmin : handleGrantAdmin;
                         return (
                           <div
                             key={candidate.userId}
@@ -2304,7 +2346,9 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                             </div>
                             <button
                               type="button"
-                              onClick={() => action(candidate.userId)}
+                              onClick={() =>
+                                isAdmin ? handleRemoveAdmin(candidate) : handleGrantAdmin(candidate.userId)
+                              }
                               disabled={disableSelf || busy}
                               className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                                 isAdmin
@@ -2484,6 +2528,33 @@ const auditParentRef = useRef<HTMLDivElement>(null);
           onChange={handleWallpaperFile}
         />
       </div>
+      {confirmDialog && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-6">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#111120] p-6 text-white shadow-2xl">
+            <h2 className="text-lg font-semibold">{`Remove ${confirmDialog.name}?`}</h2>
+            <p className="mt-2 text-sm text-white/70">{confirmDialog.body}</p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                disabled={confirmBusy}
+                className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSubmit}
+                disabled={confirmBusy}
+                className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#080814] transition hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {confirmBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {confirmDialog.type === "member" ? "Remove member" : "Remove admin"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
