@@ -1,10 +1,12 @@
+import FlipCountdown from "@/components/timer/FlipCountdown";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export default function TimerFeature() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-black text-white">
-      <p className="text-center text-xl font-semibold md:text-2xl">Timer — coming soon</p>
+    <div className="flex min-h-[100dvh] w-full justify-center bg-black/95 px-4 py-12 text-white">
+      <FlipCountdown />
     </div>
   );
 }
