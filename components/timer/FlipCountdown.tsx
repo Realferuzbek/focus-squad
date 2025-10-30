@@ -92,6 +92,7 @@ export function FlipCountdown() {
   const [durationSeconds, setDurationSeconds] = useState(DEFAULT_DURATION_SECONDS);
   const [remainingSeconds, setRemainingSeconds] = useState(durationSeconds);
   const [status, setStatus] = useState<TimerStatus>("idle");
+  const intervalRef = useRef<number | null>(null);
 
   const { hours, minutes, seconds } = useMemo(
     () => getTimeParts(remainingSeconds),
@@ -104,13 +105,20 @@ export function FlipCountdown() {
 
   useEffect(() => {
     if (status !== "running") {
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
       return;
     }
 
-    const interval = window.setInterval(() => {
+    intervalRef.current = window.setInterval(() => {
       setRemainingSeconds((previous) => {
         if (previous <= 1) {
-          window.clearInterval(interval);
+          if (intervalRef.current !== null) {
+            window.clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
           setStatus("completed");
           return 0;
         }
@@ -120,9 +128,20 @@ export function FlipCountdown() {
     }, 1000);
 
     return () => {
-      window.clearInterval(interval);
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
   }, [status]);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
 
   const handleStart = () => {
     if (status === "running") {
@@ -138,11 +157,19 @@ export function FlipCountdown() {
 
   const handlePause = () => {
     if (status === "running") {
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
       setStatus("paused");
     }
   };
 
   const handleReset = () => {
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
     setStatus("idle");
     setDurationSeconds(DEFAULT_DURATION_SECONDS);
     setRemainingSeconds(DEFAULT_DURATION_SECONDS);

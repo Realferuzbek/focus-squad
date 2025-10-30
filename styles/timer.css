@@ -137,6 +137,14 @@
   animation: flipBottom 0.6s ease-out forwards;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .flip-card__unit.flip .flip-card__top,
+  .flip-card__unit.flip .flip-card__back-top {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
 @keyframes flipTop {
   0% {
     transform: rotateX(0deg);
