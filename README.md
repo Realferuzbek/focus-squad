@@ -24,6 +24,20 @@ Next.js 14 app for the Focus Squad community. Features Google authentication via
 - `PUBLIC_TG_GROUP_LINK`
 - `CRON_SECRET`
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_SUBJECT`
+- `LEADERBOARD_INGEST_SECRET`
+- `LEADERBOARD_TIMEZONE` (defaults to `Asia/Tashkent`)
+
+See [`docs/leaderboard_export_contract.md`](./docs/leaderboard_export_contract.md) for the tracker export payload contract and ingest behaviour.
+
+## Scheduled Checks
+
+Configure a hosted cron (for example, [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs)) to call the leaderboard health endpoint every day at 21:10 Asia/Tashkent (16:10 UTC). The job should use a simple GET request:
+
+```
+10 16 * * * https://<your-domain>/api/leaderboard/health
+```
+
+The endpoint returns `{ ok, latestPostedAt, scopes }` and logs an error whenever a scope is missing or has not been updated in the last 24 hours.
 
 ## Web Push Setup
 
