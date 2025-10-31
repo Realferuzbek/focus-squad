@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Focus Timer</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="timer-app">
+      <div class="timer-app__background" aria-hidden="true"></div>
+      <main class="timer-app__container">
+        <header class="timer-header">
+          <div class="timer-header__chips" role="tablist" aria-label="Timer modes">
+            <button class="chip is-active" type="button" role="tab" aria-selected="true" data-mode="pomodoro">
+              Pomodoro
+            </button>
+            <button class="chip" type="button" role="tab" aria-selected="false" data-mode="short">
+              Short Break
+            </button>
+            <button class="chip" type="button" role="tab" aria-selected="false" data-mode="long">
+              Long Break
+            </button>
+          </div>
+          <div class="timer-header__actions">
+            <button class="icon-button" type="button" aria-label="Timer settings" data-action="settings">
+              <img src="assets/icons/gear.svg" alt="Settings" />
+            </button>
+            <button class="icon-button" type="button" aria-label="Reset timer" data-action="reset">
+              <img src="assets/icons/reload.svg" alt="Reset" />
+            </button>
+            <button class="icon-button" type="button" aria-label="Toggle fullscreen" data-action="fullscreen">
+              <img src="assets/icons/fullscreen.svg" alt="Fullscreen" />
+            </button>
+          </div>
+        </header>
+        <section class="timer-display" aria-live="polite">
+          <div class="timer-display__digits" data-testid="timer-digits">
+            <span class="timer-digit" data-unit="minutes-tens">5</span>
+            <span class="timer-digit" data-unit="minutes-ones">0</span>
+            <span class="timer-colon" aria-hidden="true">:</span>
+            <span class="timer-digit" data-unit="seconds-tens">0</span>
+            <span class="timer-digit" data-unit="seconds-ones">0</span>
+          </div>
+          <div class="timer-progress" role="presentation">
+            <svg viewBox="0 0 120 120" class="progress-ring">
+              <circle class="progress-ring__background" cx="60" cy="60" r="54"></circle>
+              <circle class="progress-ring__progress" cx="60" cy="60" r="54"></circle>
+            </svg>
+          </div>
+          <button class="timer-toggle" type="button" data-action="toggle">Start</button>
+        </section>
+        <footer class="timer-footer">
+          <span class="timer-footer__chip">Moon Phase</span>
+          <span class="timer-footer__chip">Deep Focus</span>
+        </footer>
+      </main>
+      <dialog class="timer-settings" aria-label="Timer settings">
+        <form method="dialog" class="timer-settings__panel">
+          <h2 class="timer-settings__title">Timer Settings</h2>
+          <div class="timer-settings__grid">
+            <label class="timer-settings__field">
+              <span>Pomodoro</span>
+              <input type="number" name="pomodoro" min="1" max="180" step="1" value="50" />
+            </label>
+            <label class="timer-settings__field">
+              <span>Short Break</span>
+              <input type="number" name="short" min="1" max="60" step="1" value="5" />
+            </label>
+            <label class="timer-settings__field">
+              <span>Long Break</span>
+              <input type="number" name="long" min="1" max="90" step="1" value="15" />
+            </label>
+          </div>
+          <div class="timer-settings__actions">
+            <button type="button" data-action="settings-cancel" class="ghost-button">Cancel</button>
+            <button type="submit" class="primary-button">Save</button>
+          </div>
+        </form>
+      </dialog>
+      <audio class="timer-audio" src="assets/audio/alarm.mp3" preload="auto"></audio>
+    </div>
+    <script type="module" src="./script.js"></script>
+  </body>
+</html>
