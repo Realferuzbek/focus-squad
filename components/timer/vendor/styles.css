@@ -57,7 +57,10 @@ body {
   position: absolute;
   inset: 0;
   z-index: -2;
-  background-image: url('assets/backgrounds/background_3.jpg');
+  background-image: var(
+    --timer-bg-url,
+    url('/api/timer-assets/assets/backgrounds/background_3.jpg')
+  );
   background-size: cover;
   background-position: center;
   filter: brightness(0.65) saturate(1.1);
@@ -146,7 +149,7 @@ body {
   border-color: rgba(91, 131, 255, 0.6);
 }
 
-.icon-button img {
+.timer__icon {
   width: 22px;
   height: 22px;
   filter: drop-shadow(0 0 6px rgba(91, 131, 255, 0.45));
