@@ -69,6 +69,10 @@ const weekdayFormatter = buildFormatter({
   weekday: 'short',
 });
 
+function formatWithFallback(date: Date) {
+  return postedFormatter ? postedFormatter.format(date) : date.toISOString();
+}
+
 function formatMinutes(minutes: number) {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
@@ -103,8 +107,7 @@ function formatPostedAt(snapshot: LeaderboardSnapshot | null) {
   if (Number.isNaN(date.getTime())) {
     return snapshot.posted_at;
   }
-  const formatted = postedFormatter?.format(date) ?? date.toISOString();
-  return `${formatted} - Asia/Tashkent`;
+  return `${formatWithFallback(date)} - Asia/Tashkent`;
 }
 
 function formatSyncLabel(timestamp: string) {
@@ -112,7 +115,7 @@ function formatSyncLabel(timestamp: string) {
   if (Number.isNaN(date.getTime())) {
     return timestamp;
   }
-  return postedFormatter?.format(date) ?? date.toISOString();
+  return formatWithFallback(date);
 }
 
 function rankAccent(rank: number) {
@@ -179,7 +182,7 @@ export default async function LeaderboardPage() {
               <div className="flex items-center justify-between gap-3 text-xs text-white/50">
                 <span>Local time</span>
                 <time dateTime={dataLoadedAt.toISOString()}>
-                  {postedFormatter.format(dataLoadedAt)}
+                  {formatWithFallback(dataLoadedAt)}
                 </time>
               </div>
             </div>
