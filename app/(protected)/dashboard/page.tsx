@@ -20,6 +20,7 @@ export default async function DashboardPage() {
       description: "Track the top performers and celebrate focus legends.",
       accent: "from-[#a855f7] via-[#6366f1] to-[#22d3ee]",
       icon: "🏆",
+      href: "/leaderboard",
     },
     {
       key: "chat",
