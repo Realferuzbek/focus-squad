@@ -114,12 +114,25 @@ function rankAccent(rank: number) {
   return 'bg-white/10 text-white/90 border border-white/10';
 }
 
+const EMPTY_SNAPSHOTS: Record<LeaderboardScope, LeaderboardSnapshot | null> = {
+  day: null,
+  week: null,
+  month: null,
+};
+
 export default async function LeaderboardPage() {
   const session = await auth();
   const viewer = session?.user as any;
   const avatarSrc = viewer?.avatar_url ?? viewer?.image ?? null;
 
-  const snapshots = await loadLatestLeaderboards();
+  let snapshots = EMPTY_SNAPSHOTS;
+  let loadError: unknown = null;
+  try {
+    snapshots = await loadLatestLeaderboards();
+  } catch (error) {
+    console.error('leaderboard: failed to load snapshots', error);
+    loadError = error;
+  }
   const dataLoadedAt = new Date();
 
   const scopes: LeaderboardScope[] = ['day', 'week', 'month'];
@@ -252,6 +265,12 @@ export default async function LeaderboardPage() {
             );
           })}
         </section>
+
+        {loadError ? (
+          <p className="rounded-2xl border border-yellow-600/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-300">
+            Live leaderboard data is temporarily unavailable. We will refresh automatically once the tracker exports again.
+          </p>
+        ) : null}
 
         <footer className="pb-10 text-center text-sm text-white/60">
           <Link
