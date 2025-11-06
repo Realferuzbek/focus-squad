@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { adminStorage } from "@/lib/storage";
+import { getAdminStorage } from "@/lib/storage";
 
 const Body = z.object({
   path: z.string(),
@@ -20,7 +20,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Bad path" }, { status: 400 });
   }
 
-  const { data, error } = await adminStorage
+  const storage = getAdminStorage();
+
+  const { data, error } = await storage
     .from("dm-uploads")
     .createSignedUrl(path, ttl);
 

@@ -1,12 +1,43 @@
 import { createClient } from '@supabase/supabase-js';
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+type StorageClient = ReturnType<typeof createClient>['storage'];
 
-// Admin client for server-only storage ops
-export const adminStorage = createClient(url, serviceKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
-}).storage;
+let cachedStorage: StorageClient | undefined;
+
+function resolveSupabaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_SUPABASE_URL ??
+    process.env.SUPABASE_URL ??
+    ''
+  );
+}
+
+function requireEnv(value: string | undefined, name: string) {
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+// Lazily instantiate the Supabase storage client so builds do not fail when env is absent.
+export function getAdminStorage(): StorageClient {
+  if (!cachedStorage) {
+    const url = requireEnv(
+      resolveSupabaseUrl(),
+      'NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL',
+    );
+    const serviceKey = requireEnv(
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      'SUPABASE_SERVICE_ROLE_KEY',
+    );
+
+    cachedStorage = createClient(url, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    }).storage;
+  }
+
+  return cachedStorage;
+}
 
 // tiny filename cleaner
 export function slugify(name: string) {

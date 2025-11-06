@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/live/admin";
-import { adminStorage, pickLiveAssetPath } from "@/lib/storage";
+import { getAdminStorage, pickLiveAssetPath } from "@/lib/storage";
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
@@ -55,8 +55,9 @@ export function createSignUploadHandler(kind: "avatar" | "wallpaper") {
       );
     }
 
+    const storage = getAdminStorage();
     const path = pickLiveAssetPath(filename, kind);
-    const { data, error } = await adminStorage
+    const { data, error } = await storage
       .from("live_assets")
       .createSignedUploadUrl(path);
 
@@ -67,7 +68,7 @@ export function createSignUploadHandler(kind: "avatar" | "wallpaper") {
       );
     }
 
-    const publicUrl = adminStorage
+    const publicUrl = storage
       .from("live_assets")
       .getPublicUrl(path)
       .data?.publicUrl;

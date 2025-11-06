@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { adminStorage, pickLivePath } from "@/lib/storage";
+import { getAdminStorage, pickLivePath } from "@/lib/storage";
 
 const Body = z.object({
   kind: z.enum(["image", "video", "audio", "file"]),
@@ -45,7 +45,8 @@ export async function POST(req: Request) {
   }
 
   const path = pickLivePath(filename);
-  const { data, error } = await adminStorage
+  const storage = getAdminStorage();
+  const { data, error } = await storage
     .from("dm-uploads")
     .createSignedUploadUrl(path);
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { adminStorage, pickPath } from "@/lib/storage";
+import { getAdminStorage, pickPath } from "@/lib/storage";
 import {
   ensureParticipant,
   isDmAdmin,
@@ -61,7 +61,8 @@ export async function POST(req: Request) {
   }
 
   const path = pickPath(threadId, filename);
-  const { data, error } = await adminStorage
+  const storage = getAdminStorage();
+  const { data, error } = await storage
     .from("dm-uploads")
     .createSignedUploadUrl(path);
 

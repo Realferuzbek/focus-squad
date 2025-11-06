@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/live/admin";
-import { adminStorage, pickLiveAssetPath } from "@/lib/storage";
+import { getAdminStorage, pickLiveAssetPath } from "@/lib/storage";
 
 const Body = z.object({
   filename: z.string().min(1),
@@ -43,8 +43,9 @@ export async function POST(req: Request) {
     );
   }
 
+  const storage = getAdminStorage();
   const path = pickLiveAssetPath(filename, variant);
-  const { data, error } = await adminStorage
+  const { data, error } = await storage
     .from("live_assets")
     .createSignedUploadUrl(path);
 
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const publicUrl = adminStorage
+  const publicUrl = storage
     .from("live_assets")
     .getPublicUrl(path)
     .data?.publicUrl;

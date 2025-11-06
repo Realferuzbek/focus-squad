@@ -1,19 +1,25 @@
+export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const revalidate = 60;
 
 import { NextResponse } from 'next/server';
+import { unstable_cache } from 'next/cache';
+
 import { REQUIRED_SCOPES } from '@/lib/leaderboard/ingest';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
-export async function GET() {
-  const client = supabaseAdmin();
+type LeaderboardRow = Record<string, unknown> | null;
 
-  try {
+const loadLatest = unstable_cache(
+  async () => {
+    const client = supabaseAdmin();
+
     const entries = await Promise.all(
       REQUIRED_SCOPES.map(async (scope) => {
         const { data, error } = await client
           .from('leaderboards')
-          .select('scope, period_start, period_end, posted_at, entries, message_id, chat_id')
+          .select(
+            'scope, period_start, period_end, posted_at, entries, message_id, chat_id',
+          )
           .eq('scope', scope)
           .order('posted_at', { ascending: false })
           .order('period_end', { ascending: false })
@@ -27,7 +33,15 @@ export async function GET() {
       }),
     );
 
-    const latest = Object.fromEntries(entries);
+    return Object.fromEntries(entries) as Record<string, LeaderboardRow>;
+  },
+  ['leaderboard-latest'],
+  { revalidate: 60 },
+);
+
+export async function GET() {
+  try {
+    const latest = await loadLatest();
     return NextResponse.json({ data: latest });
   } catch (error) {
     console.error('leaderboard latest: failed to load snapshots', error);

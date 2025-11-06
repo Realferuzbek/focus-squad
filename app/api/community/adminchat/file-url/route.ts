@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { adminStorage } from "@/lib/storage";
+import { getAdminStorage } from "@/lib/storage";
 import {
   fetchThreadById,
   isDmAdmin,
@@ -44,7 +44,9 @@ export async function POST(req: Request) {
     }
   }
 
-  const { data, error } = await adminStorage
+  const storage = getAdminStorage();
+
+  const { data, error } = await storage
     .from("dm-uploads")
     .createSignedUrl(path, ttl);
 

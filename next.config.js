@@ -1,11 +1,26 @@
 /** @type {import('next').NextConfig} */
-const SUPABASE_HOST = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+let SUPABASE_HOST = undefined;
+if (SUPABASE_URL) {
+  try {
+    SUPABASE_HOST = new URL(SUPABASE_URL).host;
+  } catch {
+    // ignore parse failure; fall back to pattern-only config
+  }
+}
 
 const RAW = process.env.NEXT_PUBLIC_SITE_URL || '';
 let SITE_URL = 'https://studywithferuzbek.vercel.app';
 try {
   if (RAW) SITE_URL = new URL(RAW).toString();
 } catch {}
+
+const imageDomains = [
+  'lh3.googleusercontent.com',
+  'avatars.githubusercontent.com',
+  'media.licdn.com',
+];
+if (SUPABASE_HOST) imageDomains.push(SUPABASE_HOST);
 
 const nextConfig = {
   reactStrictMode: true,
@@ -19,7 +34,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'media.licdn.com' },
     ],
     // add explicit domains so Next/Image is happy everywhere
-    domains: [SUPABASE_HOST, 'lh3.googleusercontent.com', 'avatars.githubusercontent.com', 'media.licdn.com'],
+    domains: imageDomains,
   },
   env: {
     NEXT_PUBLIC_SITE_URL: SITE_URL,
