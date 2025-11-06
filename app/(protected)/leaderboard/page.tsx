@@ -107,6 +107,14 @@ function formatPostedAt(snapshot: LeaderboardSnapshot | null) {
   return `${formatted} - Asia/Tashkent`;
 }
 
+function formatSyncLabel(timestamp: string) {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return timestamp;
+  }
+  return postedFormatter?.format(date) ?? date.toISOString();
+}
+
 function rankAccent(rank: number) {
   if (rank === 1) return 'bg-[linear-gradient(135deg,#facc15,#f97316)] text-black shadow-[0_12px_30px_rgba(250,204,21,0.35)]';
   if (rank === 2) return 'bg-[linear-gradient(135deg,#e5e7eb,#94a3b8)] text-black shadow-[0_12px_26px_rgba(148,163,184,0.35)]';
@@ -144,9 +152,8 @@ export default async function LeaderboardPage() {
     return new Date(current) > new Date(latest) ? current : latest;
   }, null);
 
-  const lastSyncLabel = latestPostedAt
-    ? postedFormatter.format(new Date(latestPostedAt))
-    : 'No snapshots yet';
+  const lastSyncLabel =
+    latestPostedAt !== null ? formatSyncLabel(latestPostedAt) : 'No snapshots yet';
 
   return (
     <div className="min-h-[100dvh] bg-[#07070b] text-white">
