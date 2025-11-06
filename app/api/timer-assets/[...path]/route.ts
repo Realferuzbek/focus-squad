@@ -1,73 +1,32 @@
-import { NextRequest } from "next/server";
+export const runtime = "edge";
 
-const ASSET_BASE = "https://raw.githubusercontent.com/Realferuzbek/flip_countdown_new/main/";
+const TYPE: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  mp3: "audio/mpeg",
+  json: "application/json",
+  ico: "image/x-icon",
+};
 
-const CONTENT_TYPES = new Map<string, string>([
-  [".jpg", "image/jpeg"],
-  [".jpeg", "image/jpeg"],
-  [".png", "image/png"],
-  [".gif", "image/gif"],
-  [".webp", "image/webp"],
-  [".svg", "image/svg+xml"],
-  [".mp3", "audio/mpeg"],
-  [".json", "application/json"],
-  [".ico", "image/x-icon"],
-]);
-
-function getContentType(path: string, fallback?: string | null) {
-  const lower = path.toLowerCase();
-  for (const [ext, type] of CONTENT_TYPES) {
-    if (lower.endsWith(ext)) {
-      return type;
-    }
+export async function GET(
+  _req: Request,
+  ctx: { params: { path: string[] } }
+) {
+  const path = ctx.params.path.join("/");
+  const upstream = `https://raw.githubusercontent.com/Realferuzbek/flip_countdown_new/main/${path}`;
+  const res = await fetch(upstream, { next: { revalidate: 3600 } });
+  if (!res.ok) {
+    return new Response("Not found", { status: res.status });
   }
-  return fallback ?? "application/octet-stream";
-}
-
-function buildTargetUrl(pathSegments: string[]) {
-  const assetPath = pathSegments.join("/");
-  return `${ASSET_BASE}${assetPath}`;
-}
-
-function isValidPath(pathSegments: string[]) {
-  return pathSegments.length > 0 && pathSegments.every((segment) => segment && !segment.includes(".."));
-}
-
-export async function GET(_request: NextRequest, context: { params: { path?: string[] } }) {
-  const segments = context.params?.path ?? [];
-
-  if (!isValidPath(segments)) {
-    return new Response("Invalid asset path", { status: 400 });
-  }
-
-  const targetUrl = buildTargetUrl(segments);
-
-  const response = await fetch(targetUrl, {
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  const ct = TYPE[ext] || "application/octet-stream";
+  return new Response(res.body, {
     headers: {
-      Accept: "*/*",
-      "User-Agent": "study-with-feruzbek-timer-proxy",
+      "content-type": ct,
+      "cache-control": "public, s-maxage=3600, stale-while-revalidate=86400",
     },
-    cache: "no-store",
-  });
-
-  if (!response.ok || !response.body) {
-    const bodyText = await response.text().catch(() => "Asset fetch failed");
-    return new Response(bodyText, { status: response.status });
-  }
-
-  const contentType = getContentType(targetUrl, response.headers.get("content-type"));
-
-  const headers = new Headers();
-  headers.set("Content-Type", contentType);
-  headers.set("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400");
-
-  const etag = response.headers.get("etag");
-  if (etag) {
-    headers.set("ETag", etag);
-  }
-
-  return new Response(response.body, {
-    status: response.status,
-    headers,
   });
 }

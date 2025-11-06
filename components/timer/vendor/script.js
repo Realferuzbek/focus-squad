@@ -1,4 +1,4 @@
-const ASSET_BASE = "/timer/assets/";
+const ASSET_BASE = "/api/timer-assets/assets/";
 
 const MODE_CONFIG = {
   pomodoro: {
@@ -30,13 +30,19 @@ const TEMPLATE = `
         </div>
         <div class="timer-header__actions">
           <button class="icon-button" type="button" aria-label="Timer settings" data-action="settings">
-            <img src="${ASSET_BASE}assets/icons/gear.svg" alt="Settings" />
+            <svg class="timer__icon timer__icon--gear" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
+              <path d="M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8zm9 4a7.9 7.9 0 0 0-.15-1.5l2.02-1.57-2-3.46-2.48.64a8.1 8.1 0 0 0-2.1-1.21L14 2h-4l-.29 2.54a8.1 8.1 0 0 0-2.1 1.21l-2.48-.64-2 3.46 2.02 1.57A8.5 8.5 0 0 0 3 12c0 .51.05 1.02.15 1.5L1.13 15.1l2 3.46 2.48-.64c.62.5 1.34.9 2.1 1.21L10 22h4l.29-2.54c.76-.31 1.48-.71 2.1-1.21l2.48.64 2-3.46-2.02-1.57c.1-.48.15-.99.15-1.5z" />
+            </svg>
           </button>
           <button class="icon-button" type="button" aria-label="Reset timer" data-action="reset">
-            <img src="${ASSET_BASE}assets/icons/reload.svg" alt="Reset" />
+            <svg class="timer__icon timer__icon--reset" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
+              <path d="M12 5V1L7 6l5 5V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z" />
+            </svg>
           </button>
           <button class="icon-button" type="button" aria-label="Toggle fullscreen" data-action="fullscreen">
-            <img src="${ASSET_BASE}assets/icons/fullscreen.svg" alt="Fullscreen" />
+            <svg class="timer__icon timer__icon--fullscreen" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
+              <path d="M7 14H5v5h5v-2H7v-3zm12 5h-5v-2h3v-3h2v5zM7 5h3V3H5v5h2V5zm12 5V3h-5v2h3v3h2z" />
+            </svg>
           </button>
         </div>
       </header>
@@ -84,7 +90,7 @@ const TEMPLATE = `
         </div>
       </form>
     </dialog>
-    <audio class="timer-audio" src="${ASSET_BASE}assets/alarm.mp3" preload="auto"></audio>
+    <audio class="timer-audio" src="${ASSET_BASE}alarm.mp3" preload="auto"></audio>
   </div>
 `;
 
@@ -379,10 +385,7 @@ export function mountTimer(root) {
   const doc = root.ownerDocument ?? document;
   const win = doc.defaultView ?? window;
 
-  const background = root.querySelector(".timer-app__background");
-  if (background) {
-    background.style.backgroundImage = `url('${ASSET_BASE}assets/backgrounds/background_3.jpg')`;
-  }
+  root.style.setProperty("--timer-bg-url", `url(${ASSET_BASE}backgrounds/background_3.jpg)`);
 
   const appRoot = root.querySelector(".timer-app");
   if (!appRoot) {
