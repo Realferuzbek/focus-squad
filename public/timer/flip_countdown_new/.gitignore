@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.log
+*.zip
+*.asar
+*.blockmap
+.DS_Store

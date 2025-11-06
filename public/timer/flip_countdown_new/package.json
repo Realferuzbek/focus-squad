@@ -1,0 +1,12 @@
+{
+  "name": "flip-countdown-web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "npx http-server -c-1 -p 5173 .",
+    "gen:assets": "node scripts/gen-images-manifest.mjs"
+  },
+  "devDependencies": {
+    "http-server": "14.1.1"
+  }
+}
