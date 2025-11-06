@@ -14,7 +14,7 @@ const PUBLIC_PATHS = new Set<string>([
 ]);
 
 // treat common static assets as public
-const STATIC_EXT = /\.(?:png|svg|jpg|jpeg|gif|webp|ico|txt|xml)$/i;
+const STATIC_EXT = /\.(?:png|svg|jpg|jpeg|gif|webp|ico|txt|xml|html)$/i;
 
 function isPublic(req: NextRequest) {
   const { pathname } = req.nextUrl;
