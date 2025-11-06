@@ -7,6 +7,7 @@ import GlowPanel from '@/components/GlowPanel';
 import { auth } from '@/lib/auth';
 import { loadLatestLeaderboards, type LeaderboardSnapshot } from '@/lib/leaderboard/loadLatest';
 import type { LeaderboardScope } from '@/types/leaderboard';
+import { getLanguageOptions, getTranslations } from '@/lib/i18n';
 
 type ScopeConfig = {
   label: string;
@@ -136,6 +137,9 @@ export default async function LeaderboardPage() {
   const viewer = session?.user as any;
   const avatarSrc = viewer?.avatar_url ?? viewer?.image ?? null;
 
+  const { locale, t } = getTranslations();
+  const languageOptions = getLanguageOptions(locale);
+
   let snapshots = EMPTY_SNAPSHOTS;
   let loadError: unknown = null;
   try {
@@ -160,7 +164,13 @@ export default async function LeaderboardPage() {
 
   return (
     <div className="min-h-[100dvh] bg-[#07070b] text-white">
-      <Navbar isAdmin={!!viewer?.is_admin} avatarUrl={avatarSrc} />
+      <Navbar
+        isAdmin={!!viewer?.is_admin}
+        avatarUrl={avatarSrc}
+        locale={locale}
+        translations={t.nav}
+        languageOptions={languageOptions}
+      />
 
       <main className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10">
         <header className="rounded-[32px] border border-white/10 bg-gradient-to-br from-[#1f1f33] via-[#121225] to-[#0a0a14] p-6 shadow-[0_25px_70px_rgba(104,67,255,0.25)]">
@@ -288,7 +298,7 @@ export default async function LeaderboardPage() {
             className="inline-flex items-center gap-2 text-white/70 underline-offset-4 transition hover:text-white hover:underline"
           >
             <span>←</span>
-            Back to dashboard
+            {t.common.backToDashboard}
           </Link>
         </footer>
       </main>

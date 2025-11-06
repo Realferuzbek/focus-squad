@@ -7,101 +7,94 @@ import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import UsageHeartbeat from "@/components/UsageHeartbeat";
+import { getLanguageOptions, getTranslations, type FeatureKey } from "@/lib/i18n";
 
 export default async function DashboardPage() {
   const session = await auth();
   const user = session!.user as any;
   const avatarSrc = user?.avatar_url ?? user?.image ?? null;
 
-  const features = [
+  const { locale, t } = getTranslations();
+  const languageOptions = getLanguageOptions(locale);
+
+  const featureDefinitions: Array<{
+    key: FeatureKey;
+    accent: string;
+    icon: string;
+    href?: string;
+    isLive?: boolean;
+  }> = [
     {
       key: "leaderboard",
-      title: "Leaderboard",
-      description: "Track the top performers and celebrate focus legends.",
       accent: "from-[#a855f7] via-[#6366f1] to-[#22d3ee]",
       icon: "🏆",
       href: "/leaderboard",
     },
     {
       key: "chat",
-      title: "Community Chat",
-      description: "Drop updates, share wins, and stay accountable together.",
       accent: "from-[#f97316] via-[#fb7185] to-[#a855f7]",
       icon: "💬",
       href: "/community",
     },
     {
       key: "motivation",
-      title: "Motivation Vault",
-      description: "Daily quotes, mindset hacks, and success stories.",
       accent: "from-[#22d3ee] via-[#2dd4bf] to-[#a855f7]",
       icon: "⚡",
     },
     {
       key: "live",
-      title: "Live Stream Studio",
-      description: "Join focus rooms and study together in real time.",
       accent: "from-[#f472b6] via-[#ec4899] to-[#a855f7]",
       icon: "📺",
     },
     {
       key: "tasks",
-      title: "Task Scheduler",
-      description: "Plan lessons, set clusters, and lock in your agenda.",
       accent: "from-[#8b5cf6] via-[#a855f7] to-[#6366f1]",
       icon: "✔️",
     },
     {
       key: "timer",
-      title: "Timer",
-      description: "Stay locked-in with precision intervals and breaks.",
       accent: "from-[#6366f1] via-[#22d3ee] to-[#0ea5e9]",
       icon: "⏱️",
-      badge: "Live now",
+      isLive: true,
     },
     {
       key: "research-positions",
-      title: "Research Positions",
-      description: "Find labs and mentors looking for ambitious collaborators.",
       accent: "from-[#38bdf8] via-[#6366f1] to-[#8b5cf6]",
       icon: "🔬",
     },
     {
       key: "internship-positions",
-      title: "Internship Positions",
-      description: "Track curated roles to sharpen skills and build your resume.",
       accent: "from-[#0ea5e9] via-[#22d3ee] to-[#2dd4bf]",
       icon: "💼",
     },
     {
       key: "essay-workshop",
-      title: "Essay Workshop",
-      description: "Blueprint winning personal statements with peer-approved frameworks.",
       accent: "from-[#f97316] via-[#fb7185] to-[#a855f7]",
       icon: "📝",
     },
     {
       key: "universities-emails",
-      title: "Universities Emails",
-      description: "Access contact lists to reach admissions and program coordinators.",
       accent: "from-[#8b5cf6] via-[#a855f7] to-[#6366f1]",
       icon: "📧",
     },
     {
       key: "hobbies-opportunities",
-      title: "Hobbies Opportunities",
-      description: "Discover clubs, challenges, and creative outlets to stay balanced.",
       accent: "from-[#22d3ee] via-[#0ea5e9] to-[#38bdf8]",
       icon: "🎨",
     },
     {
       key: "olympiad-opportunities",
-      title: "Olympiad Opportunities",
-      description: "Keep tabs on upcoming contests and prep resources for champions.",
       accent: "from-[#facc15] via-[#f97316] to-[#fb7185]",
       icon: "🏅",
     },
   ];
+
+  const features = featureDefinitions.map((feature) => ({
+    ...feature,
+    title: t.dashboard.features[feature.key].title,
+    description: t.dashboard.features[feature.key].description,
+    badge: feature.isLive ? t.common.liveNow : undefined,
+  }));
 
   return (
     <div className="min-h-[100dvh] bg-[#07070b]">
@@ -111,7 +104,13 @@ export default async function DashboardPage() {
           __html: `window.__session_email=${JSON.stringify(user?.email || null)};`,
         }}
       />
-      <Navbar isAdmin={!!user.is_admin} avatarUrl={avatarSrc} />
+      <Navbar
+        isAdmin={!!user.is_admin}
+        avatarUrl={avatarSrc}
+        locale={locale}
+        translations={t.nav}
+        languageOptions={languageOptions}
+      />
 
       <main className="mx-auto max-w-6xl px-4 py-8 text-white">
         <section className="mb-10 overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-[#1f1f33] via-[#121225] to-[#0a0a14] p-6 shadow-[0_25px_70px_rgba(104,67,255,0.25)]">
@@ -131,9 +130,11 @@ export default async function DashboardPage() {
                 )}
               </div>
               <div>
-                <p className="text-sm uppercase tracking-[0.35em] text-fuchsia-300/70">Welcome</p>
+                <p className="text-sm uppercase tracking-[0.35em] text-fuchsia-300/70">
+                  {t.dashboard.welcomeTag}
+                </p>
                 <h1 className="mt-1 text-2xl font-semibold">
-                  {session?.user?.name ?? "Focus warrior"}
+                  {session?.user?.name ?? t.dashboard.welcomeFallback}
                 </h1>
                 <p className="text-sm text-zinc-400">{user?.email}</p>
               </div>
@@ -141,10 +142,10 @@ export default async function DashboardPage() {
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <button className="rounded-2xl border border-white/20 px-5 py-2 text-sm font-semibold text-white/90 transition hover:border-fuchsia-500/60 hover:text-white">
-                View profile
+                {t.dashboard.viewProfile}
               </button>
               <button className="rounded-2xl bg-gradient-to-r from-[#8b5cf6] via-[#a855f7] to-[#ec4899] px-5 py-2 text-sm font-semibold shadow-[0_18px_35px_rgba(138,92,246,0.35)]">
-                Settings
+                {t.dashboard.settings}
               </button>
             </div>
           </div>
@@ -152,7 +153,7 @@ export default async function DashboardPage() {
 
         <section className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => {
-            const badgeLabel = feature.badge ?? "Coming soon";
+            const badgeLabel = feature.badge ?? t.common.comingSoon;
             const badgeClasses = feature.badge
               ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
               : "border-white/15 text-white/60";

@@ -4,13 +4,29 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import type { LanguageOption, Locale } from "@/lib/i18n";
 
 type NavbarProps = {
   isAdmin?: boolean;
   avatarUrl?: string | null;
+  locale: Locale;
+  translations: {
+    reviewerPanel: string;
+    switchAccount: string;
+    signOut: string;
+    languageMenuLabel: string;
+  };
+  languageOptions: LanguageOption[];
 };
 
-export default function Navbar({ isAdmin = false, avatarUrl }: NavbarProps) {
+export default function Navbar({
+  isAdmin = false,
+  avatarUrl,
+  locale,
+  translations,
+  languageOptions,
+}: NavbarProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -24,9 +40,15 @@ export default function Navbar({ isAdmin = false, avatarUrl }: NavbarProps) {
         <nav className="relative flex items-center gap-4">
           {isAdmin && (
             <Link href="/admin" className="btn-primary px-5 opacity-90 hover:opacity-100">
-              Reviewer panel
+              {translations.reviewerPanel}
             </Link>
           )}
+
+          <LanguageSwitcher
+            locale={locale}
+            options={languageOptions}
+            label={translations.languageMenuLabel}
+          />
 
           {/* avatar button */}
           <button
@@ -50,13 +72,13 @@ export default function Navbar({ isAdmin = false, avatarUrl }: NavbarProps) {
                 href="/signin?switch=1"
                 className="block rounded-xl px-3 py-2 text-white/70 transition hover:bg-white/10 hover:text-white"
               >
-                Switch account
+                {translations.switchAccount}
               </Link>
               <Link
                 href="/api/auth/signout?callbackUrl=/signin"
                 className="block rounded-xl px-3 py-2 text-white/70 transition hover:bg-white/10 hover:text-white"
               >
-                Sign out
+                {translations.signOut}
               </Link>
             </div>
           )}
@@ -65,4 +87,3 @@ export default function Navbar({ isAdmin = false, avatarUrl }: NavbarProps) {
     </header>
   );
 }
-
