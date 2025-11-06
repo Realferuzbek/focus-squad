@@ -60,26 +60,46 @@ export default async function DashboardPage() {
       badge: "Live now",
     },
     {
-      key: "linkedin",
-      title: "LinkedIn Hub",
-      description: "Grow your network, share wins, and connect with peers.",
-      accent: "from-[#0a66c2] via-[#2563eb] to-[#60a5fa]",
-      icon: "in",
-      iconType: "linkedin",
-    },
-    {
-      key: "telegram",
-      title: "Telegram Lounge",
-      description: "Jump into the Studywithferuzbek group and stay synced.",
+      key: "research-positions",
+      title: "Research Positions",
+      description: "Find labs and mentors looking for ambitious collaborators.",
       accent: "from-[#38bdf8] via-[#6366f1] to-[#8b5cf6]",
-      icon: "✈️",
+      icon: "🔬",
     },
     {
-      key: "youtube",
-      title: "YouTube Studio",
-      description: "Catch replays, lessons, and behind-the-scenes drops.",
-      accent: "from-[#ef4444] via-[#f97316] to-[#fb7185]",
-      icon: "▶️",
+      key: "internship-positions",
+      title: "Internship Positions",
+      description: "Track curated roles to sharpen skills and build your resume.",
+      accent: "from-[#0ea5e9] via-[#22d3ee] to-[#2dd4bf]",
+      icon: "💼",
+    },
+    {
+      key: "essay-workshop",
+      title: "Essay Workshop",
+      description: "Blueprint winning personal statements with peer-approved frameworks.",
+      accent: "from-[#f97316] via-[#fb7185] to-[#a855f7]",
+      icon: "📝",
+    },
+    {
+      key: "universities-emails",
+      title: "Universities Emails",
+      description: "Access contact lists to reach admissions and program coordinators.",
+      accent: "from-[#8b5cf6] via-[#a855f7] to-[#6366f1]",
+      icon: "📧",
+    },
+    {
+      key: "hobbies-opportunities",
+      title: "Hobbies Opportunities",
+      description: "Discover clubs, challenges, and creative outlets to stay balanced.",
+      accent: "from-[#22d3ee] via-[#0ea5e9] to-[#38bdf8]",
+      icon: "🎨",
+    },
+    {
+      key: "olympiad-opportunities",
+      title: "Olympiad Opportunities",
+      description: "Keep tabs on upcoming contests and prep resources for champions.",
+      accent: "from-[#facc15] via-[#f97316] to-[#fb7185]",
+      icon: "🏅",
     },
   ];
 
@@ -149,11 +169,7 @@ export default async function DashboardPage() {
 
                 <div className="relative flex items-center justify-between">
                   <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-3xl shadow-[0_12px_25px_rgba(0,0,0,0.35)]">
-                    {feature.iconType === "linkedin" ? (
-                      <LinkedInGlyph />
-                    ) : (
-                      <span>{feature.icon}</span>
-                    )}
+                    <span>{feature.icon}</span>
                   </div>
                   <span
                     className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${badgeClasses}`}
@@ -174,13 +190,5 @@ export default async function DashboardPage() {
         <UsageHeartbeat />
       </main>
     </div>
-  );
-}
-
-function LinkedInGlyph() {
-  return (
-    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0a66c2] text-xl font-bold text-white">
-      in
-    </span>
   );
 }

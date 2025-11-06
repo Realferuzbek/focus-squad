@@ -23,14 +23,9 @@ export default function Navbar({ isAdmin = false, avatarUrl }: NavbarProps) {
 
         <nav className="relative flex items-center gap-4">
           {isAdmin && (
-            <>
-              <Link href="/admin" className="btn-primary px-5 opacity-90 hover:opacity-100">
-                Reviewer panel
-              </Link>
-              <Link href="/admin/linkedinhub" className="btn-primary px-5">
-                LinkedIn Hub Admin
-              </Link>
-            </>
+            <Link href="/admin" className="btn-primary px-5 opacity-90 hover:opacity-100">
+              Reviewer panel
+            </Link>
           )}
 
           {/* avatar button */}

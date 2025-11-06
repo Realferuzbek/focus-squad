@@ -6,8 +6,6 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import AdminSessionPanel from "@/components/AdminSessionPanel";
-import GlowPanel from "@/components/GlowPanel";
-import Link from "next/link";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -31,21 +29,6 @@ export default async function AdminPage() {
         </div>
 
         <div className="mt-10 space-y-8">
-          <GlowPanel className="p-6 md:p-8">
-            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <div className="space-y-3">
-                <span className="pill">Feature Spotlight</span>
-                <h2 className="text-2xl font-bold tracking-tight text-white">LinkedIn Hub Admin</h2>
-                <p className="max-w-xl text-sm text-white/65">
-                  Curate premium LinkedIn updates, refresh the feed, and keep the community inspired.
-                </p>
-              </div>
-              <Link href="/admin/linkedinhub" className="btn-primary min-w-[160px] justify-center">
-                Open
-              </Link>
-            </div>
-          </GlowPanel>
-
           <AdminSessionPanel />
 
           <section className="rounded-2xl border border-white/10 bg-[#0f0f18]/90 p-6 shadow-[0_18px_45px_-24px_rgba(140,122,245,0.35)]">
