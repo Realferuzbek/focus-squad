@@ -3,7 +3,7 @@ User-agent: *
 Allow: /
 
 # Host
-Host: https://studywithferuzbek.vercel.app
+Host: https://example.com/
 
 # Sitemaps
-Sitemap: https://studywithferuzbek.vercel.app/sitemap.xml
+Sitemap: https://example.com/sitemap.xml

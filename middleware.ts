@@ -7,6 +7,7 @@ const PUBLIC_PATHS = new Set<string>([
   "/api/auth",
   "/api/telegram/webhook",
   "/api/admin/state",
+  "/feature",
   "/_next",
   "/favicon.ico",
   "/robots.txt",
