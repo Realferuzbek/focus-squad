@@ -56,6 +56,7 @@ export default async function DashboardPage() {
       description: "Stay locked-in with precision intervals and breaks.",
       accent: "from-[#6366f1] via-[#22d3ee] to-[#0ea5e9]",
       icon: "⏱️",
+      badge: "Live now",
     },
     {
       key: "linkedin",
@@ -129,35 +130,44 @@ export default async function DashboardPage() {
         </section>
 
         <section className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => (
-            <Link
-              key={feature.key}
-              href={feature.href ?? `/feature/${feature.key}`}
-              className="group relative min-h-[160px] overflow-hidden rounded-[26px] border border-white/10 bg-[#0c0c16]/85 p-6 shadow-[0_18px_50px_rgba(12,12,22,0.6)] transition-all duration-200 hover:-translate-y-1 hover:border-white/20"
-            >
-              <div
-                className={`pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-br ${feature.accent} mix-blend-screen`}
-              />
+          {features.map((feature) => {
+            const badgeLabel = feature.badge ?? "Coming soon";
+            const badgeClasses = feature.badge
+              ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
+              : "border-white/15 text-white/60";
 
-              <div className="relative flex items-center justify-between">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-3xl shadow-[0_12px_25px_rgba(0,0,0,0.35)]">
-                  {feature.iconType === "linkedin" ? (
-                    <LinkedInGlyph />
-                  ) : (
-                    <span>{feature.icon}</span>
-                  )}
+            return (
+              <Link
+                key={feature.key}
+                href={feature.href ?? `/feature/${feature.key}`}
+                className="group relative min-h-[160px] overflow-hidden rounded-[26px] border border-white/10 bg-[#0c0c16]/85 p-6 shadow-[0_18px_50px_rgba(12,12,22,0.6)] transition-all duration-200 hover:-translate-y-1 hover:border-white/20"
+              >
+                <div
+                  className={`pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-br ${feature.accent} mix-blend-screen`}
+                />
+
+                <div className="relative flex items-center justify-between">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-3xl shadow-[0_12px_25px_rgba(0,0,0,0.35)]">
+                    {feature.iconType === "linkedin" ? (
+                      <LinkedInGlyph />
+                    ) : (
+                      <span>{feature.icon}</span>
+                    )}
+                  </div>
+                  <span
+                    className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${badgeClasses}`}
+                  >
+                    {badgeLabel}
+                  </span>
                 </div>
-                <span className="rounded-full border border-white/15 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-white/60">
-                  Coming soon
-                </span>
-              </div>
 
-              <div className="relative mt-6">
-                <h3 className="text-lg font-semibold">{feature.title}</h3>
-                <p className="mt-2 text-sm text-zinc-400">{feature.description}</p>
-              </div>
-            </Link>
-          ))}
+                <div className="relative mt-6">
+                  <h3 className="text-lg font-semibold">{feature.title}</h3>
+                  <p className="mt-2 text-sm text-zinc-400">{feature.description}</p>
+                </div>
+              </Link>
+            );
+          })}
         </section>
 
         <UsageHeartbeat />
