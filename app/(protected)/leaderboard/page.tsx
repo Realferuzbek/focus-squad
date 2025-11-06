@@ -39,24 +39,33 @@ const SCOPE_CONFIG: Record<LeaderboardScope, ScopeConfig> = {
   },
 };
 
-const postedFormatter = new Intl.DateTimeFormat('en-US', {
+function buildFormatter(options: Intl.DateTimeFormatOptions) {
+  try {
+    return new Intl.DateTimeFormat('en-US', options);
+  } catch (error) {
+    console.warn('leaderboard: failed to build formatter', { options, error });
+    return null;
+  }
+}
+
+const postedFormatter = buildFormatter({
   dateStyle: 'medium',
   timeStyle: 'short',
   timeZone: 'Asia/Tashkent',
 });
 
-const periodFormatter = new Intl.DateTimeFormat('en-US', {
+const periodFormatter = buildFormatter({
   month: 'long',
   day: 'numeric',
   year: 'numeric',
 });
 
-const monthFormatter = new Intl.DateTimeFormat('en-US', {
+const monthFormatter = buildFormatter({
   month: 'long',
   year: 'numeric',
 });
 
-const weekdayFormatter = new Intl.DateTimeFormat('en-US', {
+const weekdayFormatter = buildFormatter({
   weekday: 'short',
 });
 
@@ -74,20 +83,28 @@ function formatPeriod(scope: LeaderboardScope, snapshot: LeaderboardSnapshot | n
   const end = new Date(`${snapshot.period_end}T00:00:00Z`);
 
   if (scope === 'day') {
-    const weekday = weekdayFormatter.format(start);
-    return `${periodFormatter.format(start)} | ${weekday}`;
+    const weekday = weekdayFormatter?.format(start);
+    const dateLabel = periodFormatter?.format(start) ?? snapshot.period_start;
+    return weekday ? `${dateLabel} | ${weekday}` : dateLabel;
   }
 
   if (scope === 'week') {
-    return `${periodFormatter.format(start)} -> ${periodFormatter.format(end)}`;
+    const startLabel = periodFormatter?.format(start) ?? snapshot.period_start;
+    const endLabel = periodFormatter?.format(end) ?? snapshot.period_end;
+    return `${startLabel} -> ${endLabel}`;
   }
 
-  return monthFormatter.format(start);
+  return monthFormatter?.format(start) ?? snapshot.period_start;
 }
 
 function formatPostedAt(snapshot: LeaderboardSnapshot | null) {
   if (!snapshot) return 'Not published yet';
-  return `${postedFormatter.format(new Date(snapshot.posted_at))} - Asia/Tashkent`;
+  const date = new Date(snapshot.posted_at);
+  if (Number.isNaN(date.getTime())) {
+    return snapshot.posted_at;
+  }
+  const formatted = postedFormatter?.format(date) ?? date.toISOString();
+  return `${formatted} - Asia/Tashkent`;
 }
 
 function rankAccent(rank: number) {
