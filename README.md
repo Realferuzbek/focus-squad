@@ -74,7 +74,7 @@ Set the following variables in `.env.local` to enable the AI-powered crawler and
     { "path": "/api/reindex", "schedule": "0 3 * * *" }
   ]
 }
-``
+```
 
 Trigger the job manually with the shared secret:
 
