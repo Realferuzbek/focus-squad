@@ -71,3 +71,6 @@ VAPID_SUBJECT=mailto:hello@example.com
 - `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` is optional and only needed if you plan to prove ownership in Google Search Console.
 - `npm run build` runs `next-sitemap` (via `postbuild`) which regenerates `public/sitemap.xml` and `public/robots.txt`.
 - Private/admin routes are excluded automatically through `next-sitemap.config.js`.
+
+## Vercel Environment Variables Keys
+

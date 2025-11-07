@@ -19,10 +19,12 @@
     "@types/node": "20.11.30",
     "@types/react": "18.2.79",
     "@types/react-dom": "18.2.25",
+    "@upstash/vector": "^1.2.2",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
     "autoprefixer": "10.4.19",
     "canvas-confetti": "1.9.3",
+    "cheerio": "^1.1.2",
     "framer-motion": "11.0.23",
     "jsonwebtoken": "9.0.2",
     "lucide-react": "^0.545.0",
@@ -30,6 +32,7 @@
     "next": "14.2.5",
     "next-auth": "^4.24.7",
     "nextjs-toploader": "^3.9.17",
+    "openai": "^6.8.1",
     "postcss": "8.4.35",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -41,10 +44,11 @@
     "typescript": "5.4.5",
     "uuid": "9.0.1",
     "web-push": "^3.6.7",
-    "zod": "3.23.8"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",
+    "@types/cheerio": "^0.22.35",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/luxon": "^3.7.1",
     "@types/web-push": "^3.6.4",

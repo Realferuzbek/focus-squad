@@ -43,5 +43,8 @@
     "tree.inactiveIndentGuidesStroke": "#FF3B30",
     "sideBarSectionHeader.border": "#FF3B30",
     "list.highlightForeground": "#FFFFFF"
-  }
+  },
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+  "less.lint.unknownAtRules": "ignore"
 }
