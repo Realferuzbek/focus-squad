@@ -65,3 +65,9 @@ VAPID_SUBJECT=mailto:hello@example.com
 - `npm run start` – start production server
 - `npm run lint` – run ESLint
 
+## SEO & Indexing
+
+- `NEXT_PUBLIC_SITE_URL` must be set on Vercel so canonical URLs resolve correctly.
+- `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` is optional and only needed if you plan to prove ownership in Google Search Console.
+- `npm run build` runs `next-sitemap` (via `postbuild`) which regenerates `public/sitemap.xml` and `public/robots.txt`.
+- Private/admin routes are excluded automatically through `next-sitemap.config.js`.

@@ -6,9 +6,9 @@ import { Inter } from 'next/font/google';
 import { SpeedInsights } from '@vercel/speed-insights/next' 
 import { Analytics } from "@vercel/analytics/next"
 
-const siteUrl = 'https://studywithferuzbek.vercel.app';
-const siteTitle = 'Studywithferuzbek';
-const siteDescription = 'Focus Squad — study together, level up.';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://studywithferuzbek.vercel.app';
+const SITE_TITLE = 'Study with Feruzbek';
+const SITE_DESCRIPTION = 'Study tracker, timers, streaks & productivity tools by Feruzbek.';
 
 const sans = Inter({
   subsets: ['latin'],
@@ -17,49 +17,52 @@ const sans = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: siteTitle,
-    template: `%s | ${siteTitle}`,
+    default: SITE_TITLE,
+    template: '%s | Study with Feruzbek',
   },
-  description: siteDescription,
+  description: SITE_DESCRIPTION,
   keywords: [
-    'Studywithferuzbek',
+    'Study with Feruzbek',
     'Focus Squad',
     'coworking',
     'productivity',
     'study with me',
     'community',
   ],
-  authors: [{ name: 'Studywithferuzbek' }],
+  authors: [{ name: SITE_TITLE }],
   alternates: {
     canonical: '/',
   },
   openGraph: {
     type: 'website',
-    locale: 'en_US',
-    url: siteUrl,
-    siteName: siteTitle,
-    title: siteTitle,
-    description: siteDescription,
+    url: '/',
+    siteName: SITE_TITLE,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     images: [
       {
         url: '/logo.svg',
         width: 512,
         height: 512,
-        alt: siteTitle,
+        alt: SITE_TITLE,
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: siteTitle,
-    description: siteDescription,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     images: ['/logo.svg'],
   },
   icons: {
     icon: [{ url: '/logo.svg', type: 'image/svg+xml' }],
     shortcut: ['/logo.svg'],
+  },
+  robots: { index: true, follow: true },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
   },
 };
 

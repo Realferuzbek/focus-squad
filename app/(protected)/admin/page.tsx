@@ -1,6 +1,7 @@
 ﻿// app/(protected)/admin/page.tsx
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const metadata = { robots: { index: false, follow: false } };
 
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
