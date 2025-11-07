@@ -71,6 +71,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} font-sans`}>
+      <head>
+        <meta name="google-site-verification" content={GOOGLE_SITE_VERIFICATION} />
+      </head>
       <body className="font-sans bg-[#07070b] text-white">
         <NextTopLoader showSpinner={false} />
         {children}
