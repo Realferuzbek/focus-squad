@@ -29,13 +29,22 @@ export const openai = useMockAi ? null : new OpenAI({ apiKey: env.OPENAI_API_KEY
 export async function embedBatch(inputs: string[]) {
   if (!inputs.length) return [];
   if (!useMockAi && openai) {
-    const res = await openai.embeddings.create({
-      model: env.OPENAI_EMBED_MODEL,
-      input: inputs,
-    });
-    const embeddings = res.data.map((d) => d.embedding);
-    ensureVectorDimensions(embeddings);
-    return embeddings;
+    try {
+      const res = await openai.embeddings.create({
+        model: env.OPENAI_EMBED_MODEL,
+        input: inputs,
+      });
+      const embeddings = res.data.map((d) => d.embedding);
+      ensureVectorDimensions(embeddings);
+      return embeddings;
+    } catch (err: unknown) {
+      // Log and fall back to mock embeddings to keep the app responsive.
+      // Avoid logging secrets; safely extract message/stack from unknown.
+      const msg = err && typeof err === "object" && "message" in err ? (err as any).message : String(err);
+      const stackFirst = err && typeof err === "object" && "stack" in err ? String((err as any).stack).split("\n")[0] : undefined;
+      console.error("[rag/ai] embedding call failed:", msg, stackFirst);
+      return inputs.map((text) => mockEmbed(text));
+    }
   }
   return inputs.map((text) => mockEmbed(text));
 }
@@ -44,28 +53,35 @@ export async function generateAnswer(prompt: string) {
   if (!useMockAi && openai) {
     const systemMessage =
       "You are an expert website assistant for study_with_feruzbek. Answer accurately using the provided context. If you aren’t sure, say you’re not sure. Always include a short 'Sources' list of URLs you used.";
-    if (shouldUseResponsesApi(env.OPENAI_GEN_MODEL)) {
-      const response = await openai.responses.create({
-        model: env.OPENAI_GEN_MODEL,
-        temperature: 0.2,
-        input: [
-          { role: "system", content: systemMessage },
-          { role: "user", content: prompt },
-        ],
-      });
-      const text = extractResponseText(response);
-      if (text) return text;
-    } else {
-      const completion = await openai.chat.completions.create({
-        model: env.OPENAI_GEN_MODEL,
-        temperature: 0.2,
-        messages: [
-          { role: "system", content: systemMessage },
-          { role: "user", content: prompt },
-        ],
-      });
-      const text = completion.choices[0]?.message?.content?.trim();
-      if (text) return text;
+    try {
+      if (shouldUseResponsesApi(env.OPENAI_GEN_MODEL)) {
+        const response = await openai.responses.create({
+          model: env.OPENAI_GEN_MODEL,
+          temperature: 0.2,
+          input: [
+            { role: "system", content: systemMessage },
+            { role: "user", content: prompt },
+          ],
+        });
+        const text = extractResponseText(response);
+        if (text) return text;
+      } else {
+        const completion = await openai.chat.completions.create({
+          model: env.OPENAI_GEN_MODEL,
+          temperature: 0.2,
+          messages: [
+            { role: "system", content: systemMessage },
+            { role: "user", content: prompt },
+          ],
+        });
+        const text = completion.choices[0]?.message?.content?.trim();
+        if (text) return text;
+      }
+    } catch (err: unknown) {
+      const msg = err && typeof err === "object" && "message" in err ? (err as any).message : String(err);
+      const stackFirst = err && typeof err === "object" && "stack" in err ? String((err as any).stack).split("\n")[0] : undefined;
+      console.error("[rag/ai] generation call failed:", msg, stackFirst);
+      // Fall through to the safe mock answer below rather than throwing.
     }
   }
   return mockAnswerFromPrompt(prompt);

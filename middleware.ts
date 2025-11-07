@@ -1,5 +1,6 @@
 ﻿// middleware.ts
 import { NextResponse, type NextRequest } from "next/server";
+import { applySecurityHeaders } from "./lib/security-headers";
 import { getToken } from "next-auth/jwt";
 
 const PUBLIC_PATHS = new Set<string>([
@@ -30,13 +31,25 @@ function isPublic(req: NextRequest) {
 export async function middleware(req: NextRequest) {
   const url = req.nextUrl;
 
-  if (isPublic(req)) return NextResponse.next();
+  if (isPublic(req)) {
+    const resp = NextResponse.next();
+    // apply security headers in all responses including public assets
+    return applySecurityHeaders(resp, {
+      isProduction: process.env.NODE_ENV === "production",
+      // in edge runtimes, req.nextUrl.protocol may not be present; approximate
+      isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
+    });
+  }
 
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   if (!token) {
     const signin = new URL("/signin", req.url);
     signin.searchParams.set("callbackUrl", url.pathname + url.search);
-    return NextResponse.redirect(signin);
+    const redirect = NextResponse.redirect(signin);
+    return applySecurityHeaders(redirect, {
+      isProduction: process.env.NODE_ENV === "production",
+      isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
+    });
   }
 
   let latestVersion: string | null = null;
@@ -57,7 +70,11 @@ export async function middleware(req: NextRequest) {
   if (svCookie && latestVersion && svCookie !== latestVersion) {
     const out = new URL("/api/auth/signout", req.url);
     out.searchParams.set("callbackUrl", "/signin");
-    return NextResponse.redirect(out);
+    const redirect = NextResponse.redirect(out);
+    return applySecurityHeaders(redirect, {
+      isProduction: process.env.NODE_ENV === "production",
+      isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
+    });
   }
 
   const needLink = !(token as any).telegram_linked;
@@ -77,7 +94,10 @@ export async function middleware(req: NextRequest) {
     });
   }
 
-  return response;
+  return applySecurityHeaders(response, {
+    isProduction: process.env.NODE_ENV === "production",
+    isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
+  });
 }
 
 export const config = {
