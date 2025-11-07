@@ -1,0 +1,21 @@
+rules:
+  - id: csrf-enforcement
+    pattern-either:
+      - pattern: |
+          POST(...)
+      - pattern: |
+          export function POST(
+    message: "State-changing endpoints should verify CSRF tokens; ensure middleware integrates CSRF verification."
+    severity: ERROR
+    languages: [javascript, typescript]
+
+  - id: cookie-attributes
+    pattern: |
+      cookies.set($NAME, $VALUE, { $... })
+    message: "Ensure Set-Cookie includes httpOnly and sameSite attributes for session tokens."
+    severity: WARNING
+    languages: [javascript, typescript]
+
+  # Include repository rule directory
+include:
+  - ./.semgrep-rules/**/*.yml

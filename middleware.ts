@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { applySecurityHeaders } from "./lib/security-headers";
 import { getToken } from "next-auth/jwt";
+import { generateCsrfToken, safeEqual, CSRF_COOKIE_NAME, CSRF_HEADER } from "./lib/csrf";
 
 const PUBLIC_PATHS = new Set<string>([
   "/signin",
@@ -50,6 +51,47 @@ export async function middleware(req: NextRequest) {
       isProduction: process.env.NODE_ENV === "production",
       isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
     });
+  }
+
+  // CSRF protections (double-submit cookie) for cookie-backed sessions
+  const method = req.method?.toUpperCase();
+  const isStateChanging = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+  const isWebhook = url.pathname.startsWith('/api/telegram') || url.pathname.startsWith('/api/webhooks');
+
+  // For authenticated GETs, ensure a CSRF cookie is present (non-HttpOnly so client JS can read it)
+  if (!isStateChanging && method === 'GET') {
+    const existing = req.cookies.get(CSRF_COOKIE_NAME)?.value;
+    if (!existing) {
+      const tokenValue = generateCsrfToken();
+      const resp = NextResponse.next();
+      resp.cookies.set(CSRF_COOKIE_NAME, tokenValue, {
+        httpOnly: false,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+      });
+      return applySecurityHeaders(resp, {
+        isProduction: process.env.NODE_ENV === "production",
+        isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
+      });
+    }
+  }
+
+  // Verify CSRF on state-changing requests unless webhook or public
+  if (isStateChanging && !isWebhook) {
+    const cookieVal = req.cookies.get(CSRF_COOKIE_NAME)?.value;
+    const headerVal = req.headers.get(CSRF_HEADER) ?? undefined;
+    // secondary check: Origin/Referer same-origin
+    const origin = req.headers.get('origin');
+    const referer = req.headers.get('referer');
+    const sameOrigin = (origin && origin.startsWith(req.nextUrl.origin)) || (referer && referer.startsWith(req.nextUrl.origin));
+    if (!cookieVal || !headerVal || !safeEqual(cookieVal, headerVal) || !sameOrigin) {
+      const resp = new NextResponse('CSRF token missing or invalid', { status: 403 });
+      return applySecurityHeaders(resp, {
+        isProduction: process.env.NODE_ENV === "production",
+        isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
+      });
+    }
   }
 
   let latestVersion: string | null = null;

@@ -1,0 +1,12 @@
+rules:
+  - id: file-upload-no-size-check
+    pattern: "uploadFile($... )"
+    message: "Ensure file uploads enforce size and type validation before storing."
+    severity: WARNING
+    languages: [javascript, typescript]
+
+  - id: file-magic-check
+    pattern: "file.mimetype"
+    message: "Verify file magic bytes, not rely solely on mimetype; enforce whitelist."
+    severity: WARNING
+    languages: [javascript, typescript]

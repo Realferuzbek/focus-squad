@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
   "test:security": "node ./scripts/security-headers.test.js",
+  "test:csrf": "node ./scripts/csrf.test.js",
+  "test:session": "node ./scripts/session-cookie.test.js",
     "lint": "next lint",
     "postbuild": "next-sitemap",
     "sitemap": "next-sitemap"

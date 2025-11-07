@@ -1,5 +1,6 @@
 ﻿// lib/auth.ts
 import NextAuth, { getServerSession, type NextAuthOptions } from "next-auth";
+import { randomBytes } from 'crypto';
 import Google from "next-auth/providers/google";
 import { supabaseAdmin } from "./supabaseServer";
 
@@ -17,6 +18,18 @@ export const authOptions: NextAuthOptions = {
   ],
   pages: { signIn: "/signin" },
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
+  // Cookie options: do not set Domain to avoid cross-subdomain exposure; Secure only in production
+  cookies: {
+    sessionToken: {
+      name: process.env.NEXTAUTH_COOKIE_NAME || 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+  },
   callbacks: {
     async signIn({ user }) {
       try {
@@ -42,10 +55,14 @@ export const authOptions: NextAuthOptions = {
           await sb.from("users").update({ is_admin: true }).eq("email", email);
         }
       } catch {}
+      // On sign-in we want a fresh session identifier (sid) to mitigate fixation.
+      try {
+        (user as any).sid = randomBytes(16).toString('hex');
+      } catch {}
       return true;
     },
 
-    async jwt({ token }) {
+  async jwt({ token }) {
       const email = (token.email || "").toString().toLowerCase();
       if (!email) return token;
 
@@ -69,6 +86,12 @@ export const authOptions: NextAuthOptions = {
           (token as any).telegram_linked = false;
         }
       } catch {}
+      // Ensure a session id exists to allow rotation and fixation mitigation.
+      if (!(token as any).sid) {
+        try {
+          (token as any).sid = randomBytes(16).toString('hex');
+        } catch {}
+      }
       return token;
     },
 
