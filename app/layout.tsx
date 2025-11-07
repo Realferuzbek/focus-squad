@@ -5,10 +5,12 @@ import type { ReactNode } from 'react';
 import { Inter } from 'next/font/google';
 import { SpeedInsights } from '@vercel/speed-insights/next' 
 import { Analytics } from "@vercel/analytics/next"
+import dynamic from 'next/dynamic';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://studywithferuzbek.vercel.app';
 const SITE_TITLE = 'Study with Feruzbek';
 const SITE_DESCRIPTION = 'Study tracker, timers, streaks & productivity tools by Feruzbek.';
+const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false });
 
 function sanitizeGoogleVerification(raw?: string | null) {
   if (!raw) return null;
@@ -94,6 +96,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {children}
         <Analytics />
         <SpeedInsights />
+        <ChatWidget />
       </body>
     </html>
   );

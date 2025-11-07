@@ -5,6 +5,8 @@ import { getToken } from "next-auth/jwt";
 const PUBLIC_PATHS = new Set<string>([
   "/signin",
   "/api/auth",
+  "/api/chat",
+  "/api/reindex",
   "/api/telegram/webhook",
   "/api/admin/state",
   "/feature",
