@@ -3,9 +3,18 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { embedBatch, generateAnswer } from "@/lib/rag/ai";
 import { vector } from "@/lib/rag/vector";
+import { isAiChatEnabled } from "@/lib/featureFlags";
 
 export async function POST(req: Request) {
   try {
+    const aiEnabled = await isAiChatEnabled(true);
+    if (!aiEnabled) {
+      return NextResponse.json(
+        { error: "AI assistant is currently disabled by admins." },
+        { status: 503 }
+      );
+    }
+
     const { query } = await req.json().catch(() => ({ query: "" }));
     if (!query || typeof query !== "string") {
       return NextResponse.json({ error: "Missing query" }, { status: 400 });

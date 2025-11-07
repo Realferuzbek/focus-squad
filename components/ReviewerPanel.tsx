@@ -1,6 +1,7 @@
 ﻿'use client';
 import confetti from 'canvas-confetti';
 import { useEffect, useState } from 'react';
+import AdminAiToggle from './AdminAiToggle';
 
 export default function ReviewerPanel() {
   const [email, setEmail] = useState('');
@@ -17,6 +18,7 @@ export default function ReviewerPanel() {
   };
   return (
     <div className="space-y-4">
+      <AdminAiToggle />
       <div className="flex gap-2">
         <input className="bg-[#0f0f13] border border-neutral-800 rounded-xl p-2 focus-ring text-sm" placeholder="Filter by email (optional)" value={email} onChange={(e)=>setEmail(e.target.value)} />
         <button className="btn-secondary focus-ring" onClick={search}>Refresh</button>

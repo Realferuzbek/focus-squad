@@ -44,9 +44,15 @@ export function ChatWidget() {
         body: JSON.stringify({ query: question }),
       });
 
-      if (!res.ok) throw new Error("Failed to ask AI");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message =
+          typeof data?.error === "string"
+            ? data.error
+            : "Unable to reach the assistant right now.";
+        throw new Error(message);
+      }
 
-      const data = await res.json();
       setMessages((prev) => [
         ...prev,
         {
@@ -60,7 +66,10 @@ export function ChatWidget() {
         ...prev,
         {
           role: "assistant",
-          text: "Something went wrong. Please try again.",
+          text:
+            error instanceof Error
+              ? error.message
+              : "Something went wrong. Please try again.",
         },
       ]);
     } finally {
