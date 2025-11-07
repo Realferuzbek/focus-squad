@@ -55,6 +55,7 @@ Set the following variables in `.env.local` to enable the AI-powered crawler and
 - `UPSTASH_VECTOR_REST_URL` – REST endpoint for your Upstash Vector index.
 - `UPSTASH_VECTOR_REST_TOKEN` – Upstash Vector REST token; keep private so only backend jobs can manage vectors.
 - `UPSTASH_INDEX_NAME` – logical name of the Upstash Vector index the crawler writes to and the chatbot reads from.
+- `UPSTASH_VECTOR_DIM` – dimension of the Upstash index (e.g., `1536`). This **must** match the embedding model you pick (`text-embedding-3-small` = 1536, `text-embedding-3-large` = 3072), otherwise Upstash rejects queries/upserts.
 - `SITE_BASE_URL` – canonical site origin the crawler starts from (e.g., `https://study-with-feruzbek.vercel.app`).
 - `INDEXER_SECRET` – shared secret required by any indexer webhook/cron to prevent unauthorized crawls.
 - `CRAWL_MAX_PAGES` – safety limit on how many unique pages to visit per crawl run.

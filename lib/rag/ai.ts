@@ -7,10 +7,11 @@ const useMockAi =
   process.env.USE_MOCK_AI === "true" ||
   env.OPENAI_API_KEY.toLowerCase() === "mock";
 
-const mockVectorDim = Math.max(
-  16,
-  Number(process.env.MOCK_EMBED_DIM || process.env.UPSTASH_VECTOR_DIM || 1536)
-);
+const mockOverride = Number(process.env.MOCK_EMBED_DIM);
+const mockVectorDim =
+  Number.isFinite(mockOverride) && mockOverride > 0
+    ? Math.floor(mockOverride)
+    : env.UPSTASH_VECTOR_DIM;
 
 const shouldUseResponsesApi = (model: string) => {
   const normalized = model.toLowerCase();
@@ -32,7 +33,9 @@ export async function embedBatch(inputs: string[]) {
       model: env.OPENAI_EMBED_MODEL,
       input: inputs,
     });
-    return res.data.map((d) => d.embedding);
+    const embeddings = res.data.map((d) => d.embedding);
+    ensureVectorDimensions(embeddings);
+    return embeddings;
   }
   return inputs.map((text) => mockEmbed(text));
 }
@@ -168,4 +171,16 @@ function mockAnswerFromPrompt(prompt: string): string {
       : `- ${env.SITE_BASE_URL}`;
 
   return `${intro}\n\n${body}\n\nSources:\n${sourcesBlock}`;
+}
+
+function ensureVectorDimensions(vectors: number[][]) {
+  if (!vectors.length) return;
+  const mismatched = vectors.find(
+    (vector) => vector.length !== env.UPSTASH_VECTOR_DIM
+  );
+  if (mismatched) {
+    throw new Error(
+      `Embedding dimension mismatch: model "${env.OPENAI_EMBED_MODEL}" returned ${mismatched.length} dimensions but the Upstash index expects ${env.UPSTASH_VECTOR_DIM}. Update OPENAI_EMBED_MODEL or recreate the index with the matching dimension.`
+    );
+  }
 }
