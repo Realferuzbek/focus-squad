@@ -2,6 +2,16 @@
 User-agent: *
 Allow: /
 
+# *
+User-agent: *
+Disallow: /admin
+Disallow: /account
+Disallow: /auth
+Disallow: /checkout
+Disallow: /cart
+Disallow: /orders
+Disallow: /api
+
 # Host
 Host: https://studywithferuzbek.vercel.app
 
