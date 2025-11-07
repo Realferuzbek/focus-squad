@@ -9,6 +9,8 @@ import { Analytics } from "@vercel/analytics/next"
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://studywithferuzbek.vercel.app';
 const SITE_TITLE = 'Study with Feruzbek';
 const SITE_DESCRIPTION = 'Study tracker, timers, streaks & productivity tools by Feruzbek.';
+const GOOGLE_SITE_VERIFICATION =
+  process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || '0o6FVChUObGWIeZwtJr98EohQyDziejqoVX9TyxAQcc';
 
 const sans = Inter({
   subsets: ['latin'],
@@ -62,7 +64,7 @@ export const metadata: Metadata = {
   },
   robots: { index: true, follow: true },
   verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
+    google: GOOGLE_SITE_VERIFICATION,
   },
 };
 
