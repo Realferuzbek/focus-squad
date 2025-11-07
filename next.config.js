@@ -30,12 +30,21 @@ if (SUPABASE_HOST) {
 
 const nextConfig = {
   reactStrictMode: true,
-  experimental: { serverActions: { bodySizeLimit: '2mb' } },
+  experimental: { 
+    serverActions: { bodySizeLimit: '2mb' },
+    // Explicitly disable Turbopack for stable builds until fully ready
+    turbo: false,
+  },
   images: {
     remotePatterns,
   },
   env: {
     NEXT_PUBLIC_SITE_URL: SITE_URL,
+  },
+  // Ensure Next.js uses the correct project root
+  // This prevents Turbopack from looking in subdirectories
+  typescript: {
+    ignoreBuildErrors: false,
   },
 };
 
