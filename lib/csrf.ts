@@ -1,5 +1,5 @@
 // lib/csrf.ts
-import { randomBytes } from 'crypto';
+import { randomBytes, timingSafeEqual } from 'crypto';
 
 export const CSRF_COOKIE_NAME = process.env.CSRF_COOKIE_NAME || 'csrf-token';
 export const CSRF_HEADER = 'x-csrf-token';
@@ -9,19 +9,18 @@ export function generateCsrfToken(): string {
   return randomBytes(32).toString('hex');
 }
 
-// Constant-time compare
+// Constant-time compare using Node.js crypto.timingSafeEqual
+// This prevents timing attacks on CSRF token validation
 export function safeEqual(a: string | undefined, b: string | undefined): boolean {
   if (!a || !b) return false;
   const A = Buffer.from(a);
   const B = Buffer.from(b);
   if (A.length !== B.length) return false;
-  return cryptoTimingSafeEqual(A, B);
-}
-
-function cryptoTimingSafeEqual(a: Buffer, b: Buffer): boolean {
   try {
-    return require('crypto').timingSafeEqual(a, b);
+    return timingSafeEqual(A, B);
   } catch {
+    // timingSafeEqual throws if buffers have different lengths, but we check above
+    // This catch is defensive programming
     return false;
   }
 }

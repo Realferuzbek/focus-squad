@@ -15,26 +15,24 @@ try {
   if (RAW) SITE_URL = new URL(RAW).toString();
 } catch {}
 
-const imageDomains = [
-  'lh3.googleusercontent.com',
-  'avatars.githubusercontent.com',
-  'media.licdn.com',
+// Build remote patterns array
+const remotePatterns = [
+  { protocol: 'https', hostname: '**.supabase.co' },
+  { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
+  { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
+  { protocol: 'https', hostname: 'media.licdn.com' },
 ];
-if (SUPABASE_HOST) imageDomains.push(SUPABASE_HOST);
+
+// Add Supabase host if available (for specific hostname matching)
+if (SUPABASE_HOST) {
+  remotePatterns.push({ protocol: 'https', hostname: SUPABASE_HOST });
+}
 
 const nextConfig = {
   reactStrictMode: true,
   experimental: { serverActions: { bodySizeLimit: '2mb' } },
   images: {
-    // keep your existing remote patterns
-    remotePatterns: [
-      { protocol: 'https', hostname: '**.supabase.co' },
-      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
-      { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
-      { protocol: 'https', hostname: 'media.licdn.com' },
-    ],
-    // add explicit domains so Next/Image is happy everywhere
-    domains: imageDomains,
+    remotePatterns,
   },
   env: {
     NEXT_PUBLIC_SITE_URL: SITE_URL,
