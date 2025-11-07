@@ -9,8 +9,23 @@ import { Analytics } from "@vercel/analytics/next"
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://studywithferuzbek.vercel.app';
 const SITE_TITLE = 'Study with Feruzbek';
 const SITE_DESCRIPTION = 'Study tracker, timers, streaks & productivity tools by Feruzbek.';
+
+function sanitizeGoogleVerification(raw?: string | null) {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  const contentMatch = trimmed.match(/content=["']?([^"'>\s]+)["']?/i);
+  if (contentMatch) return contentMatch[1];
+  if (trimmed.startsWith('<meta')) {
+    const fallbackMatch = trimmed.match(/["']([^"']+)["']/);
+    if (fallbackMatch) return fallbackMatch[1];
+    return null;
+  }
+  return trimmed.replace(/<[^>]+>/g, '').trim() || null;
+}
+
 const GOOGLE_SITE_VERIFICATION =
-  process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || '0o6FVChUObGWIeZwtJr98EohQyDziejqoVX9TyxAQcc';
+  sanitizeGoogleVerification(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION) ||
+  '0o6FVChUObGWIeZwtJr98EohQyDziejqoVX9TyxAQcc';
 
 const sans = Inter({
   subsets: ['latin'],
