@@ -3,9 +3,10 @@ import type { Metadata } from 'next';
 import NextTopLoader from 'nextjs-toploader';
 import type { ReactNode } from 'react';
 import { Inter } from 'next/font/google';
-import { SpeedInsights } from '@vercel/speed-insights/next' 
-import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from '@vercel/speed-insights/next';
+import { Analytics } from '@vercel/analytics/next';
 import dynamic from 'next/dynamic';
+import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://studywithferuzbek.vercel.app';
 const SITE_TITLE = 'Study with Feruzbek';
@@ -76,9 +77,16 @@ export const metadata: Metadata = {
     images: ['/logo.svg'],
   },
   icons: {
-    icon: [{ url: '/logo.svg', type: 'image/svg+xml' }],
+    icon: [
+      { url: '/logo.svg', type: 'image/svg+xml' },
+      { url: '/icons/icon-192.png', type: 'image/png', sizes: '192x192' },
+      { url: '/icons/icon-512.png', type: 'image/png', sizes: '512x512' },
+    ],
+    apple: [{ url: '/icons/icon-192.png' }],
     shortcut: ['/logo.svg'],
   },
+  manifest: '/manifest.json',
+  themeColor: '#07070b',
   robots: { index: true, follow: true },
   verification: {
     google: GOOGLE_SITE_VERIFICATION,
@@ -90,9 +98,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className={`${sans.variable} font-sans`}>
       <head>
         <meta name="google-site-verification" content={GOOGLE_SITE_VERIFICATION} />
+        <meta name="theme-color" content="#07070b" />
       </head>
       <body className="font-sans bg-[#07070b] text-white">
         <NextTopLoader showSpinner={false} />
+        <ServiceWorkerRegister />
         {children}
         <Analytics />
         <SpeedInsights />
