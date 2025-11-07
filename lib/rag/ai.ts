@@ -12,6 +12,16 @@ const mockVectorDim = Math.max(
   Number(process.env.MOCK_EMBED_DIM || process.env.UPSTASH_VECTOR_DIM || 1536)
 );
 
+const shouldUseResponsesApi = (model: string) => {
+  const normalized = model.toLowerCase();
+  return (
+    normalized.includes("gpt-4.1") ||
+    normalized.includes("gpt-4o") ||
+    normalized.includes("o1") ||
+    normalized.includes("o3")
+  );
+};
+
 export const openai = useMockAi ? null : new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
 export async function embedBatch(inputs: string[]) {
@@ -28,21 +38,66 @@ export async function embedBatch(inputs: string[]) {
 
 export async function generateAnswer(prompt: string) {
   if (!useMockAi && openai) {
-    const completion = await openai.chat.completions.create({
-      model: env.OPENAI_GEN_MODEL,
-      temperature: 0.2,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert website assistant for study_with_feruzbek. Answer accurately using the provided context. If you aren’t sure, say you’re not sure. Always include a short 'Sources' list of URLs you used.",
-        },
-        { role: "user", content: prompt },
-      ],
-    });
-    return completion.choices[0]?.message?.content ?? "";
+    const systemMessage =
+      "You are an expert website assistant for study_with_feruzbek. Answer accurately using the provided context. If you aren’t sure, say you’re not sure. Always include a short 'Sources' list of URLs you used.";
+    if (shouldUseResponsesApi(env.OPENAI_GEN_MODEL)) {
+      const response = await openai.responses.create({
+        model: env.OPENAI_GEN_MODEL,
+        temperature: 0.2,
+        input: [
+          { role: "system", content: systemMessage },
+          { role: "user", content: prompt },
+        ],
+      });
+      const text = extractResponseText(response);
+      if (text) return text;
+    } else {
+      const completion = await openai.chat.completions.create({
+        model: env.OPENAI_GEN_MODEL,
+        temperature: 0.2,
+        messages: [
+          { role: "system", content: systemMessage },
+          { role: "user", content: prompt },
+        ],
+      });
+      const text = completion.choices[0]?.message?.content?.trim();
+      if (text) return text;
+    }
   }
   return mockAnswerFromPrompt(prompt);
+}
+
+function extractResponseText(response: any): string {
+  if (!response) return "";
+  if (Array.isArray(response.output_text) && response.output_text.length > 0) {
+    return response.output_text.join("\n").trim();
+  }
+  if (Array.isArray(response.output)) {
+    const pieces = response.output.flatMap((item: any) =>
+      Array.isArray(item?.content) ? item.content : []
+    );
+    const text = pieces
+      .map((piece: any) => {
+        if (typeof piece?.text === "string") return piece.text;
+        if (typeof piece?.content === "string") return piece.content;
+        if (Array.isArray(piece?.content)) {
+          return piece.content
+            .map((inner: any) => {
+              if (typeof inner === "string") return inner;
+              if (typeof inner?.text === "string") return inner.text;
+              return "";
+            })
+            .filter(Boolean)
+            .join("");
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+    if (text) return text;
+  }
+  return "";
 }
 
 function mockEmbed(text: string): number[] {
