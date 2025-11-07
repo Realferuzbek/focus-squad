@@ -15,6 +15,7 @@ const mockVectorDim = Math.max(
 const shouldUseResponsesApi = (model: string) => {
   const normalized = model.toLowerCase();
   return (
+    normalized.includes("gpt-5") ||
     normalized.includes("gpt-4.1") ||
     normalized.includes("gpt-4o") ||
     normalized.includes("o1") ||
