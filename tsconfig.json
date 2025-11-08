@@ -19,12 +19,8 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
-    // IMPORTANT: include node so @types/* packages are visible
-    "types": [
-      "next",
-      "node",
-      "jsonwebtoken"
-    ],
+    // Type definitions are automatically discovered from node_modules/@types/*
+    // No need to explicitly list them unless you want to restrict which types are included
     "allowJs": true,
     "incremental": true,
     "resolveJsonModule": true,
