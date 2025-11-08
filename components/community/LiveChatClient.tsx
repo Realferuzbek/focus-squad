@@ -35,6 +35,7 @@ import GlowPanel from "@/components/GlowPanel";
 import LiveAdminDrawer from "@/components/community/LiveAdminDrawer";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { trackLiveEvent } from "@/lib/analytics";
+import { csrfFetch } from "@/lib/csrf-client";
 
 const EmojiPicker = dynamic(
   () =>
@@ -275,7 +276,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     async (payload: AdminStateUpdatePayload) => {
       setAdminSaving(true);
       try {
-        const res = await fetch("/api/community/live/admin/state", {
+        const res = await csrfFetch("/api/community/live/admin/state", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -688,7 +689,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     if (cached && cached.expires > Date.now() + 10_000) {
       return cached.url;
     }
-    const res = await fetch("/api/community/live/file-url", {
+    const res = await csrfFetch("/api/community/live/file-url", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path, ttl: 1800 }),
@@ -707,7 +708,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
       kind: "image" | "video" | "audio" | "file",
       file: File,
     ): Promise<{ path: string; token: string }> => {
-      const res = await fetch("/api/community/live/sign-upload", {
+      const res = await csrfFetch("/api/community/live/sign-upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -795,7 +796,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
           mergeMessages([optimistic]);
         }
 
-        const res = await fetch("/api/community/live/messages", {
+        const res = await csrfFetch("/api/community/live/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -834,7 +835,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     async (message: LiveMessage) => {
       if (!message.realId) return;
       try {
-        const res = await fetch(`/api/community/live/messages/${message.realId}`, {
+        const res = await csrfFetch(`/api/community/live/messages/${message.realId}`, {
           method: "DELETE",
         });
         if (!res.ok) {
@@ -896,7 +897,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
 
   const handleJoin = useCallback(async () => {
     try {
-      const res = await fetch("/api/community/live/join", { method: "POST" });
+      const res = await csrfFetch("/api/community/live/join", { method: "POST" });
       if (!res.ok) {
         const status = res.status;
         const data = await res.json().catch(() => ({}));
@@ -917,7 +918,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
 
   const handleLeave = useCallback(async () => {
     try {
-      const res = await fetch("/api/community/live/leave", { method: "POST" });
+      const res = await csrfFetch("/api/community/live/leave", { method: "POST" });
       if (!res.ok) {
         const status = res.status;
         const data = await res.json().catch(() => ({}));
@@ -1056,7 +1057,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
             p256dh: fromBuffer(subscription.getKey("p256dh")),
             auth: fromBuffer(subscription.getKey("auth")),
           };
-          const res = await fetch("/api/community/live/push/subscribe", {
+          const res = await csrfFetch("/api/community/live/push/subscribe", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
@@ -1073,7 +1074,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
             return;
           }
         } else {
-          const res = await fetch("/api/community/live/push/unsubscribe", {
+          const res = await csrfFetch("/api/community/live/push/unsubscribe", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ endpoint: subscription.endpoint }),

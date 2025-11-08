@@ -20,6 +20,7 @@ import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { hasSubscription, subscribePush, unsubscribePush } from "@/lib/pushClient";
+import { csrfFetch } from "@/lib/csrf-client";
 import GlowPanel from "@/components/GlowPanel";
 import Image from "next/image";
 import TextareaAutosize from "react-textarea-autosize";
@@ -665,7 +666,7 @@ export default function AdminChatClient({
     async (typing: boolean) => {
       if (!memoizedThreadId) return;
       try {
-        await fetch("/api/community/adminchat/receipt", {
+        await csrfFetch("/api/community/adminchat/receipt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -801,7 +802,7 @@ export default function AdminChatClient({
       throw new Error("Select a conversation before sending a message.");
     }
     try {
-      const res = await fetch("/api/community/adminchat/start", {
+      const res = await csrfFetch("/api/community/adminchat/start", {
         method: "POST",
       });
       if (!res.ok) {
@@ -910,7 +911,7 @@ export default function AdminChatClient({
       kind: "image" | "video" | "audio" | "file",
       file: File,
     ): Promise<{ path: string; token: string; expiresIn: number }> => {
-      const res = await fetch("/api/community/adminchat/sign-upload", {
+      const res = await csrfFetch("/api/community/adminchat/sign-upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -937,7 +938,7 @@ export default function AdminChatClient({
         return cached.url;
       }
 
-      const res = await fetch("/api/community/adminchat/file-url", {
+      const res = await csrfFetch("/api/community/adminchat/file-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ path, ttl: 3600 }),
@@ -975,7 +976,7 @@ export default function AdminChatClient({
       }
     }
     try {
-      const res = await fetch("/api/community/adminchat/message", {
+      const res = await csrfFetch("/api/community/adminchat/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1029,7 +1030,7 @@ export default function AdminChatClient({
     }
     if (!registerAction()) return;
     try {
-      const res = await fetch(`/api/community/adminchat/message/${editingId}`, {
+      const res = await csrfFetch(`/api/community/adminchat/message/${editingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: trimmed }),
@@ -1072,7 +1073,7 @@ export default function AdminChatClient({
   const handleHide = useCallback(async (messageId: string) => {
     if (!registerAction()) return;
     try {
-      const res = await fetch(
+      const res = await csrfFetch(
         `/api/community/adminchat/message/${messageId}/hide`,
         { method: "POST" },
       );
@@ -1098,7 +1099,7 @@ export default function AdminChatClient({
   const handleHardDelete = useCallback(async (messageId: string) => {
     if (!registerAction()) return;
     try {
-      const res = await fetch(`/api/community/adminchat/message/${messageId}`, {
+      const res = await csrfFetch(`/api/community/adminchat/message/${messageId}`, {
         method: "DELETE",
       });
       if (res.status === 429) {
@@ -1182,7 +1183,7 @@ export default function AdminChatClient({
           threadId,
         };
 
-        const res = await fetch("/api/community/adminchat/message", {
+        const res = await csrfFetch("/api/community/adminchat/message", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -1397,7 +1398,7 @@ export default function AdminChatClient({
         wallpaperUrl: metaForm.wallpaperUrl.trim() || null,
         description: clampWords(metaForm.description, 40) || null,
       };
-      const res = await fetch("/api/community/adminchat/thread", {
+      const res = await csrfFetch("/api/community/adminchat/thread", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1635,7 +1636,7 @@ export default function AdminChatClient({
             className="btn-primary px-10"
             onClick={async () => {
               try {
-                const res = await fetch("/api/community/adminchat/start", {
+                const res = await csrfFetch("/api/community/adminchat/start", {
                   method: "POST",
                 });
                 if (!res.ok) throw new Error("Failed to start chat");

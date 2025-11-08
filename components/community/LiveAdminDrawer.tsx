@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { supabaseBrowser } from "@/lib/supabaseClient";
+import { csrfFetch } from "@/lib/csrf-client";
 import type {
   AdminCandidate,
   ListedAdmin,
@@ -722,7 +723,7 @@ const auditParentRef = useRef<HTMLDivElement>(null);
 
   const signAndUpload = useCallback(
     async (file: File, variant: "avatar" | "wallpaper") => {
-      const res = await fetch(`/api/community/live/admin/${variant}/sign-upload`, {
+      const res = await csrfFetch(`/api/community/live/admin/${variant}/sign-upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -750,7 +751,7 @@ const auditParentRef = useRef<HTMLDivElement>(null);
 
   const persistState = useCallback(
     async (payload: Partial<AdminStateUpdatePayload>) => {
-      const res = await fetch("/api/community/live/admin/state", {
+      const res = await csrfFetch("/api/community/live/admin/state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1424,7 +1425,7 @@ const auditParentRef = useRef<HTMLDivElement>(null);
         setRemoved((prev) => [optimisticRemoved, ...prev]);
       }
       try {
-        const res = await fetch("/api/community/live/admin/members", {
+        const res = await csrfFetch("/api/community/live/admin/members", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ remove: userId }),
@@ -1465,7 +1466,7 @@ const auditParentRef = useRef<HTMLDivElement>(null);
       const snapshotRemoved = removed;
       setRemoved((prev) => prev.filter((entry) => entry.userId !== userId));
       try {
-        const res = await fetch("/api/community/live/admin/members", {
+        const res = await csrfFetch("/api/community/live/admin/members", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ restore: userId }),
@@ -1518,7 +1519,7 @@ const auditParentRef = useRef<HTMLDivElement>(null);
         ),
       );
       try {
-        const res = await fetch("/api/community/live/admin/admins", {
+        const res = await csrfFetch("/api/community/live/admin/admins", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ add: userId }),
@@ -1569,7 +1570,7 @@ const auditParentRef = useRef<HTMLDivElement>(null);
         ),
       );
       try {
-        const res = await fetch("/api/community/live/admin/admins", {
+        const res = await csrfFetch("/api/community/live/admin/admins", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ remove: userId }),

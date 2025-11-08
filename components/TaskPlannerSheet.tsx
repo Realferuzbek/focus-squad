@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { csrfFetch } from "@/lib/csrf-client";
 
 export default function TaskPlannerSheet() {
   const [open, setOpen] = useState(false);
@@ -24,7 +25,7 @@ export default function TaskPlannerSheet() {
   async function save() {
     if (!text.trim()) return;
     setLoading(true);
-    const res = await fetch("/api/tasks", {
+    const res = await csrfFetch("/api/tasks", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ lines: text.split("\n").map((s) => s.trim()).filter(Boolean) }),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { csrfFetch } from "@/lib/csrf-client";
 
 const HEARTBEAT_INTERVAL = 45_000;
 
@@ -11,7 +12,7 @@ export default function UsageHeartbeat() {
     const ping = async () => {
       if (document.visibilityState !== "visible") return;
       try {
-        await fetch("/api/usage/heartbeat", { method: "POST", keepalive: true });
+        await csrfFetch("/api/usage/heartbeat", { method: "POST", keepalive: true });
       } catch {
         // ignore, fire-and-forget
       }

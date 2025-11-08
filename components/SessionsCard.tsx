@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { csrfFetch } from '@/lib/csrf-client';
 
 type Slot = { index: number; start: string; end: string; label: string | null; note: string; locked: boolean };
 export default function SessionsCard() {
@@ -17,7 +18,7 @@ export default function SessionsCard() {
 
   async function save(idx: number, note: string) {
     setSaving(idx);
-    const r = await fetch('/api/slots', {
+    const r = await csrfFetch('/api/slots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date, index: idx, note })

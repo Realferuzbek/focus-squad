@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SendHorizontal, Sparkles } from "lucide-react";
+import { csrfFetch } from "@/lib/csrf-client";
 
 type Message = {
   role: "user" | "assistant";
@@ -38,7 +39,7 @@ export function ChatWidget() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await csrfFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: question }),

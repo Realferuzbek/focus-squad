@@ -29,6 +29,16 @@ function isPublic(req: NextRequest) {
   return false;
 }
 
+function redactUrlOrigin(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.origin;
+  } catch {
+    return value.slice(0, 128);
+  }
+}
+
 export async function middleware(req: NextRequest) {
   const url = req.nextUrl;
 
@@ -85,7 +95,22 @@ export async function middleware(req: NextRequest) {
     const origin = req.headers.get('origin');
     const referer = req.headers.get('referer');
     const sameOrigin = (origin && origin.startsWith(req.nextUrl.origin)) || (referer && referer.startsWith(req.nextUrl.origin));
-    if (!cookieVal || !headerVal || !safeEqual(cookieVal, headerVal) || !sameOrigin) {
+    const tokensMatch = cookieVal && headerVal ? safeEqual(cookieVal, headerVal) : false;
+    if (!cookieVal || !headerVal || !tokensMatch || !sameOrigin) {
+      const failureReasons: string[] = [];
+      if (!cookieVal) failureReasons.push("missing_cookie");
+      if (!headerVal) failureReasons.push("missing_header");
+      if (cookieVal && headerVal && !tokensMatch) failureReasons.push("token_mismatch");
+      if (!sameOrigin) failureReasons.push("origin_mismatch");
+      const forwardedFor = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+      console.warn("[csrf] blocked request", {
+        path: url.pathname,
+        method,
+        reasons: failureReasons,
+        origin: redactUrlOrigin(origin),
+        referer: redactUrlOrigin(referer),
+        forwardedFor,
+      });
       const resp = new NextResponse('CSRF token missing or invalid', { status: 403 });
       return applySecurityHeaders(resp, {
         isProduction: process.env.NODE_ENV === "production",

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import GlowPanel from "@/components/GlowPanel";
+import { csrfFetch } from "@/lib/csrf-client";
 
 type ThreadMeta = {
   id: string;
@@ -231,7 +232,7 @@ export default function AdminChatClient({
       const currentThreadId = threadId ?? thread?.id;
       if (!currentThreadId) return;
       try {
-        await fetch("/api/community/adminchat/receipt", {
+        await csrfFetch("/api/community/adminchat/receipt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -249,7 +250,7 @@ export default function AdminChatClient({
 
   const handleStart = useCallback(async () => {
     try {
-      const res = await fetch("/api/community/adminchat/start", { method: "POST" });
+      const res = await csrfFetch("/api/community/adminchat/start", { method: "POST" });
       if (!res.ok) {
         throw new Error("Failed to start chat");
       }
@@ -269,7 +270,7 @@ export default function AdminChatClient({
 
     setSending(true);
     try {
-      const res = await fetch("/api/community/adminchat/message", {
+      const res = await csrfFetch("/api/community/adminchat/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -307,7 +308,7 @@ export default function AdminChatClient({
       return;
     }
     try {
-      const res = await fetch(`/api/community/adminchat/message/${editingId}`, {
+      const res = await csrfFetch(`/api/community/adminchat/message/${editingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: trimmed }),
@@ -327,7 +328,7 @@ export default function AdminChatClient({
 
   const handleHide = useCallback(async (messageId: string) => {
     try {
-      const res = await fetch(
+      const res = await csrfFetch(
         `/api/community/adminchat/message/${messageId}/hide`,
         { method: "POST" },
       );

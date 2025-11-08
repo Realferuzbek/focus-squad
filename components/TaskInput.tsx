@@ -1,11 +1,12 @@
 ﻿'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { csrfFetch } from '@/lib/csrf-client';
 
 export default function TaskInput({ locked, onSubmitted }: { locked: boolean; onSubmitted: () => void }) {
   const [value, setValue] = useState('');
   const submit = async () => {
     if (!value.trim()) return;
-    const res = await fetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: value }) });
+    const res = await csrfFetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: value }) });
     if (res.status === 403) { alert('🔒 Task entry closed for today.'); return; }
     if (!res.ok) { alert('Error saving tasks'); return; }
     setValue('');

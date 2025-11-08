@@ -1,6 +1,7 @@
 ﻿'use client';
 import confetti from 'canvas-confetti';
 import { useEffect, useState } from 'react';
+import { csrfFetch } from '@/lib/csrf-client';
 import AdminAiToggle from './AdminAiToggle';
 
 export default function ReviewerPanel() {
@@ -13,7 +14,7 @@ export default function ReviewerPanel() {
   };
   useEffect(()=>{ search(); }, []);
   const mark = async (taskId: string, status: 'completed'|'not_done') => {
-    const res = await fetch('/api/review', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ taskId, status }) });
+    const res = await csrfFetch('/api/review', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ taskId, status }) });
     if (res.ok && status==='completed') confetti({ particleCount: 60, spread: 45, origin: { y: 0.7 } });
   };
   return (

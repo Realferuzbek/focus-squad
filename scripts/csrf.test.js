@@ -2,6 +2,11 @@
 const assert = require('assert');
 const { generateCsrfToken, safeEqual, CSRF_COOKIE_NAME, CSRF_HEADER } = require('../lib/csrf');
 
+// Constants
+assert.strictEqual(typeof CSRF_COOKIE_NAME, 'string', 'CSRF cookie name should be a string');
+assert.strictEqual(typeof CSRF_HEADER, 'string', 'CSRF header name should be a string');
+assert(CSRF_HEADER.toLowerCase() === 'x-csrf-token', 'CSRF header must default to x-csrf-token');
+
 // Token generation
 const t1 = generateCsrfToken();
 const t2 = generateCsrfToken();

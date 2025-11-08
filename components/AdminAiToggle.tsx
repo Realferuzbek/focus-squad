@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { csrfFetch } from '@/lib/csrf-client';
 
 type StatusResponse = { enabled: boolean };
 
@@ -40,7 +41,7 @@ export default function AdminAiToggle() {
     try {
       setPending(true);
       setError(null);
-      const res = await fetch('/api/admin/ai-toggle', {
+      const res = await csrfFetch('/api/admin/ai-toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !status.enabled }),

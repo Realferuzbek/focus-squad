@@ -1,3 +1,5 @@
+import { csrfFetch } from "./csrf-client";
+
 export async function registerWorker() {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return null;
   const existing = await navigator.serviceWorker.getRegistration("/sw.js");
@@ -66,7 +68,7 @@ export async function subscribePush() {
     applicationServerKey: convertedKey,
   });
 
-  await fetch("/api/community/push/subscribe", {
+  await csrfFetch("/api/community/push/subscribe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -84,7 +86,7 @@ export async function unsubscribePush() {
   if (!registration) return;
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) return;
-  await fetch("/api/community/push/unsubscribe", {
+  await csrfFetch("/api/community/push/unsubscribe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ endpoint: subscription.endpoint }),

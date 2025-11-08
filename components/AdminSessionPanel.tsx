@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { csrfFetch } from "@/lib/csrf-client";
 
 type UsageRow = {
   user_id: string;
@@ -31,7 +32,7 @@ export default function AdminSessionPanel() {
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch("/api/admin/reset", {
+      const res = await csrfFetch("/api/admin/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ relink: requireRelink }),

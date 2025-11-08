@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { csrfFetch } from '@/lib/csrf-client';
 
 type Block = { start: string; end: string; label?: string };
 function EmptyRow(): Block { return { start: '10:00', end: '12:00', label: '' }; }
@@ -36,7 +37,7 @@ export default function AdminSettings() {
 
   async function saveTemplate() {
     setLoading(true);
-    const r = await fetch('/api/admin/schedule', {
+    const r = await csrfFetch('/api/admin/schedule', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ activeFrom, blocks: rows })
     });
@@ -46,7 +47,7 @@ export default function AdminSettings() {
 
   async function saveOverride(del=false) {
     setLoading(true);
-    const r = await fetch('/api/admin/schedule/override', {
+    const r = await csrfFetch('/api/admin/schedule/override', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(del ? { date: overrideDate, delete: true } : { date: overrideDate, blocks: overrideRows })
     });
@@ -55,7 +56,7 @@ export default function AdminSettings() {
   }
 
   async function action(action: string, email: string, blocked?: boolean) {
-    const r = await fetch('/api/admin/users', {
+    const r = await csrfFetch('/api/admin/users', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ action, email, blocked })
     });

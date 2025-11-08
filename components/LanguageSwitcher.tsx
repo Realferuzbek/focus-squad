@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { LanguageOption, Locale } from '@/lib/i18n';
+import { csrfFetch } from '@/lib/csrf-client';
 
 type LanguageSwitcherProps = {
   locale: Locale;
@@ -38,7 +39,7 @@ export default function LanguageSwitcher({ locale, options, label }: LanguageSwi
     if (code === locale) return;
     startTransition(async () => {
       try {
-        await fetch('/api/preferences/language', {
+        await csrfFetch('/api/preferences/language', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

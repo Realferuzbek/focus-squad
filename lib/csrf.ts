@@ -1,8 +1,6 @@
 // lib/csrf.ts
 import { randomBytes, timingSafeEqual } from 'crypto';
-
-export const CSRF_COOKIE_NAME = process.env.CSRF_COOKIE_NAME || 'csrf-token';
-export const CSRF_HEADER = 'x-csrf-token';
+import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME } from './csrf-constants';
 
 // Generate a 32-byte (256-bit) CSRF token in hex
 export function generateCsrfToken(): string {
@@ -26,3 +24,4 @@ export function safeEqual(a: string | undefined, b: string | undefined): boolean
 }
 
 // Named exports are already declared above; no default export.
+export { CSRF_COOKIE_NAME, CSRF_HEADER_NAME as CSRF_HEADER };
