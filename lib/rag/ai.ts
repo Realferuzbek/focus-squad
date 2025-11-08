@@ -50,9 +50,15 @@ export async function embedBatch(inputs: string[]) {
 }
 
 export async function generateAnswer(prompt: string) {
+  // Check if prompt has sources - if not, return early with helpful message
+  const hasSources = /Source\s+\d+:/i.test(prompt);
+  if (!hasSources) {
+    return "I couldn't find any relevant sources to answer your question. The knowledge base might be empty or your question doesn't match any indexed content. Try reindexing the site or rephrasing your question.";
+  }
+
   if (!useMockAi && openai) {
     const systemMessage =
-      "You are an expert website assistant for study_with_feruzbek. Answer accurately using the provided context. If you aren’t sure, say you’re not sure. Always include a short 'Sources' list of URLs you used.";
+      "You are a helpful assistant for the studywithferuzbek website. Answer questions accurately using ONLY the provided sources. If the sources don't contain enough information to answer confidently, clearly state that you're not sure. Be concise and helpful.";
     try {
       if (shouldUseResponsesApi(env.OPENAI_GEN_MODEL)) {
         const response = await openai.responses.create({
@@ -64,7 +70,7 @@ export async function generateAnswer(prompt: string) {
           ],
         });
         const text = extractResponseText(response);
-        if (text) return text;
+        if (text && text.trim()) return text.trim();
       } else {
         const completion = await openai.chat.completions.create({
           model: env.OPENAI_GEN_MODEL,
@@ -81,9 +87,11 @@ export async function generateAnswer(prompt: string) {
       const msg = err && typeof err === "object" && "message" in err ? (err as any).message : String(err);
       const stackFirst = err && typeof err === "object" && "stack" in err ? String((err as any).stack).split("\n")[0] : undefined;
       console.error("[rag/ai] generation call failed:", msg, stackFirst);
-      // Fall through to the safe mock answer below rather than throwing.
+      // Return a helpful error message instead of falling back to mock
+      return "I encountered an error while generating a response. Please try again in a moment.";
     }
   }
+  // Only use mock answer if we're in mock mode
   return mockAnswerFromPrompt(prompt);
 }
 
