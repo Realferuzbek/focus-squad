@@ -2,13 +2,15 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdminSession } from "@/lib/adminGuard";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  const me = session?.user as any;
-  if (!me?.is_admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const guard = await requireAdminSession();
+  if (!guard.ok) {
+    const message = guard.message === "unauthorized" ? "Unauthorized" : "Forbidden";
+    return NextResponse.json({ error: message }, { status: guard.status });
+  }
 
   const form = await req.formData();
   const email = (form.get("email") as string)?.toLowerCase();

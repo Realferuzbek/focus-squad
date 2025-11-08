@@ -1,12 +1,28 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { embedBatch, generateAnswer } from "@/lib/rag/ai";
 import { vector } from "@/lib/rag/vector";
 import { isAiChatEnabled } from "@/lib/featureFlags";
+import { rateLimit } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
   try {
+    const session = await auth();
+    const user = session?.user as any;
+    if (!user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const throttle = rateLimit(`ai-chat:${user.id}`, 10, 60_000);
+    if (!throttle.ok) {
+      return NextResponse.json(
+        { error: "Too many requests, try again soon." },
+        { status: 429 },
+      );
+    }
+
     const aiEnabled = await isAiChatEnabled(true);
     if (!aiEnabled) {
       return NextResponse.json(

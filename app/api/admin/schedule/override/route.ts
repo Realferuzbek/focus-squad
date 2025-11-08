@@ -2,12 +2,18 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdminSession } from "@/lib/adminGuard";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
 type Block = { start: string; end: string; label?: string };
 
 export async function GET(req: NextRequest) {
+  const guard = await requireAdminSession();
+  if (!guard.ok) {
+    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    return NextResponse.json({ error: message }, { status: guard.status });
+  }
+
   const url = new URL(req.url);
   const date = url.searchParams.get("date");
   if (!date) return NextResponse.json({ error: "date required" }, { status: 400 });
@@ -23,14 +29,17 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminSession();
+  if (!guard.ok) {
+    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    return NextResponse.json({ error: message }, { status: guard.status });
+  }
 
   const sb = supabaseAdmin();
   const { data: me } = await sb
     .from("users")
     .select("is_admin")
-    .eq("email", session.user.email)
+    .eq("email", guard.user.email)
     .single();
 
   if (!me?.is_admin) return NextResponse.json({ error: "Admin only" }, { status: 403 });
@@ -51,14 +60,17 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminSession();
+  if (!guard.ok) {
+    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    return NextResponse.json({ error: message }, { status: guard.status });
+  }
 
   const sb = supabaseAdmin();
   const { data: me } = await sb
     .from("users")
     .select("is_admin")
-    .eq("email", session.user.email)
+    .eq("email", guard.user.email)
     .single();
 
   if (!me?.is_admin) return NextResponse.json({ error: "Admin only" }, { status: 403 });

@@ -1,6 +1,5 @@
 const CACHE_NAME = "focus-squad-pwa-v1";
 const PRECACHE_URLS = [
-  "/",
   "/manifest.json",
   "/favicon.ico",
   "/logo.svg",

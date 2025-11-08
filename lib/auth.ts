@@ -1,10 +1,33 @@
 ﻿// lib/auth.ts
 import NextAuth, { getServerSession, type NextAuthOptions } from "next-auth";
-import { randomBytes } from 'crypto';
 import Google from "next-auth/providers/google";
 import { supabaseAdmin } from "./supabaseServer";
+import {
+  generateSessionId,
+  needsRollingRotation,
+  resolveSessionRollingInterval,
+} from "./session-security";
 
 export const ADMIN_EMAILS = new Set<string>(["feruzbekqurbonov03@gmail.com"]);
+
+const SESSION_ROLLING_INTERVAL_MS = resolveSessionRollingInterval(
+  process.env.NEXTAUTH_SESSION_ROLLING_INTERVAL_MINUTES,
+);
+
+const SESSION_COOKIE_SECURE =
+  process.env.NODE_ENV === "production" ||
+  (process.env.NEXTAUTH_URL ?? "").startsWith("https://");
+
+function mintSessionState(now: number) {
+  try {
+    return {
+      sid: generateSessionId(),
+      sidIssuedAt: now,
+    } as const;
+  } catch {
+    return { sid: null, sidIssuedAt: null } as const;
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -24,9 +47,9 @@ export const authOptions: NextAuthOptions = {
       name: process.env.NEXTAUTH_COOKIE_NAME || 'next-auth.session-token',
       options: {
         httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
+        sameSite: "lax",
+        path: "/",
+        secure: SESSION_COOKIE_SECURE,
       },
     },
   },
@@ -56,15 +79,50 @@ export const authOptions: NextAuthOptions = {
         }
       } catch {}
       // On sign-in we want a fresh session identifier (sid) to mitigate fixation.
-      try {
-        (user as any).sid = randomBytes(16).toString('hex');
-      } catch {}
+      const minted = mintSessionState(Date.now());
+      if (minted.sid && minted.sidIssuedAt) {
+        (user as any).sid = minted.sid;
+        (user as any).sidIssuedAt = minted.sidIssuedAt;
+      }
       return true;
     },
 
-  async jwt({ token }) {
+    async jwt({ token, user }) {
+      const now = Date.now();
       const email = (token.email || "").toString().toLowerCase();
-      if (!email) return token;
+
+      const prevIsAdmin = !!(token as any).is_admin;
+      const prevIsDmAdmin = !!(token as any).is_dm_admin;
+
+      let sid = typeof (token as any).sid === "string" ? ((token as any).sid as string) : null;
+      let sidIssuedAt =
+        typeof (token as any).sidIssuedAt === "number" && Number.isFinite((token as any).sidIssuedAt)
+          ? ((token as any).sidIssuedAt as number)
+          : null;
+
+      if (user && (user as any).sid) {
+        sid = (user as any).sid ?? sid;
+        sidIssuedAt = (user as any).sidIssuedAt ?? now;
+      } else if (!sid || !sidIssuedAt) {
+        const minted = mintSessionState(now);
+        if (minted.sid && minted.sidIssuedAt) {
+          sid = minted.sid;
+          sidIssuedAt = minted.sidIssuedAt;
+        }
+      }
+
+      if (!email) {
+        if (sid) (token as any).sid = sid;
+        if (sidIssuedAt) (token as any).sidIssuedAt = sidIssuedAt;
+        return token;
+      }
+
+      let nextUid = (token as any).uid;
+      let nextIsAdmin = prevIsAdmin;
+      let nextIsDmAdmin = prevIsDmAdmin;
+      let nextTelegramLinked = !!(token as any).telegram_linked;
+      let nextAvatarUrl = (token as any).avatar_url ?? null;
+      let nextDisplayName = (token as any).display_name ?? (token as any).name ?? null;
 
       try {
         const sb = supabaseAdmin();
@@ -75,23 +133,46 @@ export const authOptions: NextAuthOptions = {
           .maybeSingle();
 
         if (data) {
-          (token as any).uid = data.id;
-          (token as any).is_admin = !!data.is_admin;
-          (token as any).is_dm_admin = !!data.is_dm_admin;
-          (token as any).telegram_linked = !!data.telegram_user_id;
-          (token as any).avatar_url = data.avatar_url ?? null;
-          (token as any).display_name = data.display_name ?? data.name ?? null;
+          nextUid = data.id;
+          nextIsAdmin = !!data.is_admin;
+          nextIsDmAdmin = !!data.is_dm_admin;
+          nextTelegramLinked = !!data.telegram_user_id;
+          nextAvatarUrl = data.avatar_url ?? null;
+          nextDisplayName = data.display_name ?? data.name ?? null;
         } else {
-          (token as any).is_admin = ADMIN_EMAILS.has(email);
-          (token as any).telegram_linked = false;
+          nextIsAdmin = ADMIN_EMAILS.has(email);
+          nextIsDmAdmin = false;
+          nextTelegramLinked = false;
         }
       } catch {}
-      // Ensure a session id exists to allow rotation and fixation mitigation.
-      if (!(token as any).sid) {
-        try {
-          (token as any).sid = randomBytes(16).toString('hex');
-        } catch {}
+
+      const privilegeElevated =
+        (!prevIsAdmin && nextIsAdmin) || (!prevIsDmAdmin && nextIsDmAdmin);
+
+      if (privilegeElevated) {
+        const minted = mintSessionState(now);
+        if (minted.sid && minted.sidIssuedAt) {
+          sid = minted.sid;
+          sidIssuedAt = minted.sidIssuedAt;
+        }
       }
+
+      if (needsRollingRotation(sidIssuedAt, now, SESSION_ROLLING_INTERVAL_MS)) {
+        const minted = mintSessionState(now);
+        if (minted.sid && minted.sidIssuedAt) {
+          sid = minted.sid;
+          sidIssuedAt = minted.sidIssuedAt;
+        }
+      }
+
+      (token as any).uid = nextUid;
+      (token as any).is_admin = nextIsAdmin;
+      (token as any).is_dm_admin = nextIsDmAdmin;
+      (token as any).telegram_linked = nextTelegramLinked;
+      (token as any).avatar_url = nextAvatarUrl;
+      (token as any).display_name = nextDisplayName;
+      if (sid) (token as any).sid = sid;
+      if (sidIssuedAt) (token as any).sidIssuedAt = sidIssuedAt;
       return token;
     },
 

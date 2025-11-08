@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import AdminSessionPanel from "@/components/AdminSessionPanel";
 import AdminAiToggle from "@/components/AdminAiToggle";
+import AdminPromoteForm from "@/components/AdminPromoteForm";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -36,23 +37,7 @@ export default async function AdminPage() {
 
           <section className="rounded-2xl border border-white/10 bg-[#0f0f18]/90 p-6 shadow-[0_18px_45px_-24px_rgba(140,122,245,0.35)]">
             <h2 className="mb-4 text-xl font-semibold text-white/90">Promote/Demote</h2>
-            <form action="/api/admin/users" method="post" className="flex flex-col gap-3 sm:flex-row">
-              <input
-                name="email"
-                type="email"
-                required
-                placeholder="user@example.com"
-                className="flex-1 rounded-2xl border border-white/10 bg-black/40 px-3 py-3 text-sm outline-none transition hover:border-white/20 focus:border-[var(--swf-glow-start)]"
-              />
-              <select
-                name="action"
-                className="rounded-2xl border border-white/10 bg-black/40 px-3 py-3 text-sm outline-none transition hover:border-white/20 focus:border-[var(--swf-glow-start)]"
-              >
-                <option value="promote">Promote to admin</option>
-                <option value="demote">Demote from admin</option>
-              </select>
-              <button className="btn-primary">Apply</button>
-            </form>
+            <AdminPromoteForm className="flex flex-col gap-3 sm:flex-row" />
           </section>
 
           <section className="rounded-2xl border border-white/10 overflow-hidden">

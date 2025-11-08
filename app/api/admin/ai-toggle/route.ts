@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdminSession } from "@/lib/adminGuard";
 import { isAiChatEnabled, setAiChatEnabled } from "@/lib/featureFlags";
 
-type AdminUser = { id: string; is_admin?: boolean } | undefined;
-
-async function requireAdmin(): Promise<AdminUser> {
-  const session = await auth();
-  const user = session?.user as AdminUser;
-  return user?.is_admin ? user : undefined;
-}
-
 export async function GET() {
-  const user = await requireAdmin();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminSession();
+  if (!guard.ok) {
+    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    return NextResponse.json({ error: message }, { status: guard.status });
   }
 
   const enabled = await isAiChatEnabled(true);
@@ -21,9 +14,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireAdmin();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminSession();
+  if (!guard.ok) {
+    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    return NextResponse.json({ error: message }, { status: guard.status });
   }
 
   const body = await req.json().catch(() => null);
@@ -32,6 +26,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing enabled boolean" }, { status: 400 });
   }
 
-  await setAiChatEnabled(enabled, user.id);
+  const userId = typeof guard.user.id === "string" ? guard.user.id : null;
+  await setAiChatEnabled(enabled, userId);
   return NextResponse.json({ enabled });
 }

@@ -1,10 +1,17 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdminOrInternal } from "@/lib/adminGuard";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const guard = await requireAdminOrInternal({ request });
+  if (!guard.ok) {
+    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    return NextResponse.json({ error: message }, { status: guard.status });
+  }
+
   try {
     const sb = supabaseAdmin();
     const { data, error } = await sb

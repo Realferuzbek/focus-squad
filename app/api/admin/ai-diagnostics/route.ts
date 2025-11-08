@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdminSession } from "@/lib/adminGuard";
 import { env } from "@/lib/rag/env";
 import { isAiChatEnabled } from "@/lib/featureFlags";
 
-async function requireAdmin() {
-  const session = await auth();
-  const user = session?.user as { id?: string; is_admin?: boolean } | undefined;
-  return user?.is_admin ? user : undefined;
-}
-
 export async function GET() {
-  const user = await requireAdmin();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireAdminSession();
+  if (!guard.ok) {
+    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    return NextResponse.json({ error: message }, { status: guard.status });
+  }
 
   // Safe, non-secret diagnostics
   const diagnostics = {

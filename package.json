@@ -8,7 +8,7 @@
     "start": "next start",
     "test:security": "node ./scripts/security-headers.test.js",
     "test:csrf": "node ./scripts/csrf.test.js && node ./scripts/csrf-fetch-static.test.js",
-    "test:session": "node ./scripts/session-cookie.test.js",
+    "test:session": "node ./scripts/session-cookie.test.js && node ./scripts/session-rotation.test.js",
     "lint": "next lint",
     "postbuild": "next-sitemap",
     "sitemap": "next-sitemap"

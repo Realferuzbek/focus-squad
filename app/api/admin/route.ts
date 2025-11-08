@@ -3,15 +3,22 @@ export const runtime = 'nodejs';         // run on Node (not Edge)
 export const dynamic = 'force-dynamic';  // never pre-render / collect at build
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireAdminSession } from '@/lib/adminGuard';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const guard = await requireAdminSession();
+  if (!guard.ok) {
+    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    return NextResponse.json({ error: message }, { status: guard.status });
+  }
 
   const sb = supabaseAdmin();
-  const { data: me } = await sb.from('users').select('is_admin').eq('email', session.user.email).single();
+  const { data: me } = await sb
+    .from('users')
+    .select('is_admin')
+    .eq('email', guard.user.email)
+    .single();
   if (!me?.is_admin) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const { data: users } = await sb
@@ -24,11 +31,18 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const guard = await requireAdminSession();
+  if (!guard.ok) {
+    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    return NextResponse.json({ error: message }, { status: guard.status });
+  }
 
   const sb = supabaseAdmin();
-  const { data: me } = await sb.from('users').select('is_admin').eq('email', session.user.email).single();
+  const { data: me } = await sb
+    .from('users')
+    .select('is_admin')
+    .eq('email', guard.user.email)
+    .single();
   if (!me?.is_admin) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const { action, email, blocked } = await req.json();
