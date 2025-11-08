@@ -87,13 +87,13 @@ function verifyInternalSignature(request: Request | NextRequest): boolean {
 
   try {
     const expected = createHash("sha256").update(secret).digest();
-    const providedBytes = Buffer.from(provided, "hex");
-    if (providedBytes.length !== expected.length) return false;
-    return timingSafeEqual(providedBytes, expected);
+    const providedBuffer = Buffer.from(provided, "hex");
+    if (providedBuffer.length !== expected.length) return false;
+    // Ensure both arguments to timingSafeEqual are Buffers (as required by Node.js API)
+    return timingSafeEqual(providedBuffer, Buffer.from(expected));
   } catch {
     return false;
   }
-}
 
 export async function requireAdminSession(
   options?: AdminGuardSessionOptions,
