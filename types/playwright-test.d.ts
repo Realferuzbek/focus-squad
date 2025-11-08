@@ -7,6 +7,6 @@ declare module "@playwright/test" {
     config: PlaywrightTestConfig
   ): PlaywrightTestConfig;
 
-  export const devices: Record<string, unknown>;
+  export const devices: Record<string, Record<string, unknown>>;
 }
 
