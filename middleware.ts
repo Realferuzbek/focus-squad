@@ -4,6 +4,24 @@ import { applySecurityHeaders } from "./lib/security-headers";
 import { getToken } from "next-auth/jwt";
 import { generateCsrfToken, safeEqual, CSRF_COOKIE_NAME, CSRF_HEADER } from "./lib/csrf";
 
+type EnvMap = Record<string, string | undefined>;
+
+const ENV: EnvMap =
+  ((globalThis as Record<string, any>)?.process?.env ?? {}) as EnvMap;
+
+function isProduction(): boolean {
+  return ENV.NODE_ENV === "production";
+}
+
+function buildSecurityContext(req: NextRequest) {
+  const proto = req.nextUrl.protocol;
+  const forwardedProto = req.headers.get("x-forwarded-proto");
+  return {
+    isProduction: isProduction(),
+    isSecureTransport: proto === "https" || forwardedProto === "https",
+  };
+}
+
 const PUBLIC_PATHS = new Set<string>([
   "/signin",
   "/api/auth",
@@ -45,22 +63,15 @@ export async function middleware(req: NextRequest) {
   if (isPublic(req)) {
     const resp = NextResponse.next();
     // apply security headers in all responses including public assets
-    return applySecurityHeaders(resp, {
-      isProduction: process.env.NODE_ENV === "production",
-      // in edge runtimes, req.nextUrl.protocol may not be present; approximate
-      isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
-    });
+    return applySecurityHeaders(resp, buildSecurityContext(req));
   }
 
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const token = await getToken({ req, secret: ENV.NEXTAUTH_SECRET });
   if (!token) {
     const signin = new URL("/signin", req.url);
     signin.searchParams.set("callbackUrl", url.pathname + url.search);
     const redirect = NextResponse.redirect(signin);
-    return applySecurityHeaders(redirect, {
-      isProduction: process.env.NODE_ENV === "production",
-      isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
-    });
+    return applySecurityHeaders(redirect, buildSecurityContext(req));
   }
 
   // CSRF protections (double-submit cookie) for cookie-backed sessions
@@ -77,13 +88,10 @@ export async function middleware(req: NextRequest) {
       resp.cookies.set(CSRF_COOKIE_NAME, tokenValue, {
         httpOnly: false,
         sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        secure: isProduction(),
         path: '/',
       });
-      return applySecurityHeaders(resp, {
-        isProduction: process.env.NODE_ENV === "production",
-        isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
-      });
+      return applySecurityHeaders(resp, buildSecurityContext(req));
     }
   }
 
@@ -112,10 +120,7 @@ export async function middleware(req: NextRequest) {
         forwardedFor,
       });
       const resp = new NextResponse('CSRF token missing or invalid', { status: 403 });
-      return applySecurityHeaders(resp, {
-        isProduction: process.env.NODE_ENV === "production",
-        isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
-      });
+      return applySecurityHeaders(resp, buildSecurityContext(req));
     }
   }
 
@@ -138,10 +143,7 @@ export async function middleware(req: NextRequest) {
     const out = new URL("/api/auth/signout", req.url);
     out.searchParams.set("callbackUrl", "/signin");
     const redirect = NextResponse.redirect(out);
-    return applySecurityHeaders(redirect, {
-      isProduction: process.env.NODE_ENV === "production",
-      isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
-    });
+    return applySecurityHeaders(redirect, buildSecurityContext(req));
   }
 
   const needLink = !(token as any).telegram_linked;
@@ -161,10 +163,7 @@ export async function middleware(req: NextRequest) {
     });
   }
 
-  return applySecurityHeaders(response, {
-    isProduction: process.env.NODE_ENV === "production",
-    isSecureTransport: req.nextUrl.protocol === "https" || req.headers.get("x-forwarded-proto") === "https",
-  });
+  return applySecurityHeaders(response, buildSecurityContext(req));
 }
 
 export const config = {
