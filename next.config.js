@@ -32,8 +32,6 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: { 
     serverActions: { bodySizeLimit: '2mb' },
-    // Explicitly disable Turbopack for stable builds until fully ready
-    turbo: false,
   },
   images: {
     remotePatterns,

@@ -1,5 +1,3 @@
-'use server';
-
 import type { Session } from "next-auth";
 import type { NextRequest } from "next/server";
 import { createHash, timingSafeEqual } from "crypto";
