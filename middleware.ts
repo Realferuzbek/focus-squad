@@ -106,11 +106,16 @@ export async function middleware(req: NextRequest) {
   const url = req.nextUrl;
   const securityContext = buildSecurityContext(req);
 
-  // Allow iframe embedding for timer HTML files
-  const isTimerHtml = url.pathname.startsWith("/timer/") && url.pathname.includes(".html");
-  if (isTimerHtml) {
+  // Allow iframe embedding for timer HTML files and make timer assets public
+  const isTimerPath = url.pathname.startsWith("/timer/");
+  if (isTimerPath) {
     const resp = NextResponse.next();
-    return applySecurityHeaders(resp, { ...securityContext, allowIframe: true });
+    // Allow iframe embedding for HTML files, regular headers for other assets
+    const isTimerHtml = url.pathname.includes(".html");
+    return applySecurityHeaders(resp, { 
+      ...securityContext, 
+      allowIframe: isTimerHtml 
+    });
   }
 
   if (isPublic(req)) {
