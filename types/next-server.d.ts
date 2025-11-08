@@ -22,6 +22,10 @@ declare module "next/server" {
       input: string | URL,
       init?: number | ResponseInit
     ): NextResponse;
+    static json(
+      body: unknown,
+      init?: number | ResponseInit
+    ): NextResponse;
     constructor(body?: BodyInit | null, init?: ResponseInit);
   }
 }
