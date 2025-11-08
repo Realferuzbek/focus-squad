@@ -106,6 +106,13 @@ export async function middleware(req: NextRequest) {
   const url = req.nextUrl;
   const securityContext = buildSecurityContext(req);
 
+  // Allow iframe embedding for timer HTML files
+  const isTimerHtml = url.pathname.startsWith("/timer/") && url.pathname.includes(".html");
+  if (isTimerHtml) {
+    const resp = NextResponse.next();
+    return applySecurityHeaders(resp, { ...securityContext, allowIframe: true });
+  }
+
   if (isPublic(req)) {
     const resp = NextResponse.next();
     // apply security headers in all responses including public assets
