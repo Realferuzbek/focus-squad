@@ -6,16 +6,16 @@ import { auth } from "@/lib/auth";
 import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
-import dynamic from "next/dynamic";
+import dynamicImport from "next/dynamic";
 import { getLanguageOptions, getTranslations, type FeatureKey } from "@/lib/i18n";
 
 // EFFECT: Defers dashboard client-side heartbeat until after first paint to free up FCP.
-const UsageHeartbeat = dynamic(() => import("@/components/UsageHeartbeat"), {
+const UsageHeartbeat = dynamicImport(() => import("@/components/UsageHeartbeat"), {
   ssr: false,
   loading: () => null,
 });
 // EFFECT: Lazily hydrates the email bridge so the server hero can stream immediately.
-const SessionEmailBridge = dynamic(() => import("@/components/SessionEmailBridge"), {
+const SessionEmailBridge = dynamicImport(() => import("@/components/SessionEmailBridge"), {
   ssr: false,
   loading: () => null,
 });
