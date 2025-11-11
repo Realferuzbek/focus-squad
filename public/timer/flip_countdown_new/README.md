@@ -15,4 +15,4 @@ Then open <http://localhost:5173>.
 3. Build command: *(leave empty for static hosting)*
 
 ## Legacy Electron build
-The full Electron desktop app is preserved on the `electron-app-snapshot` branch if you need installers or packaging scripts.
+The full Electron desktop app is preserved on the `electron-app-snapshot` branch if you need installers or packaging scripts!
