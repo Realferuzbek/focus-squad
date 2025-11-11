@@ -61,12 +61,11 @@ function headersForResponse(context) {
   process.env.SECURITY_CSP_ENFORCE = "1";
 })();
 
-(function testIframeAllowanceKeepsCspButLoosensFrames() {
+(function testIframeAllowanceKeepsCspButRemovesXfo() {
   const headers = buildSecurityHeaders({ allowIframe: true });
-  assert.strictEqual(
-    headers["X-Frame-Options"],
-    "SAMEORIGIN",
-    "Iframe-enabled responses should restrict embedding to same-origin frames",
+  assert(
+    !("X-Frame-Options" in headers),
+    "Iframe-enabled responses should omit legacy X-Frame-Options so only CSP governs framing",
   );
   const csp = headers["Content-Security-Policy"] || headers["Content-Security-Policy-Report-Only"];
   assert(csp, "Iframe-enabled responses should still emit a CSP header");
