@@ -64,9 +64,11 @@ function headersForResponse(context) {
 (function testIframeAllowanceStripsFrameGuards() {
   const headers = buildSecurityHeaders({ allowIframe: true });
   assert(!("X-Frame-Options" in headers), "X-Frame-Options must be removed when iframe embedding is allowed");
-  const csp = headers["Content-Security-Policy"] ?? headers["Content-Security-Policy-Report-Only"];
-  assert(csp.includes("frame-ancestors 'self'"), "CSP should loosen frame-ancestors when iframe embedding is allowed");
-  assert(csp.includes("frame-src 'self'"), "CSP should loosen frame-src when iframe embedding is allowed");
+  assert(
+    !("Content-Security-Policy" in headers) &&
+      !("Content-Security-Policy-Report-Only" in headers),
+    "CSP should be removed entirely for iframe-allowed responses",
+  );
 })();
 
 (function testDeriveHstsVariants() {
