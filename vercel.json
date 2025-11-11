@@ -1,5 +1,6 @@
 {
   "crons": [
     { "path": "/api/reindex", "schedule": "0 3 * * *" }
-  ]
+  ],
+  "ignoreCommand": "echo \"forcing build\" && exit 1"
 }

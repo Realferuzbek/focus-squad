@@ -72,7 +72,6 @@ const PUBLIC_PATHS = new Set<string>([
   "/api/reindex",
   "/api/telegram/webhook",
   "/api/admin/state",
-  "/feature",
   "/_next",
   "/favicon.ico",
   "/robots.txt",
@@ -129,7 +128,7 @@ export async function middleware(req: NextRequest) {
     return applySecurityHeaders(resp, timerSecurityContext);
   }
 
-  if (isPublic(req)) {
+  if (isPublic(req) || isTimerFeaturePage) {
     const resp = NextResponse.next();
     // apply security headers in all responses including public assets
     return applySecurityHeaders(resp, securityContext);
