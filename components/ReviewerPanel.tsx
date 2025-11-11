@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import { csrfFetch } from '@/lib/csrf-client';
 import AdminAiToggle from './AdminAiToggle';
 
-let confettiLauncher: typeof import('canvas-confetti').default | null = null;
-async function loadConfetti() {
+type ConfettiRunner = typeof import('canvas-confetti');
+let confettiLauncher: ConfettiRunner | null = null;
+async function loadConfetti(): Promise<ConfettiRunner> {
   if (confettiLauncher) return confettiLauncher;
   const mod = await import('canvas-confetti');
-  confettiLauncher = mod.default;
+  const maybeDefault = (mod as { default?: ConfettiRunner }).default;
+  confettiLauncher = maybeDefault ?? (mod as ConfettiRunner);
   return confettiLauncher;
 }
 
