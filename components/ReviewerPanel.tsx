@@ -4,14 +4,16 @@ import { useEffect, useState } from 'react';
 import { csrfFetch } from '@/lib/csrf-client';
 import AdminAiToggle from './AdminAiToggle';
 
-type ConfettiRunner = typeof import('canvas-confetti');
+type ConfettiModule = typeof import('canvas-confetti');
+type ConfettiRunner = ConfettiModule extends { default: infer D } ? D : ConfettiModule;
 let confettiLauncher: ConfettiRunner | null = null;
 async function loadConfetti(): Promise<ConfettiRunner> {
   if (confettiLauncher) return confettiLauncher;
-  const mod = await import('canvas-confetti');
+  const mod: ConfettiModule = await import('canvas-confetti');
   const maybeDefault = (mod as { default?: ConfettiRunner }).default;
-  confettiLauncher = maybeDefault ?? (mod as ConfettiRunner);
-  return confettiLauncher;
+  const runner = maybeDefault ?? ((mod as unknown) as ConfettiRunner);
+  confettiLauncher = runner;
+  return runner;
 }
 
 export default function ReviewerPanel() {
