@@ -8,6 +8,7 @@ import {
   mapMessage,
 } from "@/lib/adminchat/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
+import { buildHighlightSnippet } from "@/lib/highlight";
 
 const querySchema = z.object({
   threadId: z.string().uuid().optional(),
@@ -112,7 +113,9 @@ export async function GET(req: NextRequest) {
     if (usingSearch) {
       const mapped = filteredRows.map((row: any) => {
         const message = mapMessage(row);
-        const highlight = buildHighlight(message.text ?? "", parsed.q!);
+        const highlight = buildHighlightSnippet(message.text ?? "", parsed.q!, {
+          maxLength: 280,
+        });
         return { ...message, highlight };
       });
       return NextResponse.json({
@@ -139,18 +142,4 @@ export async function GET(req: NextRequest) {
       { status: 500 },
     );
   }
-}
-
-function escapeRegExp(input: string) {
-  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function buildHighlight(text: string, query: string) {
-  if (!text) return null;
-  const regex = new RegExp(`(${escapeRegExp(query)})`, "gi");
-  const snippet = text
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 280);
-  return snippet.replace(regex, "<mark>$1</mark>");
 }

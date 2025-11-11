@@ -14,6 +14,18 @@ export default function SignInPage({ searchParams = {} }: SignInPageProps) {
   const errorCode =
     typeof searchParams.error === "string" ? searchParams.error : undefined;
   const errorMessage = resolveSignInError(errorCode);
+  const blockedParam = searchParams.blocked;
+  const isBlocked =
+    typeof blockedParam === "string"
+      ? blockedParam === "1"
+      : Array.isArray(blockedParam) && blockedParam.includes("1");
+  const blockedMessage = isBlocked
+    ? {
+        title: "Account temporarily locked",
+        description:
+          "Your account was blocked by an administrator. Please contact support if you believe this is a mistake.",
+      }
+    : null;
 
   const callbackFromParams = searchParams.callbackUrl;
   const callbackUrl =
@@ -21,7 +33,10 @@ export default function SignInPage({ searchParams = {} }: SignInPageProps) {
 
   const hintId = "signin-hint";
   const alertId = errorMessage ? "signin-error" : undefined;
-  const describedBy = [hintId, alertId].filter(Boolean).join(" ") || undefined;
+  const blockedAlertId = blockedMessage ? "signin-blocked" : undefined;
+  const describedBy = [hintId, alertId, blockedAlertId]
+    .filter(Boolean)
+    .join(" ") || undefined;
 
   return (
     <div className="min-h-screen grid place-items-center bg-neutral-950 text-white">
@@ -41,6 +56,20 @@ export default function SignInPage({ searchParams = {} }: SignInPageProps) {
             Study With Feruzbek
           </h1>
         </div>
+
+        {blockedMessage ? (
+          <div
+            id={blockedAlertId}
+            role="alert"
+            aria-live="assertive"
+            className="mb-4 rounded-2xl border border-yellow-500/40 bg-yellow-500/5 px-4 py-3 text-sm text-yellow-50"
+          >
+            <p className="font-semibold">{blockedMessage.title}</p>
+            <p className="mt-1 text-yellow-100/80">
+              {blockedMessage.description}
+            </p>
+          </div>
+        ) : null}
 
         {errorMessage ? (
           <div

@@ -7,6 +7,11 @@ import {
   needsRollingRotation,
   resolveSessionRollingInterval,
 } from "./session-security";
+import {
+  isBlockedFlag,
+  resolveBlockedStatus,
+  shouldDenySignIn,
+} from "./blocked-user-guard";
 
 export const ADMIN_EMAILS = new Set<string>(["feruzbekqurbonov03@gmail.com"]);
 
@@ -62,11 +67,13 @@ export const authOptions: NextAuthOptions = {
 
         const { data: existing } = await sb
           .from("users")
-          .select("id,email,is_admin")
+          .select("id,email,is_admin,is_blocked")
           .eq("email", email)
           .maybeSingle();
 
-        if (!existing) {
+        if (shouldDenySignIn(existing)) {
+          return false;
+        } else if (!existing) {
           await sb.from("users").insert({
             email,
             name: user.name,
@@ -123,12 +130,13 @@ export const authOptions: NextAuthOptions = {
       let nextTelegramLinked = !!(token as any).telegram_linked;
       let nextAvatarUrl = (token as any).avatar_url ?? null;
       let nextDisplayName = (token as any).display_name ?? (token as any).name ?? null;
+      let nextIsBlocked = isBlockedFlag((token as any).is_blocked);
 
       try {
         const sb = supabaseAdmin();
         const { data } = await sb
           .from("users")
-          .select("id,is_admin,is_dm_admin,telegram_user_id,avatar_url,name,display_name")
+          .select("id,is_admin,is_dm_admin,telegram_user_id,avatar_url,name,display_name,is_blocked")
           .eq("email", email)
           .maybeSingle();
 
@@ -139,10 +147,12 @@ export const authOptions: NextAuthOptions = {
           nextTelegramLinked = !!data.telegram_user_id;
           nextAvatarUrl = data.avatar_url ?? null;
           nextDisplayName = data.display_name ?? data.name ?? null;
+          nextIsBlocked = resolveBlockedStatus(nextIsBlocked, data);
         } else {
           nextIsAdmin = ADMIN_EMAILS.has(email);
           nextIsDmAdmin = false;
           nextTelegramLinked = false;
+          nextIsBlocked = false;
         }
       } catch {}
 
@@ -173,6 +183,7 @@ export const authOptions: NextAuthOptions = {
       (token as any).display_name = nextDisplayName;
       if (sid) (token as any).sid = sid;
       if (sidIssuedAt) (token as any).sidIssuedAt = sidIssuedAt;
+      (token as any).is_blocked = nextIsBlocked;
       return token;
     },
 
@@ -183,6 +194,7 @@ export const authOptions: NextAuthOptions = {
       (session.user as any).telegram_linked = !!(token as any).telegram_linked;
       (session.user as any).avatar_url = (token as any).avatar_url ?? session.user?.image ?? null;
       (session.user as any).display_name = (token as any).display_name ?? session.user?.name ?? null;
+      (session.user as any).is_blocked = isBlockedFlag((token as any).is_blocked);
       return session;
     },
   },

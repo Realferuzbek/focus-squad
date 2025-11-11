@@ -5,6 +5,7 @@ Session & CSRF Hardening
 - CSRF pattern: double-submit cookie `csrf-token` paired with header `X-CSRF-Token` and Origin/Referer validation inside middleware; client code must route POST/PUT/PATCH/DELETE through `csrfFetch`.
 - Forms: render `AdminPromoteForm` (or wire `csrfFetch` manually) so HTML forms forward the CSRF header while keeping server-rendered UX.
 - Sign-in callback URLs: the `/signin` page only honors relative `callbackUrl` values, dropping absolute or whitespace-padded entries to prevent open-redirect chaining.
+- CSP enforcement: CSP ships in enforcement mode whenever `NODE_ENV=production` unless `SECURITY_CSP_ENFORCE=0` forces report-only; set `SECURITY_CSP_ENFORCE=1` (or `enforceCsp:true`) to pin enforcement in any environment.
 - Webhooks: `/api/telegram/*` remains exempt; add new webhook prefixes in `WEBHOOK_PREFIXES` only when the handler already enforces signed payloads.
 - Dev vs prod: Secure cookies stay off on plain HTTP dev; SameSite policy matches prod; all CSRF denials log at warn with redacted metadata.
 - Incident logging: `[csrf]` log entries capture path, method, sanitized Origin/Referer, and first-hop IP; token values are never persisted.

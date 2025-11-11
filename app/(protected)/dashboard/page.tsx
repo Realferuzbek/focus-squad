@@ -8,6 +8,7 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import UsageHeartbeat from "@/components/UsageHeartbeat";
 import { getLanguageOptions, getTranslations, type FeatureKey } from "@/lib/i18n";
+import SessionEmailBridge from "@/components/SessionEmailBridge";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -98,12 +99,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-[100dvh] bg-[#07070b]">
-      {/* Expose email to client for recent-accounts */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `window.__session_email=${JSON.stringify(user?.email || null)};`,
-        }}
-      />
+      <SessionEmailBridge email={user?.email ?? null} />
       <Navbar
         isAdmin={!!user.is_admin}
         avatarUrl={avatarSrc}

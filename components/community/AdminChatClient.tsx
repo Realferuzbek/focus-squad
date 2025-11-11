@@ -21,6 +21,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { hasSubscription, subscribePush, unsubscribePush } from "@/lib/pushClient";
 import { csrfFetch } from "@/lib/csrf-client";
+import { buildPlainSnippet, ensureSafeHtml } from "@/lib/highlight";
 import GlowPanel from "@/components/GlowPanel";
 import Image from "next/image";
 import TextareaAutosize from "react-textarea-autosize";
@@ -2045,7 +2046,7 @@ export default function AdminChatClient({
                     <div
                       className="prose prose-invert max-w-none text-xs"
                       dangerouslySetInnerHTML={{
-                        __html: buildSearchSnippet(result),
+                        __html: ensureSafeHtml(buildSearchSnippet(result)),
                       }}
                     />
                     <div className="mt-2 text-[11px] text-white/40">
@@ -2488,11 +2489,9 @@ const MessageMedia = memo(function MessageMedia({ message, resolveFileUrl }: Mes
 MessageMedia.displayName = "MessageMedia";
 
 function buildSearchSnippet(message: Message) {
-  if (message.highlight) return message.highlight;
-  if (message.text) {
-    return message.text.replace(/\s+/g, " ").trim().slice(0, 160);
-  }
-  return `[${message.kind.toUpperCase()}]`;
+  if (message.highlight) return ensureSafeHtml(message.highlight);
+  const source = message.text ?? `[${message.kind.toUpperCase()}]`;
+  return buildPlainSnippet(source, { maxLength: 160 }) ?? "";
 }
 
 function formatBytes(bytes: number) {
@@ -2529,4 +2528,3 @@ function Spoiler(props: any) {
     </span>
   );
 }
-

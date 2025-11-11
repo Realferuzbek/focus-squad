@@ -13,6 +13,10 @@ import {
   buildCsrfCookieOptions,
   buildSessionCookieOptions,
 } from "./lib/csrf-guard";
+import {
+  buildBlockedRedirectUrl,
+  isBlockedFlag,
+} from "./lib/blocked-user-guard";
 
 type EnvMap = Record<string, string | undefined>;
 
@@ -129,6 +133,11 @@ export async function middleware(req: NextRequest) {
     const signin = new URL("/signin", req.url);
     signin.searchParams.set("callbackUrl", url.pathname + url.search);
     const redirect = NextResponse.redirect(signin);
+    return applySecurityHeaders(redirect, securityContext);
+  }
+
+  if (isBlockedFlag((token as any).is_blocked)) {
+    const redirect = NextResponse.redirect(buildBlockedRedirectUrl(req.url));
     return applySecurityHeaders(redirect, securityContext);
   }
 

@@ -1,0 +1,11 @@
+rules:
+  - id: react-dangerouslysetinnerhtml-sanitized
+    message: "Wrap dangerouslySetInnerHTML payloads with ensureSafeHtml from lib/highlight."
+    severity: ERROR
+    languages: [javascript, typescript, jsx, tsx]
+    patterns:
+      - pattern: |
+          <$TAG ... dangerouslySetInnerHTML={{ __html: $VAL }} ... />
+      - pattern-not: |
+          <$TAG ... dangerouslySetInnerHTML={{ __html: ensureSafeHtml($VAL) }} ... />
+

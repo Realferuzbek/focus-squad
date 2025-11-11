@@ -1,13 +1,17 @@
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireAdminSession } from '@/lib/adminGuard';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import { todayTashkent } from '@/lib/tz';
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  const meEmail = session?.user?.email ?? '';
+  const guard = await requireAdminSession();
+  if (!guard.ok) {
+    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    return NextResponse.json({ error: message }, { status: guard.status });
+  }
+  const meEmail = guard.user.email;
   const url = new URL(req.url);
   const period = url.searchParams.get('period') ?? 'today';
 

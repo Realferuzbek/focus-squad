@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "test:security": "node ./scripts/security-headers.test.js",
+    "test:blocked": "node ./scripts/blocked-users.unit.test.js && node ./scripts/blocked-users.e2e.test.js",
+    "test:highlight": "node ./scripts/highlight.unit.test.js && node ./scripts/highlight.e2e.test.js",
     "test:csrf": "node ./scripts/csrf.test.js && node ./scripts/csrf-fetch-static.test.js",
     "test:session": "node ./scripts/session-cookie.test.js && node ./scripts/session-rotation.test.js",
     "lint": "next lint",

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { isLiveMember, mapLiveMessage } from "@/lib/live/server";
+import { buildHighlightSnippet } from "@/lib/highlight";
 
 const querySchema = z.object({
   q: z.string().trim().min(1).max(200),
@@ -72,24 +73,13 @@ export async function GET(req: NextRequest) {
 
   const messages = (data ?? []).map((row: any) => {
     const message = mapLiveMessage(row);
-    message.highlight = buildHighlight(message.text, parsed.q);
+    message.highlight = buildHighlightSnippet(message.text, parsed.q, {
+      maxLength: 200,
+    });
     return message;
   });
 
   return NextResponse.json({
     messages,
   });
-}
-
-function buildHighlight(text: string | null, query: string) {
-  if (!text) return null;
-  const condensed = text.replace(/\s+/g, " ").trim();
-  if (!condensed) return null;
-  const regex = new RegExp(`(${escapeRegExp(query)})`, "gi");
-  const snippet = condensed.slice(0, 200);
-  return snippet.replace(regex, "<mark>$1</mark>");
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

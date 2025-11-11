@@ -36,6 +36,7 @@ import LiveAdminDrawer from "@/components/community/LiveAdminDrawer";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import { trackLiveEvent } from "@/lib/analytics";
 import { csrfFetch } from "@/lib/csrf-client";
+import { buildPlainSnippet, ensureSafeHtml } from "@/lib/highlight";
 
 const EmojiPicker = dynamic(
   () =>
@@ -1754,7 +1755,9 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
                   <p
                     className="mt-2 text-base text-white"
                     dangerouslySetInnerHTML={{
-                      __html: message.highlight ?? highlightFallback(message),
+                      __html: ensureSafeHtml(
+                        message.highlight ?? highlightFallback(message),
+                      ),
                     }}
                   />
                 </button>
@@ -2063,8 +2066,6 @@ function formatBytes(bytes: number | null) {
 }
 
 function highlightFallback(message: LiveMessage) {
-  if (message.text) {
-    return message.text.replace(/\s+/g, " ").slice(0, 160);
-  }
-  return `[${message.kind.toUpperCase()}]`;
+  const source = message.text ?? `[${message.kind.toUpperCase()}]`;
+  return buildPlainSnippet(source, { maxLength: 160 }) ?? "";
 }
