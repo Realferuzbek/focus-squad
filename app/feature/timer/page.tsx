@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
 const TIMER_APP_SRC = "/timer/flip_countdown_new/index.html";
+const TIMER_TELEMETRY_ENABLED =
+  (process.env.ENABLE_TIMER_TELEMETRY ?? "1").trim() !== "0";
 
 export const metadata: Metadata = {
   title: "Timer",
@@ -10,7 +13,42 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default function TimerFeaturePage() {
+async function emitTimerTelemetry() {
+  if (!TIMER_TELEMETRY_ENABLED) return;
+  const requestHeaders = headers();
+  const forwardedFor =
+    requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+  const userAgent = requestHeaders.get("user-agent") ?? null;
+
+  try {
+    const probe = await fetch(TIMER_APP_SRC, {
+      method: "HEAD",
+      cache: "no-store",
+      redirect: "follow",
+    });
+    console.info("[timer-telemetry] embed probe ok", {
+      status: probe.status,
+      xFrameOptions: probe.headers.get("x-frame-options"),
+      csp: probe.headers.get("content-security-policy"),
+      vercelId: probe.headers.get("x-vercel-id"),
+      forwardedFor,
+      userAgent,
+    });
+  } catch (error) {
+    console.error("[timer-telemetry] embed probe failed", {
+      error:
+        error instanceof Error
+          ? { message: error.message, stack: error.stack }
+          : error,
+      forwardedFor,
+      userAgent,
+    });
+  }
+}
+
+export default async function TimerFeaturePage() {
+  await emitTimerTelemetry();
+
   return (
     <div className="min-h-[100dvh] w-full bg-[#050816]">
       <iframe
