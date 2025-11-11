@@ -47,6 +47,7 @@ function headersForResponse(context) {
   assert(!("Strict-Transport-Security" in headersDev), "HSTS must not be present in non-production");
   assert(headersDev["X-Content-Type-Options"] === "nosniff");
   assert("Content-Security-Policy" in headersDev, "CSP should be enforced by default");
+  assert.strictEqual(headersDev["X-Frame-Options"], "DENY");
 
   const headersProd = buildSecurityHeaders({ isProduction: true, isSecureTransport: true });
   assert(headersProd["Strict-Transport-Security"], "HSTS must be present in production+secure");
@@ -58,6 +59,14 @@ function headersForResponse(context) {
     "Explicitly disabling enforcement should emit report-only header",
   );
   process.env.SECURITY_CSP_ENFORCE = "1";
+})();
+
+(function testIframeAllowanceStripsFrameGuards() {
+  const headers = buildSecurityHeaders({ allowIframe: true });
+  assert(!("X-Frame-Options" in headers), "X-Frame-Options must be removed when iframe embedding is allowed");
+  const csp = headers["Content-Security-Policy"] ?? headers["Content-Security-Policy-Report-Only"];
+  assert(csp.includes("frame-ancestors 'self'"), "CSP should loosen frame-ancestors when iframe embedding is allowed");
+  assert(csp.includes("frame-src 'self'"), "CSP should loosen frame-src when iframe embedding is allowed");
 })();
 
 (function testDeriveHstsVariants() {
