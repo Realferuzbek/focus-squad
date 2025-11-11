@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import AdminSessionPanel from "@/components/AdminSessionPanel";
 import AdminAiToggle from "@/components/AdminAiToggle";
+import AdminAiDiagnostics from "@/components/AdminAiDiagnostics";
 import AdminPromoteForm from "@/components/AdminPromoteForm";
 
 export default async function AdminPage() {
@@ -33,6 +34,7 @@ export default async function AdminPage() {
 
         <div className="mt-10 space-y-8">
           <AdminAiToggle />
+          <AdminAiDiagnostics />
           <AdminSessionPanel />
 
           <section className="rounded-2xl border border-white/10 bg-[#0f0f18]/90 p-6 shadow-[0_18px_45px_-24px_rgba(140,122,245,0.35)]">
