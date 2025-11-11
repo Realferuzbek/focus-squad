@@ -2,17 +2,16 @@ import './globals.css';
 import type { Metadata } from 'next';
 import NextTopLoader from 'nextjs-toploader';
 import type { ReactNode } from 'react';
-import { Inter } from 'next/font/google';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Analytics } from '@vercel/analytics/next';
-import dynamic from 'next/dynamic';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
+// EFFECT: Defers the AI chat widget until idle so above-the-fold paint stays fast.
+import DeferredChatWidget from '@/components/DeferredChatWidget';
+import { inter } from '@/app/fonts';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://studywithferuzbek.vercel.app';
 const SITE_TITLE = 'Study with Feruzbek';
 const SITE_DESCRIPTION = 'Study tracker, timers, streaks & productivity tools by Feruzbek.';
-const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false });
-
 function sanitizeGoogleVerification(raw?: string | null) {
   if (!raw) return null;
   const trimmed = raw.trim();
@@ -29,12 +28,6 @@ function sanitizeGoogleVerification(raw?: string | null) {
 const GOOGLE_SITE_VERIFICATION =
   sanitizeGoogleVerification(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION) ||
   '0o6FVChUObGWIeZwtJr98EohQyDziejqoVX9TyxAQcc';
-
-const sans = Inter({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-sans',
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -95,7 +88,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} font-sans`}>
+    <html lang="en" className={`${inter.variable} font-sans`}>
       <head>
         <meta name="google-site-verification" content={GOOGLE_SITE_VERIFICATION} />
         <meta name="theme-color" content="#07070b" />
@@ -106,7 +99,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {children}
         <Analytics />
         <SpeedInsights />
-        <ChatWidget />
+        <DeferredChatWidget />
       </body>
     </html>
   );

@@ -1,42 +1,12 @@
-﻿// app/signin/page.tsx
+// app/signin/page.tsx
+export const dynamic = "force-static";
+
 import Image from "next/image";
-import GoogleSignInButton from "@/components/GoogleSignInButton";
-import {
-  resolveSignInError,
-  sanitizeCallbackPath,
-} from "@/lib/signin-messages";
+import { Suspense } from "react";
+import SignInInteractive from "@/components/SignInInteractive";
 
-type SignInPageProps = {
-  searchParams?: Record<string, string | string[] | undefined>;
-};
-
-export default function SignInPage({ searchParams = {} }: SignInPageProps) {
-  const errorCode =
-    typeof searchParams.error === "string" ? searchParams.error : undefined;
-  const errorMessage = resolveSignInError(errorCode);
-  const blockedParam = searchParams.blocked;
-  const isBlocked =
-    typeof blockedParam === "string"
-      ? blockedParam === "1"
-      : Array.isArray(blockedParam) && blockedParam.includes("1");
-  const blockedMessage = isBlocked
-    ? {
-        title: "Account temporarily locked",
-        description:
-          "Your account was blocked by an administrator. Please contact support if you believe this is a mistake.",
-      }
-    : null;
-
-  const callbackFromParams = searchParams.callbackUrl;
-  const callbackUrl =
-    sanitizeCallbackPath(callbackFromParams) ?? "/dashboard";
-
+export default function SignInPage() {
   const hintId = "signin-hint";
-  const alertId = errorMessage ? "signin-error" : undefined;
-  const blockedAlertId = blockedMessage ? "signin-blocked" : undefined;
-  const describedBy = [hintId, alertId, blockedAlertId]
-    .filter(Boolean)
-    .join(" ") || undefined;
 
   return (
     <div className="min-h-screen grid place-items-center bg-neutral-950 text-white">
@@ -57,36 +27,14 @@ export default function SignInPage({ searchParams = {} }: SignInPageProps) {
           </h1>
         </div>
 
-        {blockedMessage ? (
-          <div
-            id={blockedAlertId}
-            role="alert"
-            aria-live="assertive"
-            className="mb-4 rounded-2xl border border-yellow-500/40 bg-yellow-500/5 px-4 py-3 text-sm text-yellow-50"
-          >
-            <p className="font-semibold">{blockedMessage.title}</p>
-            <p className="mt-1 text-yellow-100/80">
-              {blockedMessage.description}
-            </p>
-          </div>
-        ) : null}
-
-        {errorMessage ? (
-          <div
-            id={alertId}
-            role="alert"
-            aria-live="polite"
-            className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100"
-          >
-            <p className="font-semibold">{errorMessage.title}</p>
-            <p className="mt-1 text-red-50/80">{errorMessage.description}</p>
-          </div>
-        ) : null}
-
-        <GoogleSignInButton
-          callbackUrl={callbackUrl}
-          describedById={describedBy}
-        />
+        <Suspense
+          // EFFECT: Streams the static hero immediately while query-param parsing hydrates later.
+          fallback={
+            <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80" />
+          }
+        >
+          <SignInInteractive defaultCallbackUrl="/dashboard" hintId={hintId} />
+        </Suspense>
 
         <p id={hintId} className="mt-4 text-center text-sm text-neutral-300">
           We only support Google sign-in. You&apos;ll be redirected back to your dashboard.

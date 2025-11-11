@@ -6,9 +6,19 @@ import { auth } from "@/lib/auth";
 import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
-import UsageHeartbeat from "@/components/UsageHeartbeat";
+import dynamic from "next/dynamic";
 import { getLanguageOptions, getTranslations, type FeatureKey } from "@/lib/i18n";
-import SessionEmailBridge from "@/components/SessionEmailBridge";
+
+// EFFECT: Defers dashboard client-side heartbeat until after first paint to free up FCP.
+const UsageHeartbeat = dynamic(() => import("@/components/UsageHeartbeat"), {
+  ssr: false,
+  loading: () => null,
+});
+// EFFECT: Lazily hydrates the email bridge so the server hero can stream immediately.
+const SessionEmailBridge = dynamic(() => import("@/components/SessionEmailBridge"), {
+  ssr: false,
+  loading: () => null,
+});
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -119,6 +129,8 @@ export default async function DashboardPage() {
                     alt="Avatar"
                     fill
                     sizes="64px"
+                    // EFFECT: Marked priority so the hero avatar (LCP) downloads immediately.
+                    priority
                     className="object-cover"
                   />
                 ) : (

@@ -65,8 +65,11 @@ async function emitTimerTelemetry() {
   }
 }
 
-export default async function TimerFeaturePage() {
-  await emitTimerTelemetry();
+export default function TimerFeaturePage() {
+  if (TIMER_TELEMETRY_ENABLED) {
+    // EFFECT: Fire-and-forget telemetry so the iframe can render without waiting on an extra fetch.
+    void emitTimerTelemetry();
+  }
 
   return (
     <div className="min-h-[100dvh] w-full bg-[#050816]">
@@ -74,7 +77,9 @@ export default async function TimerFeaturePage() {
         src={TIMER_APP_SRC}
         title="Focus Squad Timer"
         className="block h-[100dvh] min-h-[100dvh] w-full border-0"
-        loading="lazy"
+        // EFFECT: Prioritize the embedded timer so it becomes the LCP element faster.
+        fetchPriority="high"
+        importance="high"
         allow="fullscreen"
         allowFullScreen
       />

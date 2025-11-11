@@ -1,4 +1,9 @@
 /** @type {import('next').NextConfig} */
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+  openAnalyzer: false,
+});
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 let SUPABASE_HOST = undefined;
 if (SUPABASE_URL) {
@@ -32,9 +37,13 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: { 
     serverActions: { bodySizeLimit: '2mb' },
+    // EFFECT: Tree-shakes lucide/date-fns imports to keep bundles lean.
+    optimizePackageImports: ['lucide-react', 'date-fns'],
   },
   images: {
     remotePatterns,
+    // EFFECT: Enable modern image formats so hero assets load faster.
+    formats: ['image/avif', 'image/webp'],
   },
   env: {
     NEXT_PUBLIC_SITE_URL: SITE_URL,
@@ -46,4 +55,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = withBundleAnalyzer(nextConfig);
