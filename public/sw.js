@@ -1,4 +1,4 @@
-const CACHE_NAME = "focus-squad-pwa-v1";
+const CACHE_NAME = "focus-squad-pwa-v2";
 const PRECACHE_URLS = [
   "/manifest.json",
   "/favicon.ico",
@@ -6,6 +6,7 @@ const PRECACHE_URLS = [
   "/icons/icon-192.png",
   "/icons/icon-512.png",
 ];
+const BYPASS_CACHE_PATTERNS = [/^\/timer\//];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -39,6 +40,9 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
+  if (BYPASS_CACHE_PATTERNS.some((pattern) => pattern.test(url.pathname))) {
+    return;
+  }
 
   const isNavigationRequest = request.mode === "navigate";
   const useCacheFirst = [
@@ -47,7 +51,6 @@ self.addEventListener("fetch", (event) => {
     /^\/manifest\.json$/,
     /^\/logo\.svg$/,
     /^\/icons\//,
-    /^\/timer\//,
   ].some((pattern) => pattern.test(url.pathname));
 
   if (useCacheFirst) {

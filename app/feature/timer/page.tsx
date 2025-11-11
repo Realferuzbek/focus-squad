@@ -19,14 +19,32 @@ async function emitTimerTelemetry() {
   const forwardedFor =
     requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
   const userAgent = requestHeaders.get("user-agent") ?? null;
+  const proto = requestHeaders.get("x-forwarded-proto") ?? "https";
+  const host = requestHeaders.get("host");
+
+  const resolvedTimerUrl =
+    host != null
+      ? `${proto}://${host}${TIMER_APP_SRC}`
+      : process.env.NEXT_PUBLIC_SITE_URL
+        ? new URL(TIMER_APP_SRC, process.env.NEXT_PUBLIC_SITE_URL).toString()
+        : null;
+
+  if (!resolvedTimerUrl) {
+    console.warn("[timer-telemetry] skipped, timer URL could not be resolved", {
+      forwardedFor,
+      userAgent,
+    });
+    return;
+  }
 
   try {
-    const probe = await fetch(TIMER_APP_SRC, {
+    const probe = await fetch(resolvedTimerUrl, {
       method: "HEAD",
       cache: "no-store",
       redirect: "follow",
     });
     console.info("[timer-telemetry] embed probe ok", {
+      url: resolvedTimerUrl,
       status: probe.status,
       xFrameOptions: probe.headers.get("x-frame-options"),
       csp: probe.headers.get("content-security-policy"),
@@ -36,6 +54,7 @@ async function emitTimerTelemetry() {
     });
   } catch (error) {
     console.error("[timer-telemetry] embed probe failed", {
+      url: resolvedTimerUrl,
       error:
         error instanceof Error
           ? { message: error.message, stack: error.stack }
