@@ -108,7 +108,13 @@ function redactUrlOrigin(value: string | null | undefined): string | null {
 
 export async function middleware(req: NextRequest) {
   const url = req.nextUrl;
-  const securityContext = buildSecurityContext(req);
+  const baseSecurityContext = buildSecurityContext(req);
+  const isTimerFeaturePage =
+    url.pathname === "/feature/timer" ||
+    url.pathname.startsWith("/feature/timer/");
+  const securityContext = isTimerFeaturePage
+    ? { ...baseSecurityContext, allowIframe: true }
+    : baseSecurityContext;
 
   // Allow iframe embedding for timer HTML files and make timer assets public
   const isTimerPath = url.pathname.startsWith("/timer/");
@@ -116,10 +122,10 @@ export async function middleware(req: NextRequest) {
     const resp = NextResponse.next();
     // Allow iframe embedding for HTML files, regular headers for other assets
     const isTimerHtml = url.pathname.includes(".html");
-    return applySecurityHeaders(resp, { 
-      ...securityContext, 
-      allowIframe: isTimerHtml 
-    });
+    const timerSecurityContext = isTimerHtml
+      ? { ...baseSecurityContext, allowIframe: true }
+      : baseSecurityContext;
+    return applySecurityHeaders(resp, timerSecurityContext);
   }
 
   if (isPublic(req)) {
