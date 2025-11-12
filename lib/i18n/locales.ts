@@ -19,7 +19,8 @@ export type FeatureKey =
 export interface NavbarTranslations {
   reviewerPanel: string;
   switchAccount: string;
-  signOut: string;
+  deleteAccount: string;
+  deleteAccountConfirm: string;
   languageMenuLabel: string;
   languages: Record<Locale, string>;
 }
@@ -80,7 +81,9 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
     nav: {
       reviewerPanel: "Reviewer panel",
       switchAccount: "Switch account",
-      signOut: "Sign out",
+      deleteAccount: "Delete account",
+      deleteAccountConfirm:
+        "Deleting your account removes your profile, saved progress, and Telegram link. This cannot be undone. Continue?",
       languageMenuLabel: "Change language",
       languages: {
         en: "English",
@@ -181,7 +184,9 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
     nav: {
       reviewerPanel: "Панель ревьюеров",
       switchAccount: "Сменить аккаунт",
-      signOut: "Выйти",
+      deleteAccount: "Удалить аккаунт",
+      deleteAccountConfirm:
+        "Удаление аккаунта уберёт профиль, историю и связь с Telegram. Это действие необратимо. Продолжить?",
       languageMenuLabel: "Выбрать язык",
       languages: {
         en: "Английский",
@@ -283,7 +288,9 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
     nav: {
       reviewerPanel: "Sharhlovchilar paneli",
       switchAccount: "Hisobni almashtirish",
-      signOut: "Chiqish",
+      deleteAccount: "Hisobni o'chirish",
+      deleteAccountConfirm:
+        "Hisobingiz, saqlangan ma'lumotlar va Telegram bog'lanishi to'liq o'chiriladi. Bu amalni qaytarib bo'lmaydi. Davom etasizmi?",
       languageMenuLabel: "Tilni tanlash",
       languages: {
         en: "Inglizcha",

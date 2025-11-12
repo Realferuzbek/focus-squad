@@ -12,7 +12,8 @@ type NavbarProps = {
   translations: {
     reviewerPanel: string;
     switchAccount: string;
-    signOut: string;
+    deleteAccount: string;
+    deleteAccountConfirm: string;
     languageMenuLabel: string;
   };
   languageOptions: LanguageOption[];
@@ -54,7 +55,8 @@ export default function Navbar({
           <AvatarMenu
             avatarUrl={avatarUrl}
             switchAccountLabel={translations.switchAccount}
-            signOutLabel={translations.signOut}
+            deleteAccountLabel={translations.deleteAccount}
+            deleteAccountConfirm={translations.deleteAccountConfirm}
           />
         </nav>
       </div>
