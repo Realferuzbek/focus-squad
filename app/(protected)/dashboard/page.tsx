@@ -3,10 +3,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { getCachedSession } from "@/lib/server-session";
-import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import dynamicImport from "next/dynamic";
+import AvatarBadge from "@/components/AvatarBadge";
 import {
   getLanguageOptions,
   getTranslations,
@@ -34,6 +34,7 @@ export default async function DashboardPage() {
   const session = await getCachedSession();
   const user = session!.user as any;
   const avatarSrc = user?.avatar_url ?? user?.image ?? null;
+  const displayName = session?.user?.name ?? null;
 
   const { locale, t } = getTranslations();
   const languageOptions = getLanguageOptions(locale);
@@ -123,6 +124,8 @@ export default async function DashboardPage() {
       <Navbar
         isAdmin={!!user.is_admin}
         avatarUrl={avatarSrc}
+        viewerName={displayName}
+        viewerEmail={user?.email ?? null}
         locale={locale}
         translations={t.nav}
         languageOptions={languageOptions}
@@ -132,23 +135,14 @@ export default async function DashboardPage() {
         <section className="mb-10 overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-[#1f1f33] via-[#121225] to-[#0a0a14] p-6 shadow-[0_25px_70px_rgba(104,67,255,0.25)]">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
-              <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-white/20 bg-white/10">
-                {avatarSrc ? (
-                  <Image
-                    src={avatarSrc}
-                    alt="Avatar"
-                    fill
-                    sizes="64px"
-                    // EFFECT: Marked priority so the hero avatar (LCP) downloads immediately.
-                    priority
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="grid h-full w-full place-items-center text-2xl">
-                    🎯
-                  </div>
-                )}
-              </div>
+              <AvatarBadge
+                avatarUrl={avatarSrc}
+                name={displayName}
+                email={user?.email ?? null}
+                size={64}
+                priority
+                alt="Dashboard avatar"
+              />
               <div>
                 <p className="text-sm uppercase tracking-[0.35em] text-fuchsia-300/70">
                   {t.dashboard.welcomeTag}
@@ -160,14 +154,6 @@ export default async function DashboardPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button className="rounded-2xl border border-white/20 px-5 py-2 text-sm font-semibold text-white/90 transition hover:border-fuchsia-500/60 hover:text-white">
-                {t.dashboard.viewProfile}
-              </button>
-              <button className="rounded-2xl bg-gradient-to-r from-[#8b5cf6] via-[#a855f7] to-[#ec4899] px-5 py-2 text-sm font-semibold shadow-[0_18px_35px_rgba(138,92,246,0.35)]">
-                {t.dashboard.settings}
-              </button>
-            </div>
           </div>
         </section>
 

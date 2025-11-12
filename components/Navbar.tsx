@@ -8,6 +8,8 @@ import type { LanguageOption, Locale } from "@/lib/i18n";
 type NavbarProps = {
   isAdmin?: boolean;
   avatarUrl?: string | null;
+  viewerName?: string | null;
+  viewerEmail?: string | null;
   locale: Locale;
   translations: {
     reviewerPanel: string;
@@ -22,6 +24,8 @@ type NavbarProps = {
 export default function Navbar({
   isAdmin = false,
   avatarUrl,
+  viewerName,
+  viewerEmail,
   locale,
   translations,
   languageOptions,
@@ -54,6 +58,8 @@ export default function Navbar({
 
           <AvatarMenu
             avatarUrl={avatarUrl}
+            name={viewerName}
+            email={viewerEmail}
             switchAccountLabel={translations.switchAccount}
             deleteAccountLabel={translations.deleteAccount}
             deleteAccountConfirm={translations.deleteAccountConfirm}

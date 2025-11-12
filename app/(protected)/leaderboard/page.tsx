@@ -178,6 +178,8 @@ export default async function LeaderboardPage() {
       <Navbar
         isAdmin={!!viewer?.is_admin}
         avatarUrl={avatarSrc}
+        viewerName={viewer?.name ?? null}
+        viewerEmail={viewer?.email ?? null}
         locale={locale}
         translations={t.nav}
         languageOptions={languageOptions}

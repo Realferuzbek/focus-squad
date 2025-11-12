@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { csrfFetch } from "@/lib/csrf-client";
+import AvatarBadge from "@/components/AvatarBadge";
 
 type AvatarMenuProps = {
   avatarUrl?: string | null;
+  name?: string | null;
+  email?: string | null;
   switchAccountLabel: string;
   deleteAccountLabel: string;
   deleteAccountConfirm?: string;
@@ -14,6 +16,8 @@ type AvatarMenuProps = {
 
 export default function AvatarMenu({
   avatarUrl,
+  name,
+  email,
   switchAccountLabel,
   deleteAccountLabel,
   deleteAccountConfirm,
@@ -73,23 +77,19 @@ export default function AvatarMenu({
   return (
     <div className="relative" ref={containerRef}>
       <button
+        type="button"
         onClick={() => setOpen((value) => !value)}
-        className="relative h-10 w-10 overflow-hidden rounded-full border border-white/15 bg-[#11111f] shadow-[0_15px_35px_rgba(10,10,20,0.45)] transition hover:border-white/30"
+        className="rounded-full transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/70"
         aria-label="Account menu"
       >
-        {avatarUrl ? (
-          <Image
-            src={avatarUrl}
-            alt="avatar"
-            fill
-            sizes="36px"
-            className="object-cover"
-          />
-        ) : (
-          <div className="grid h-full w-full place-items-center bg-neutral-800">
-            <span className="text-xs">🙂</span>
-          </div>
-        )}
+        <AvatarBadge
+          avatarUrl={avatarUrl}
+          name={name}
+          email={email}
+          size={40}
+          alt="Account avatar"
+          className="shadow-[0_15px_35px_rgba(10,10,30,0.6)]"
+        />
       </button>
 
       {open ? (

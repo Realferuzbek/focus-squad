@@ -3,17 +3,11 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import GlowPanel from "@/components/GlowPanel";
-import LiveStreamCard from "@/components/community/LiveStreamCard";
 
 const upcomingCards = [
   {
     title: "Groups Chat",
     description: "Spin up micro-communities to tackle shared goals together.",
-    tag: "Soon",
-  },
-  {
-    title: "Anonymous Chat",
-    description: "Share candid updates and feedback—no names attached.",
     tag: "Soon",
   },
 ];
@@ -58,8 +52,6 @@ export default function CommunityPage() {
               </div>
             </GlowPanel>
           </Link>
-
-          <LiveStreamCard />
 
           {upcomingCards.map((card) => (
             <GlowPanel key={card.title} subtle className="p-6 md:p-8">
