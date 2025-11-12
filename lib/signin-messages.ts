@@ -47,6 +47,12 @@ const MESSAGE_MAP: Record<string, SignInErrorMessage> = {
   },
 };
 
+export const SWITCH_ACCOUNT_DISABLED_NOTICE: SignInErrorMessage = {
+  title: "Switch account temporarily unavailable",
+  description:
+    "Switching Google accounts is disabled right now. Sign out of your current account first to use a different one.",
+};
+
 export function resolveSignInError(
   errorCode?: string | null,
 ): SignInErrorMessage | null {

@@ -5,7 +5,11 @@ import { useSearchParams } from "next/navigation";
 import {
   resolveSignInError,
   sanitizeCallbackPath,
+  SWITCH_ACCOUNT_DISABLED_NOTICE,
 } from "@/lib/signin-messages";
+
+const SWITCH_ACCOUNT_ENABLED =
+  process.env.NEXT_PUBLIC_ENABLE_SWITCH_ACCOUNT === "1";
 
 type SignInInteractiveProps = {
   defaultCallbackUrl: string;
@@ -19,7 +23,8 @@ export default function SignInInteractive({
   const params = useSearchParams();
   const [redirecting, setRedirecting] = useState(false);
 
-  const switchMode = params.get("switch") === "1";
+  const switchRequested = params.get("switch") === "1";
+  const switchMode = SWITCH_ACCOUNT_ENABLED && switchRequested;
 
   const errorCode = params.get("error");
   const blockedValues = params.getAll("blocked");
@@ -51,8 +56,11 @@ export default function SignInInteractive({
 
   const alertId = errorMessage ? "signin-error" : undefined;
   const blockedAlertId = blockedMessage ? "signin-blocked" : undefined;
+  const switchAlertId = !switchMode && switchRequested ? "signin-switch" : undefined;
   const describedBy =
-    [hintId, alertId, blockedAlertId].filter(Boolean).join(" ") || undefined;
+    [hintId, alertId, blockedAlertId, switchAlertId]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   const handleClick = useCallback(() => {
     if (redirecting) return;
@@ -105,6 +113,22 @@ export default function SignInInteractive({
         >
           <p className="font-semibold">{errorMessage.title}</p>
           <p className="mt-1 text-red-50/80">{errorMessage.description}</p>
+        </div>
+      ) : null}
+
+      {!switchMode && switchRequested ? (
+        <div
+          id={switchAlertId}
+          role="status"
+          aria-live="polite"
+          className="mb-4 rounded-2xl border border-fuchsia-500/30 bg-fuchsia-500/10 px-4 py-3 text-sm text-fuchsia-100"
+        >
+          <p className="font-semibold">
+            {SWITCH_ACCOUNT_DISABLED_NOTICE.title}
+          </p>
+          <p className="mt-1 text-fuchsia-100/80">
+            {SWITCH_ACCOUNT_DISABLED_NOTICE.description}
+          </p>
         </div>
       ) : null}
 

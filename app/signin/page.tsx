@@ -1,12 +1,33 @@
 // app/signin/page.tsx
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
 import Image from "next/image";
+import Link from "next/link";
 import { Suspense } from "react";
 import SignInInteractive from "@/components/SignInInteractive";
+import { getCachedSession } from "@/lib/server-session";
+import { SWITCH_ACCOUNT_DISABLED_NOTICE } from "@/lib/signin-messages";
 
-export default function SignInPage() {
+type SignInPageProps = {
+  searchParams?: Record<string, string | string[] | undefined>;
+};
+
+function isSwitchRequested(
+  searchParams?: Record<string, string | string[] | undefined>,
+) {
+  if (!searchParams) return false;
+  const raw = searchParams.switch;
+  if (Array.isArray(raw)) {
+    return raw.some((value) => value === "1");
+  }
+  return raw === "1";
+}
+
+export default async function SignInPage({ searchParams }: SignInPageProps) {
   const hintId = "signin-hint";
+  const session = await getCachedSession();
+  const isSignedIn = !!session?.user;
+  const switchRequested = isSwitchRequested(searchParams);
 
   return (
     <div className="min-h-screen grid place-items-center bg-neutral-950 text-white">
@@ -27,18 +48,50 @@ export default function SignInPage() {
           </h1>
         </div>
 
-        <Suspense
-          // EFFECT: Streams the static hero immediately while query-param parsing hydrates later.
-          fallback={
-            <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80" />
-          }
-        >
-          <SignInInteractive defaultCallbackUrl="/dashboard" hintId={hintId} />
-        </Suspense>
+        {switchRequested && isSignedIn ? (
+          <div className="mb-4 rounded-2xl border border-fuchsia-500/30 bg-fuchsia-500/10 px-4 py-3 text-sm text-fuchsia-50">
+            <p className="font-semibold">
+              {SWITCH_ACCOUNT_DISABLED_NOTICE.title}
+            </p>
+            <p className="mt-1 text-fuchsia-100/80">
+              {SWITCH_ACCOUNT_DISABLED_NOTICE.description}
+            </p>
+          </div>
+        ) : null}
+
+        {isSignedIn ? (
+          <div className="space-y-3 text-center">
+            <Link
+              href="/dashboard"
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-[#8b5cf6] via-[#a855f7] to-[#ec4899] px-6 py-3 text-base font-semibold shadow-[0_18px_35px_rgba(138,92,246,0.35)] transition hover:shadow-[0_25px_50px_rgba(138,92,246,0.45)]"
+            >
+              Go to dashboard
+            </Link>
+            <Link
+              href="/api/auth/signout?callbackUrl=/signin"
+              className="inline-flex w-full items-center justify-center rounded-2xl border border-white/15 px-6 py-3 text-sm font-medium text-white/90 transition hover:border-white/30 hover:text-white"
+            >
+              Sign out
+            </Link>
+          </div>
+        ) : (
+          <Suspense
+            // EFFECT: Streams the static hero immediately while query-param parsing hydrates later.
+            fallback={
+              <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80" />
+            }
+          >
+            <SignInInteractive
+              defaultCallbackUrl="/dashboard"
+              hintId={hintId}
+            />
+          </Suspense>
+        )}
 
         <p id={hintId} className="mt-4 text-center text-sm text-neutral-300">
-          We only support Google sign-in. You&apos;ll be redirected back to your
-          dashboard.
+          {isSignedIn
+            ? "You're already signed in. Use the dashboard shortcut above or sign out to switch Google accounts."
+            : "We only support Google sign-in. You'll be redirected back to your dashboard."}
         </p>
       </main>
     </div>
