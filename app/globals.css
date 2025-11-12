@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --flag-size-s: 24px;
+  --flag-size-m: 32px;
+  --flag-size-l: 40px;
+  --flag-ring-inner: rgba(255, 255, 255, 0.22);
+  --flag-ring-outer: rgba(255, 255, 255, 0.06);
+  --accent: hsl(270 90% 60%);
+}
+
 /* ---- Chat: hide native scroll chrome (no floating widgets), keep wheel/touch scrolling ---- */
 .hide-scrollbar {
   -ms-overflow-style: none;
@@ -31,4 +40,135 @@
 .chat-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+.flag {
+  --flag-size: var(--flag-size-m);
+  width: var(--flag-size);
+  height: var(--flag-size);
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  vertical-align: middle;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  appearance: none;
+  line-height: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+  color: inherit;
+}
+
+.flag--s {
+  --flag-size: var(--flag-size-s);
+}
+
+.flag--m {
+  --flag-size: var(--flag-size-m);
+}
+
+.flag--l {
+  --flag-size: var(--flag-size-l);
+}
+
+.flag-shell {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: block;
+}
+
+.flag-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.5px var(--flag-ring-inner);
+  pointer-events: none;
+}
+
+.flag-shell::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--flag-ring-outer);
+  pointer-events: none;
+}
+
+.flag-shell svg,
+.flag-shell img,
+.flag-asset {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.flag-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 0%,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0) 35%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.flag:hover {
+  transform: scale(1.04);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+.flag:hover .flag-shell::after {
+  box-shadow:
+    0 0 0 1px var(--flag-ring-outer),
+    0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+
+.flag:active {
+  transform: scale(0.98);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.flag.is-selected .flag-shell::after {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.flag.is-selected .flag-sheen {
+  opacity: 1;
+}
+
+.flag:focus-visible {
+  outline: 2px dotted var(--accent);
+  outline-offset: 4px;
+}
+
+.flag[disabled] {
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.flag[disabled] .flag-shell {
+  filter: saturate(0.6) brightness(0.85);
+}
+
+.flag[disabled] .flag-shell::before {
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+}
+
+.flag[disabled] .flag-shell::after {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
