@@ -9,6 +9,10 @@
   --flag-ring-inner: rgba(255, 255, 255, 0.22);
   --flag-ring-outer: rgba(255, 255, 255, 0.06);
   --accent: hsl(270 90% 60%);
+  --flag-bg-rest: rgba(255, 255, 255, 0.03);
+  --flag-bg-hover: rgba(255, 255, 255, 0.05);
+  --flag-bg-pressed: rgba(255, 255, 255, 0.07);
+  --flag-bg-disabled: rgba(255, 255, 255, 0.015);
 }
 
 /* ---- Chat: hide native scroll chrome (no floating widgets), keep wheel/touch scrolling ---- */
@@ -81,6 +85,7 @@
   overflow: hidden;
   isolation: isolate;
   display: block;
+  background: var(--flag-bg-rest);
 }
 
 .flag-shell::before {
@@ -136,9 +141,17 @@
     0 0 0 3px rgba(255, 255, 255, 0.06);
 }
 
+.flag:hover .flag-shell {
+  background: var(--flag-bg-hover);
+}
+
 .flag:active {
   transform: scale(0.98);
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.flag:active .flag-shell {
+  background: var(--flag-bg-pressed);
 }
 
 .flag.is-selected .flag-shell::after {
@@ -163,6 +176,7 @@
 
 .flag[disabled] .flag-shell {
   filter: saturate(0.6) brightness(0.85);
+  background: var(--flag-bg-disabled);
 }
 
 .flag[disabled] .flag-shell::before {
