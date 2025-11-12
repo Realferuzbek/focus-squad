@@ -46,19 +46,28 @@ assert(safeEqual(undefined, t1) === false, "safeEqual handles undefined");
 
 // Deterministic getRandomValues path
 (function testDeterministicGetRandomValues() {
-  const originalCrypto = globalThis.crypto;
+  const hasCrypto = typeof globalThis.crypto !== "undefined";
+  const originalCrypto = hasCrypto ? globalThis.crypto : undefined;
+  const originalGetRandomValues =
+    hasCrypto && typeof originalCrypto.getRandomValues === "function"
+      ? originalCrypto.getRandomValues
+      : undefined;
   const stubValue = 0xab;
-  const stubbedCrypto = {
-    ...(originalCrypto ?? {}),
-    getRandomValues(target) {
-      const filled = target;
-      for (let i = 0; i < filled.length; i += 1) {
-        filled[i] = stubValue;
-      }
-      return filled;
-    },
+
+  const stubGetRandomValues = (target) => {
+    const filled = target;
+    for (let i = 0; i < filled.length; i += 1) {
+      filled[i] = stubValue;
+    }
+    return filled;
   };
-  globalThis.crypto = stubbedCrypto;
+
+  if (hasCrypto) {
+    globalThis.crypto.getRandomValues = stubGetRandomValues;
+  } else {
+    globalThis.crypto = { getRandomValues: stubGetRandomValues };
+  }
+
   const { generateCsrfToken: deterministicGenerator } = loadCsrf();
   const deterministicToken = deterministicGenerator();
   assert.strictEqual(
@@ -66,10 +75,15 @@ assert(safeEqual(undefined, t1) === false, "safeEqual handles undefined");
     "ab".repeat(32),
     "deterministic generator should honor custom getRandomValues",
   );
-  if (originalCrypto === undefined) {
+
+  if (!hasCrypto) {
     delete globalThis.crypto;
   } else {
-    globalThis.crypto = originalCrypto;
+    if (originalGetRandomValues) {
+      globalThis.crypto.getRandomValues = originalGetRandomValues;
+    } else {
+      delete globalThis.crypto.getRandomValues;
+    }
   }
   loadCsrf();
 })();

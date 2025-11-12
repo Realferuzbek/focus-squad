@@ -14,10 +14,15 @@ const ignoredExtensions = new Set([
 ]);
 const ignoredPrefixes = ["docs/"];
 
+const IGNORED_FILES = new Set(["scripts/verify-separation.mjs"]);
+
 const files = execSync("git ls-files", { encoding: "utf8" })
   .split("\n")
   .filter(Boolean)
   .filter((file) => {
+    if (IGNORED_FILES.has(file)) {
+      return false;
+    }
     if (ignoredPrefixes.some((prefix) => file.startsWith(prefix))) {
       return false;
     }

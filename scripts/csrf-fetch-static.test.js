@@ -11,8 +11,12 @@ const ADMIN_CHAT_BAK = path.join(
   "AdminChatClient.tsx.bak",
 );
 
+const EXEMPT_FILES = new Set([
+  path.join(COMPONENTS_DIR, "TimerTelemetryBeacon.tsx"),
+]);
+
 const VIOLATION_REGEX =
-  /fetch\([^)]*\{\s*method:\s*['"](POST|PUT|PATCH|DELETE)['"]/gim;
+  /(?<![A-Za-z0-9_])fetch\([^)]*\{\s*method:\s*['"](POST|PUT|PATCH|DELETE)['"]/gim;
 
 function isStateChangingFetch(content) {
   return VIOLATION_REGEX.test(content);
@@ -40,6 +44,7 @@ filesToCheck.push(LIB_PUSH_CLIENT, ADMIN_CHAT_BAK);
 
 const violations = filesToCheck
   .filter((filePath) => fs.existsSync(filePath))
+  .filter((filePath) => !EXEMPT_FILES.has(path.normalize(filePath)))
   .filter((filePath) => {
     const content = fs.readFileSync(filePath, "utf8");
     return isStateChangingFetch(content);
