@@ -23,7 +23,66 @@ const SESSION_COOKIE_SECURE =
   process.env.NODE_ENV === "production" ||
   (process.env.NEXTAUTH_URL ?? "").startsWith("https://");
 
-const PROFILE_REFRESH_INTERVAL_MS = 15_000;
+const USER_PROFILE_COLUMNS =
+  "id,is_admin,is_dm_admin,telegram_user_id,avatar_url,name,display_name,is_blocked";
+
+const PROFILE_REFRESH_INTERVAL_MS = 60_000; // refresh Supabase profile at most once per minute.
+
+type UserProfileRecord = {
+  id: string;
+  is_admin?: boolean | null;
+  is_dm_admin?: boolean | null;
+  telegram_user_id?: string | null;
+  avatar_url?: string | null;
+  name?: string | null;
+  display_name?: string | null;
+  is_blocked?: boolean | null;
+};
+
+function normalizeProfileRecord(
+  record?: Partial<UserProfileRecord> | null,
+): UserProfileRecord | null {
+  if (!record) return null;
+  const idValue = record.id ?? (record as any).uid;
+  if (!idValue) return null;
+  return {
+    id: typeof idValue === "string" ? idValue : `${idValue}`,
+    is_admin:
+      typeof record.is_admin === "boolean" ? record.is_admin : record.is_admin,
+    is_dm_admin:
+      typeof record.is_dm_admin === "boolean"
+        ? record.is_dm_admin
+        : record.is_dm_admin,
+    telegram_user_id:
+      typeof record.telegram_user_id === "string"
+        ? record.telegram_user_id
+        : record.telegram_user_id ?? null,
+    avatar_url:
+      typeof record.avatar_url === "string" ? record.avatar_url : null,
+    name: typeof record.name === "string" ? record.name : null,
+    display_name:
+      typeof record.display_name === "string" ? record.display_name : null,
+    is_blocked:
+      typeof record.is_blocked === "boolean" ? record.is_blocked : null,
+  };
+}
+
+async function fetchUserProfileByEmail(
+  email: string,
+): Promise<UserProfileRecord | null> {
+  if (!email) return null;
+  try {
+    const sb = supabaseAdmin();
+    const { data } = await sb
+      .from("users")
+      .select(USER_PROFILE_COLUMNS)
+      .eq("email", email)
+      .maybeSingle();
+    return normalizeProfileRecord(data ?? undefined);
+  } catch {
+    return null;
+  }
+}
 
 function mintSessionState(now: number) {
   try {
@@ -73,22 +132,43 @@ export const authOptions: NextAuthOptions = {
 
         const { data: existing } = await sb
           .from("users")
-          .select("id,email,is_admin,is_blocked")
+          .select(USER_PROFILE_COLUMNS)
           .eq("email", email)
           .maybeSingle();
 
         if (shouldDenySignIn(existing)) {
           return false;
-        } else if (!existing) {
-          await sb.from("users").insert({
-            email,
-            name: user.name,
-            display_name: user.name,
-            avatar_url: user.image ?? null,
-            is_admin: ADMIN_EMAILS.has(email),
-          });
+        }
+
+        let profileRecord = normalizeProfileRecord(existing ?? undefined);
+
+        if (!existing) {
+          const { data: inserted } = await sb
+            .from("users")
+            .insert({
+              email,
+              name: user.name,
+              display_name: user.name,
+              avatar_url: user.image ?? null,
+              is_admin: ADMIN_EMAILS.has(email),
+            })
+            .select(USER_PROFILE_COLUMNS)
+            .single();
+          profileRecord =
+            normalizeProfileRecord(inserted ?? undefined) ?? profileRecord;
         } else if (ADMIN_EMAILS.has(email) && !existing.is_admin) {
-          await sb.from("users").update({ is_admin: true }).eq("email", email);
+          const { data: updated } = await sb
+            .from("users")
+            .update({ is_admin: true })
+            .eq("email", email)
+            .select(USER_PROFILE_COLUMNS)
+            .single();
+          profileRecord =
+            normalizeProfileRecord(updated ?? undefined) ?? profileRecord;
+        }
+
+        if (profileRecord) {
+          (user as any).__profile = profileRecord;
         }
       } catch {}
       // On sign-in we want a fresh session identifier (sid) to mitigate fixation.
@@ -146,30 +226,53 @@ export const authOptions: NextAuthOptions = {
         typeof (token as any).profileRefreshedAt === "number"
           ? ((token as any).profileRefreshedAt as number)
           : 0;
-      const shouldRefreshProfile =
-        !!user ||
-        !profileRefreshedAt ||
-        now - profileRefreshedAt > PROFILE_REFRESH_INTERVAL_MS;
 
-      if (shouldRefreshProfile) {
+      const profileFromSignIn = normalizeProfileRecord(
+        (user as any)?.__profile ?? null,
+      );
+
+      const applyProfileRecord = (record: UserProfileRecord | null) => {
+        if (!record) return;
+        if (record.id) {
+          nextUid = record.id;
+        }
+        if (typeof record.is_admin === "boolean") {
+          nextIsAdmin = record.is_admin;
+        } else if (!nextIsAdmin) {
+          nextIsAdmin = ADMIN_EMAILS.has(email);
+        }
+        if (typeof record.is_dm_admin === "boolean") {
+          nextIsDmAdmin = record.is_dm_admin;
+        }
+        if (record.telegram_user_id !== undefined) {
+          nextTelegramLinked = !!record.telegram_user_id;
+        }
+        if (record.avatar_url !== undefined) {
+          nextAvatarUrl = record.avatar_url ?? null;
+        }
+        const candidateDisplay =
+          record.display_name ?? record.name ?? nextDisplayName;
+        nextDisplayName = candidateDisplay;
+        nextIsBlocked = resolveBlockedStatus(nextIsBlocked, record);
+      };
+
+      if (profileFromSignIn) {
+        applyProfileRecord(profileFromSignIn);
+        profileRefreshedAt = now;
+      } else if (
+        !profileRefreshedAt ||
+        now - profileRefreshedAt > PROFILE_REFRESH_INTERVAL_MS
+      ) {
         try {
           const sb = supabaseAdmin();
           const { data } = await sb
             .from("users")
-            .select(
-              "id,is_admin,is_dm_admin,telegram_user_id,avatar_url,name,display_name,is_blocked",
-            )
+            .select(USER_PROFILE_COLUMNS)
             .eq("email", email)
             .maybeSingle();
 
           if (data) {
-            nextUid = data.id;
-            nextIsAdmin = !!data.is_admin;
-            nextIsDmAdmin = !!data.is_dm_admin;
-            nextTelegramLinked = !!data.telegram_user_id;
-            nextAvatarUrl = data.avatar_url ?? null;
-            nextDisplayName = data.display_name ?? data.name ?? null;
-            nextIsBlocked = resolveBlockedStatus(nextIsBlocked, data);
+            applyProfileRecord(normalizeProfileRecord(data));
           } else {
             nextIsAdmin = ADMIN_EMAILS.has(email);
             nextIsDmAdmin = false;

@@ -1,4 +1,5 @@
 {
+  "regions": ["bom1", "sin1"],
   "crons": [{ "path": "/api/reindex", "schedule": "0 3 * * *" }],
   "ignoreCommand": "echo \"forcing build\" && exit 1"
 }
