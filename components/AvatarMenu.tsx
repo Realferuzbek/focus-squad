@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { signOut } from "next-auth/react";
 import { csrfFetch } from "@/lib/csrf-client";
 import AvatarBadge from "@/components/AvatarBadge";
 
@@ -23,6 +23,7 @@ export default function AvatarMenu({
   deleteAccountConfirm,
 }: AvatarMenuProps) {
   const [open, setOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -43,8 +44,28 @@ export default function AvatarMenu({
     if (!open) {
       setError(null);
       setDeleting(false);
+      setSwitching(false);
     }
   }, [open]);
+
+  const handleSwitchAccount = useCallback(async () => {
+    if (switching) return;
+    setError(null);
+    setSwitching(true);
+    setOpen(false);
+    try {
+      await signOut({
+        callbackUrl: "/signin?switch=1",
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Unable to switch accounts right now.";
+      setError(message);
+      setSwitching(false);
+    }
+  }, [switching]);
 
   const handleDelete = useCallback(async () => {
     if (deleting) return;
@@ -94,13 +115,14 @@ export default function AvatarMenu({
 
       {open ? (
         <div className="absolute right-0 top-14 min-w-48 rounded-2xl border border-white/10 bg-[#09090f]/95 p-3 text-sm shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur">
-          <Link
-            href="/api/auth/signout?callbackUrl=/signin?switch=1"
-            className="block rounded-xl px-3 py-2 text-white/70 transition hover:bg-white/10 hover:text-white"
-            onClick={() => setOpen(false)}
+          <button
+            type="button"
+            onClick={handleSwitchAccount}
+            disabled={switching}
+            className="block w-full rounded-xl px-3 py-2 text-left text-white/75 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {switchAccountLabel}
-          </Link>
+            {switching ? `${switchAccountLabel}…` : switchAccountLabel}
+          </button>
           <button
             type="button"
             onClick={handleDelete}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   resolveSignInError,
@@ -18,6 +18,8 @@ export default function SignInInteractive({
 }: SignInInteractiveProps) {
   const params = useSearchParams();
   const [redirecting, setRedirecting] = useState(false);
+
+  const switchMode = params.get("switch") === "1";
 
   const errorCode = params.get("error");
   const blockedValues = params.getAll("blocked");
@@ -58,8 +60,25 @@ export default function SignInInteractive({
     // EFFECT: Starts the Google OAuth flow without bundling next-auth/react, keeping JS light.
     const url = new URL("/api/auth/signin/google", window.location.origin);
     url.searchParams.set("callbackUrl", callbackUrl);
+    if (switchMode) {
+      url.searchParams.set("prompt", "select_account");
+    }
     window.location.assign(url.toString());
-  }, [callbackUrl, redirecting]);
+  }, [callbackUrl, redirecting, switchMode]);
+
+  useEffect(() => {
+    if (switchMode && !redirecting) {
+      handleClick();
+    }
+  }, [handleClick, redirecting, switchMode]);
+
+  const idleLabel = switchMode
+    ? "Switch account with Google"
+    : "Continue with Google";
+  const redirectLabel = switchMode ? "Switching..." : "Redirecting...";
+  const srStatus = switchMode
+    ? "Switching accounts through Google..."
+    : "Redirecting to Google...";
 
   return (
     <>
@@ -98,9 +117,9 @@ export default function SignInInteractive({
         className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl bg-[linear-gradient(120deg,#7c3aed,#8b5cf6,#a855f7,#ec4899)] px-6 text-sm font-semibold text-white shadow-[0_20px_40px_rgba(123,58,237,0.35)] transition-transform duration-200 hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-75"
       >
         <span role="status" aria-live="polite" className="sr-only">
-          {redirecting ? "Redirecting to Google..." : ""}
+          {redirecting ? srStatus : ""}
         </span>
-        {redirecting ? "Redirecting..." : "Continue with Google"}
+        {redirecting ? redirectLabel : idleLabel}
       </button>
     </>
   );

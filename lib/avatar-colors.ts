@@ -6,6 +6,7 @@ type AvatarVisualInput = {
 type AvatarVisuals = {
   initial: string;
   ringStart: string;
+  ringAccent: string;
   ringEnd: string;
   innerStart: string;
   innerEnd: string;
@@ -37,14 +38,16 @@ export function getAvatarVisuals({
   const hash = hashString(identifier);
   const hue = hash % 360;
 
-  const ringStart = hsl(hue, 85, 62);
-  const ringEnd = hsl((hue + 45) % 360, 85, 54);
+  const ringStart = hsl(hue, 88, 62);
+  const ringAccent = hsl((hue + 24) % 360, 92, 68);
+  const ringEnd = hsl((hue + 65) % 360, 80, 56);
   const innerStart = hsl((hue + 95) % 360, 70, 42);
   const innerEnd = hsl((hue + 130) % 360, 70, 52);
 
   return {
     initial: firstSymbol,
     ringStart,
+    ringAccent,
     ringEnd,
     innerStart,
     innerEnd,

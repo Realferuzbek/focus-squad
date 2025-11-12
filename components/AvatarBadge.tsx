@@ -24,33 +24,42 @@ export default function AvatarBadge({
   priority = false,
   alt = "User avatar",
 }: AvatarBadgeProps) {
-  const { initial, ringStart, ringEnd, innerStart, innerEnd } =
+  const { initial, ringStart, ringAccent, ringEnd, innerStart, innerEnd } =
     getAvatarVisuals({ name, email });
 
   const fontSize = Math.max(16, Math.round(size * 0.45));
+  const ringStroke = Math.max(4, Math.round(size * 0.12));
+  const haloStroke = Math.max(2, Math.round(size * 0.04));
+  const ringGradient = `conic-gradient(from 110deg, ${ringStart}, ${ringAccent}, ${ringEnd}, ${ringStart})`;
+  const innerGradient = `linear-gradient(135deg, ${innerStart}, ${innerEnd})`;
 
   return (
     <div
       className={cx(
-        "rounded-full p-[3px] shadow-[0_18px_38px_rgba(10,10,35,0.5)]",
+        "relative rounded-full shadow-[0_18px_38px_rgba(10,10,35,0.55)]",
         className,
       )}
       style={{
         width: size,
         height: size,
-        backgroundImage: `linear-gradient(140deg, ${ringStart}, ${ringEnd})`,
+        padding: ringStroke,
+        backgroundImage: ringGradient,
       }}
     >
       <div
-        className="h-full w-full rounded-full p-[3px]"
+        className="relative h-full w-full rounded-full"
         style={{
-          backgroundImage: `linear-gradient(160deg, ${ringEnd}, ${ringStart})`,
+          padding: haloStroke,
+          backgroundColor: "rgba(4,4,15,0.85)",
+          backgroundImage:
+            "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.55), rgba(255,255,255,0) 45%)",
+          boxShadow: "inset 0 6px 18px rgba(0,0,0,0.45)",
         }}
       >
         <div
           className="relative h-full w-full overflow-hidden rounded-full"
           style={{
-            backgroundImage: `linear-gradient(135deg, ${innerStart}, ${innerEnd})`,
+            backgroundImage: innerGradient,
           }}
         >
           {avatarUrl ? (
@@ -72,6 +81,11 @@ export default function AvatarBadge({
           )}
         </div>
       </div>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-[-6%] rounded-full opacity-70 blur-[8px]"
+        style={{ backgroundImage: ringGradient }}
+      />
     </div>
   );
 }

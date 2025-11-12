@@ -64,29 +64,41 @@ export default function LanguageSwitcher({
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-label={label}
-        className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-sm font-medium text-white/80 shadow-[0_10px_25px_rgba(10,10,20,0.35)] transition hover:border-white/40 hover:text-white"
+        aria-expanded={open}
+        className="flex h-11 w-11 items-center justify-center rounded-full border border-white/30 bg-white/10 text-2xl transition hover:border-white/50 hover:bg-white/15"
       >
-        <span className="text-lg leading-none">{current?.flag}</span>
-        <span className="hidden text-xs uppercase tracking-[0.3em] text-white/60 sm:inline">
-          {label}
+        <span className="sr-only">{label}</span>
+        <span aria-hidden="true" className="leading-none">
+          {current?.flag}
         </span>
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-12 min-w-40 rounded-2xl border border-white/15 bg-[#09090f]/95 p-2 text-sm text-white/70 shadow-[0_20px_55px_rgba(0,0,0,0.5)]">
-          {options.map((option) => (
-            <button
-              key={option.code}
-              type="button"
-              onClick={() => handleSelect(option.code)}
-              className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-white/10 hover:text-white ${
-                option.code === locale ? "bg-white/10 text-white" : ""
-              }`}
-            >
-              <span className="text-lg leading-none">{option.flag}</span>
-              <span>{option.label}</span>
-            </button>
-          ))}
+        <div className="absolute right-0 top-14 rounded-3xl border border-white/10 bg-black/80 px-4 py-3 text-white/80 shadow-[0_18px_55px_rgba(0,0,0,0.55)] backdrop-blur">
+          <div className="flex gap-3">
+            {options.map((option) => {
+              const isActive = option.code === locale;
+              return (
+                <button
+                  key={option.code}
+                  type="button"
+                  onClick={() => handleSelect(option.code)}
+                  aria-label={option.label}
+                  title={option.label}
+                  className={`flex h-11 w-11 items-center justify-center rounded-full border text-2xl transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/80 ${
+                    isActive
+                      ? "border-white/70 bg-white/10 text-white"
+                      : "border-transparent bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <span className="sr-only">{option.label}</span>
+                  <span aria-hidden="true" className="leading-none">
+                    {option.flag}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : null}
     </div>
