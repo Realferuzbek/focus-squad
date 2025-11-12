@@ -2,13 +2,13 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { auth } from "@/lib/auth";
+import { getCachedSession } from "@/lib/server-session";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 
 export default async function Home() {
-  const session = await auth();
+  const session = await getCachedSession();
   if (!session?.user) redirect("/signin");
 
   return (

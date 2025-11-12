@@ -23,6 +23,8 @@ const SESSION_COOKIE_SECURE =
   process.env.NODE_ENV === "production" ||
   (process.env.NEXTAUTH_URL ?? "").startsWith("https://");
 
+const PROFILE_REFRESH_INTERVAL_MS = 15_000;
+
 function mintSessionState(now: number) {
   try {
     return {
@@ -131,30 +133,43 @@ export const authOptions: NextAuthOptions = {
       let nextAvatarUrl = (token as any).avatar_url ?? null;
       let nextDisplayName = (token as any).display_name ?? (token as any).name ?? null;
       let nextIsBlocked = isBlockedFlag((token as any).is_blocked);
+      let profileRefreshedAt =
+        typeof (token as any).profileRefreshedAt === "number"
+          ? ((token as any).profileRefreshedAt as number)
+          : 0;
+      const shouldRefreshProfile =
+        !!user ||
+        !profileRefreshedAt ||
+        now - profileRefreshedAt > PROFILE_REFRESH_INTERVAL_MS;
 
-      try {
-        const sb = supabaseAdmin();
-        const { data } = await sb
-          .from("users")
-          .select("id,is_admin,is_dm_admin,telegram_user_id,avatar_url,name,display_name,is_blocked")
-          .eq("email", email)
-          .maybeSingle();
+      if (shouldRefreshProfile) {
+        try {
+          const sb = supabaseAdmin();
+          const { data } = await sb
+            .from("users")
+            .select(
+              "id,is_admin,is_dm_admin,telegram_user_id,avatar_url,name,display_name,is_blocked",
+            )
+            .eq("email", email)
+            .maybeSingle();
 
-        if (data) {
-          nextUid = data.id;
-          nextIsAdmin = !!data.is_admin;
-          nextIsDmAdmin = !!data.is_dm_admin;
-          nextTelegramLinked = !!data.telegram_user_id;
-          nextAvatarUrl = data.avatar_url ?? null;
-          nextDisplayName = data.display_name ?? data.name ?? null;
-          nextIsBlocked = resolveBlockedStatus(nextIsBlocked, data);
-        } else {
-          nextIsAdmin = ADMIN_EMAILS.has(email);
-          nextIsDmAdmin = false;
-          nextTelegramLinked = false;
-          nextIsBlocked = false;
-        }
-      } catch {}
+          if (data) {
+            nextUid = data.id;
+            nextIsAdmin = !!data.is_admin;
+            nextIsDmAdmin = !!data.is_dm_admin;
+            nextTelegramLinked = !!data.telegram_user_id;
+            nextAvatarUrl = data.avatar_url ?? null;
+            nextDisplayName = data.display_name ?? data.name ?? null;
+            nextIsBlocked = resolveBlockedStatus(nextIsBlocked, data);
+          } else {
+            nextIsAdmin = ADMIN_EMAILS.has(email);
+            nextIsDmAdmin = false;
+            nextTelegramLinked = false;
+            nextIsBlocked = false;
+          }
+          profileRefreshedAt = now;
+        } catch {}
+      }
 
       const privilegeElevated =
         (!prevIsAdmin && nextIsAdmin) || (!prevIsDmAdmin && nextIsDmAdmin);
@@ -184,6 +199,9 @@ export const authOptions: NextAuthOptions = {
       if (sid) (token as any).sid = sid;
       if (sidIssuedAt) (token as any).sidIssuedAt = sidIssuedAt;
       (token as any).is_blocked = nextIsBlocked;
+      if (profileRefreshedAt) {
+        (token as any).profileRefreshedAt = profileRefreshedAt;
+      }
       return token;
     },
 

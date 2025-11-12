@@ -3,11 +3,11 @@ export const dynamic = "force-dynamic";
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getCachedSession } from "@/lib/server-session";
 import LiveChatClient from "@/components/community/LiveChatClient";
 
 export default async function LiveCommunityPage() {
-  const session = await auth();
+  const session = await getCachedSession();
   const me = session?.user as any;
   if (!me?.id) {
     redirect("/signin");
@@ -20,30 +20,33 @@ export default async function LiveCommunityPage() {
   };
 
   let adminState: any = null;
+  const isAdmin = me?.is_admin === true;
 
-  try {
-    const cookieStore = cookies();
-    const cookieHeader = cookieStore
-      .getAll()
-      .map((item) => `${item.name}=${item.value}`)
-      .join("; ");
+  if (isAdmin) {
+    try {
+      const cookieStore = cookies();
+      const cookieHeader = cookieStore
+        .getAll()
+        .map((item) => `${item.name}=${item.value}`)
+        .join("; ");
 
-    const headerList = headers();
-    const proto = headerList.get("x-forwarded-proto") ?? "https";
-    const host = headerList.get("host");
-    if (host) {
-      const origin = `${proto}://${host}`;
-      const res = await fetch(`${origin}/api/community/live/admin/state`, {
-        headers: cookieHeader ? { cookie: cookieHeader } : undefined,
-        cache: "no-store",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        adminState = data.state ?? null;
+      const headerList = headers();
+      const proto = headerList.get("x-forwarded-proto") ?? "https";
+      const host = headerList.get("host");
+      if (host) {
+        const origin = `${proto}://${host}`;
+        const res = await fetch(`${origin}/api/community/live/admin/state`, {
+          headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          adminState = data.state ?? null;
+        }
       }
+    } catch (error) {
+      console.error("live-admin-state", error);
     }
-  } catch (error) {
-    console.error("live-admin-state", error);
   }
 
   return (

@@ -2,7 +2,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { auth } from "@/lib/auth";
+import { getCachedSession } from "@/lib/server-session";
 import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
@@ -21,7 +21,7 @@ const SessionEmailBridge = dynamicImport(() => import("@/components/SessionEmail
 });
 
 export default async function DashboardPage() {
-  const session = await auth();
+  const session = await getCachedSession();
   const user = session!.user as any;
   const avatarSrc = user?.avatar_url ?? user?.image ?? null;
 

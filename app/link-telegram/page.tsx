@@ -2,7 +2,7 @@
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-import { auth } from "@/lib/auth";
+import { getCachedSession } from "@/lib/server-session";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import LinkTelegramWatcher from "@/components/LinkTelegramWatcher";
 import { redirect } from "next/navigation";
@@ -25,7 +25,7 @@ function isExpired(row?: LinkTokenRow | null) {
 }
 
 export default async function LinkTelegramPage() {
-  const session = await auth();
+  const session = await getCachedSession();
   if (!session?.user?.email) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center text-white bg-black">

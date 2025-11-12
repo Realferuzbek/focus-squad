@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const metadata = { robots: { index: false, follow: false } };
 
-import { auth } from "@/lib/auth";
+import { getCachedSession } from "@/lib/server-session";
 import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import AdminSessionPanel from "@/components/AdminSessionPanel";
@@ -12,7 +12,7 @@ import AdminAiDiagnostics from "@/components/AdminAiDiagnostics";
 import AdminPromoteForm from "@/components/AdminPromoteForm";
 
 export default async function AdminPage() {
-  const session = await auth();
+  const session = await getCachedSession();
   const me = session?.user as any;
   if (!me?.is_admin) redirect("/dashboard");
 

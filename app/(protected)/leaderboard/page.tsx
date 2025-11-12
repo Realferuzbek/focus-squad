@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import GlowPanel from '@/components/GlowPanel';
-import { auth } from '@/lib/auth';
+import { getCachedSession } from '@/lib/server-session';
 import { loadLatestLeaderboards, type LeaderboardSnapshot } from '@/lib/leaderboard/loadLatest';
 import type { LeaderboardScope } from '@/types/leaderboard';
 import { getLanguageOptions, getTranslations } from '@/lib/i18n';
@@ -133,7 +133,7 @@ const EMPTY_SNAPSHOTS: Record<LeaderboardScope, LeaderboardSnapshot | null> = {
 };
 
 export default async function LeaderboardPage() {
-  const session = await auth();
+  const session = await getCachedSession();
   const viewer = session?.user as any;
   const avatarSrc = viewer?.avatar_url ?? viewer?.image ?? null;
 

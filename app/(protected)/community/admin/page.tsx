@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { robots: { index: false, follow: false } };
 
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getCachedSession } from "@/lib/server-session";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { mapThread } from "@/lib/adminchat/server";
 import AdminChatClient, {
@@ -24,7 +24,7 @@ type PageProps = {
 };
 
 export default async function AdminChatPage({ searchParams }: PageProps) {
-  const session = await auth();
+  const session = await getCachedSession();
   const me = session?.user as any;
   if (!me?.id) redirect("/signin");
 

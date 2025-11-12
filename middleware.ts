@@ -23,6 +23,18 @@ type EnvMap = Record<string, string | undefined>;
 const ENV: EnvMap =
   ((globalThis as Record<string, any>)?.process?.env ?? {}) as EnvMap;
 
+const DEFAULT_SESSION_VERSION = "1";
+const SESSION_VERSION_CACHE_TTL_MS = 15_000;
+const SESSION_VERSION_FALLBACK_TTL_MS = 2_000;
+
+type SessionVersionCacheEntry = {
+  value: string;
+  expiresAt: number;
+};
+
+let sessionVersionCache: SessionVersionCacheEntry | null = null;
+let sessionVersionInflight: Promise<string> | null = null;
+
 const CSRF_ENFORCEMENT_DISABLED = ENV.CSRF_ENFORCEMENT_DISABLED === "1";
 const CSRF_MAINTENANCE_PATH_PREFIXES = (ENV.CSRF_MAINTENANCE_PATHS ?? "")
   .split(",")
@@ -104,6 +116,59 @@ function redactUrlOrigin(value: string | null | undefined): string | null {
   } catch {
     return value.slice(0, 128);
   }
+}
+
+function readSessionVersionCache(now: number): string | null {
+  if (sessionVersionCache && sessionVersionCache.expiresAt > now) {
+    return sessionVersionCache.value;
+  }
+  return null;
+}
+
+function writeSessionVersionCache(value: string, ttlMs: number) {
+  sessionVersionCache = {
+    value,
+    expiresAt: Date.now() + ttlMs,
+  };
+}
+
+async function resolveLatestSessionVersion(
+  req: NextRequest,
+  fallback: string | null,
+): Promise<string> {
+  const now = Date.now();
+  const cached = readSessionVersionCache(now);
+  if (cached) return cached;
+
+  if (!sessionVersionInflight) {
+    sessionVersionInflight = (async () => {
+      try {
+        const stateUrl = new URL("/api/admin/state", req.url);
+        const signature = await getInternalAdminSignature();
+        const fetchOptions: RequestInit = { cache: "no-store" };
+        if (signature) {
+          fetchOptions.headers = { [INTERNAL_ADMIN_SIGNATURE_HEADER]: signature };
+        }
+        const res = await fetch(stateUrl.toString(), fetchOptions);
+        if (res.ok) {
+          const data = await res.json();
+          const value = `${data?.session_version ?? 1}`;
+          writeSessionVersionCache(value, SESSION_VERSION_CACHE_TTL_MS);
+          return value;
+        }
+      } catch {}
+      const fallbackValue =
+        fallback ??
+        sessionVersionCache?.value ??
+        DEFAULT_SESSION_VERSION;
+      writeSessionVersionCache(fallbackValue, SESSION_VERSION_FALLBACK_TTL_MS);
+      return fallbackValue;
+    })();
+  }
+
+  const latest = await sessionVersionInflight;
+  sessionVersionInflight = null;
+  return latest;
 }
 
 export async function middleware(req: NextRequest) {
@@ -206,25 +271,8 @@ export async function middleware(req: NextRequest) {
     });
   }
 
-  let latestVersion: string | null = null;
-  try {
-    const stateUrl = new URL("/api/admin/state", req.url);
-    const signature = await getInternalAdminSignature();
-    const fetchOptions: RequestInit = { cache: "no-store" };
-    if (signature) {
-      fetchOptions.headers = { [INTERNAL_ADMIN_SIGNATURE_HEADER]: signature };
-    }
-    const stateRes = await fetch(stateUrl.toString(), fetchOptions);
-    if (stateRes.ok) {
-      const data = await stateRes.json();
-      latestVersion = `${data?.session_version ?? 1}`;
-    }
-  } catch (err) {}
-
   const svCookie = req.cookies.get("sv")?.value ?? null;
-  if (!latestVersion) {
-    latestVersion = svCookie ?? "1";
-  }
+  const latestVersion = await resolveLatestSessionVersion(req, svCookie);
 
   if (svCookie && latestVersion && svCookie !== latestVersion) {
     const out = new URL("/api/auth/signout", req.url);

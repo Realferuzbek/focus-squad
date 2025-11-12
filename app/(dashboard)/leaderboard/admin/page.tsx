@@ -4,7 +4,7 @@ export const metadata = { robots: { index: false, follow: false } };
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { getCachedSession } from '@/lib/server-session';
 import { REQUIRED_SCOPES, upsertLeaderboardPayload } from '@/lib/leaderboard/ingest';
 import { supabaseAdmin } from '@/lib/supabaseServer';
 import type { LeaderboardScope } from '@/types/leaderboard';
@@ -83,7 +83,7 @@ async function simulateIngestAction() {
 }
 
 export default async function LeaderboardAdminPage({ searchParams }: PageProps) {
-  const session = await auth();
+  const session = await getCachedSession();
   if (!session?.user) redirect('/signin');
   if (!(session.user as any).telegram_linked) redirect('/link-telegram');
 
