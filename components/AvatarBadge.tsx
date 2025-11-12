@@ -24,14 +24,15 @@ export default function AvatarBadge({
   priority = false,
   alt = "User avatar",
 }: AvatarBadgeProps) {
-  const { initial, ringStart, ringAccent, ringEnd, innerStart, innerEnd } =
-    getAvatarVisuals({ name, email });
+  const { initial } = getAvatarVisuals({ name, email });
 
   const fontSize = Math.max(16, Math.round(size * 0.45));
-  const ringStroke = Math.max(4, Math.round(size * 0.12));
+  const ringStroke = Math.max(2, Math.round(size * 0.05));
   const haloStroke = Math.max(2, Math.round(size * 0.04));
-  const ringGradient = `conic-gradient(from 110deg, ${ringStart}, ${ringAccent}, ${ringEnd}, ${ringStart})`;
-  const innerGradient = `linear-gradient(135deg, ${innerStart}, ${innerEnd})`;
+  // Fixed palette per reviewer avatar spec: cyan bottom-left → emerald top-right.
+  const ringGradient =
+    "conic-gradient(from 220deg, #42ADD4 0deg, #10874E 150deg, #0CB080 260deg, #0CBF62 330deg, #42ADD4 360deg)";
+  const innerGradient = "linear-gradient(130deg, #42ADD4 0%, #10874E 85%)";
 
   return (
     <div
