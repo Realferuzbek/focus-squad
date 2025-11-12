@@ -109,6 +109,8 @@ Trigger the job manually with the shared secret:
 
 ## ALL Vercel Environment Variables Keys
 
+<!-- markdownlint-disable MD033 MD034 -->
+
 ```env
 APP_URL="https://studywithferuzbek.vercel.app"
 CRON_SECRET="SET_IN_VERCEL"
@@ -144,3 +146,5 @@ VAPID_SUBJECT="https://studywithferuzbek.vercel.app"
 WEB_PUSH_PRIVATE_KEY="YOUR_WEB_PUSH_PRIVATE_KEY"
 WEB_PUSH_PUBLIC_KEY="YOUR_WEB_PUSH_PUBLIC_KEY"
 ```
+
+<!-- markdownlint-enable MD033 MD034 -->

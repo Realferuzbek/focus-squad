@@ -1,6 +1,7 @@
 ---
 rules:
   - id: csp-unsafe-inline-style
+    # yamllint disable-line rule:quoted-strings
     pattern: "'unsafe-inline'"
     message: >-
       Avoid `unsafe-inline` in CSP styles; migrate to nonces or hashes.
