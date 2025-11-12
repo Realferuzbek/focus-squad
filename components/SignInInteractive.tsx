@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import {
   resolveSignInError,
   sanitizeCallbackPath,
@@ -65,13 +66,14 @@ export default function SignInInteractive({
   const handleClick = useCallback(() => {
     if (redirecting) return;
     setRedirecting(true);
-    // EFFECT: Starts the Google OAuth flow without bundling next-auth/react, keeping JS light.
-    const url = new URL("/api/auth/signin/google", window.location.origin);
-    url.searchParams.set("callbackUrl", callbackUrl);
-    if (switchMode) {
-      url.searchParams.set("prompt", "select_account");
-    }
-    window.location.assign(url.toString());
+    signIn(
+      "google",
+      { callbackUrl, redirect: true },
+      switchMode ? { prompt: "select_account" } : undefined,
+    ).catch((error) => {
+      console.error("[signin] failed to start Google OAuth", error);
+      setRedirecting(false);
+    });
   }, [callbackUrl, redirecting, switchMode]);
 
   useEffect(() => {
