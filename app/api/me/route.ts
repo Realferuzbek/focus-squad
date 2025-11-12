@@ -1,9 +1,9 @@
 // app/api/me/route.ts
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-import { NextResponse } from 'next/server';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { supabaseAdmin } from '@/lib/supabaseServer';
+import { supabaseAdmin } from "@/lib/supabaseServer";
 
 export async function GET() {
   const session = await auth();
@@ -12,9 +12,9 @@ export async function GET() {
   if (!email) return NextResponse.json({ linked: false }, { status: 200 });
 
   const { data } = await supabaseAdmin()
-    .from('users')
-    .select('telegram_user_id')
-    .eq('email', email)
+    .from("users")
+    .select("telegram_user_id")
+    .eq("email", email)
     .maybeSingle();
 
   return NextResponse.json({ linked: !!data?.telegram_user_id });

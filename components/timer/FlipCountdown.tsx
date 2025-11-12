@@ -89,14 +89,16 @@ const getStatusLabel = (status: TimerStatus) => {
 };
 
 export function FlipCountdown() {
-  const [durationSeconds, setDurationSeconds] = useState(DEFAULT_DURATION_SECONDS);
+  const [durationSeconds, setDurationSeconds] = useState(
+    DEFAULT_DURATION_SECONDS,
+  );
   const [remainingSeconds, setRemainingSeconds] = useState(durationSeconds);
   const [status, setStatus] = useState<TimerStatus>("idle");
   const intervalRef = useRef<number | null>(null);
 
   const { hours, minutes, seconds } = useMemo(
     () => getTimeParts(remainingSeconds),
-    [remainingSeconds]
+    [remainingSeconds],
   );
 
   useEffect(() => {
@@ -193,7 +195,9 @@ export function FlipCountdown() {
     <section className="timer-root">
       <header className="timer-header">
         <h1 className="timer-title">Flip Countdown</h1>
-        <p className="timer-subtitle">Stay focused with a precise visual timer.</p>
+        <p className="timer-subtitle">
+          Stay focused with a precise visual timer.
+        </p>
       </header>
 
       <div className="timer-panel">

@@ -30,12 +30,17 @@ export default function Navbar({
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 text-white">
         <Link href="/dashboard" className="flex items-center gap-3">
           <Image src="/logo.svg" alt="logo" width={30} height={30} />
-          <span className="text-lg font-semibold tracking-tight">Studywithferuzbek</span>
+          <span className="text-lg font-semibold tracking-tight">
+            Studywithferuzbek
+          </span>
         </Link>
 
         <nav className="relative flex items-center gap-4">
           {isAdmin && (
-            <Link href="/admin" className="btn-primary px-5 opacity-90 hover:opacity-100">
+            <Link
+              href="/admin"
+              className="btn-primary px-5 opacity-90 hover:opacity-100"
+            >
               {translations.reviewerPanel}
             </Link>
           )}

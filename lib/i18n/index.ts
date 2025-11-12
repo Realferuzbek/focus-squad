@@ -1,4 +1,4 @@
-import { cookies } from 'next/headers';
+import { cookies } from "next/headers";
 
 import {
   LOCALE_DEFAULT,
@@ -8,7 +8,7 @@ import {
   type Translations,
   type FeatureKey,
   isLocale,
-} from './locales';
+} from "./locales";
 
 export type { Locale, Translations, FeatureKey };
 
@@ -24,7 +24,7 @@ export function resolveLocale(value?: string | null): Locale {
 }
 
 export function getTranslations(): { locale: Locale; t: Translations } {
-  const cookieLocale = cookies().get('lang')?.value;
+  const cookieLocale = cookies().get("lang")?.value;
   const locale = resolveLocale(cookieLocale);
   return { locale, t: TRANSLATIONS[locale] };
 }
@@ -37,4 +37,3 @@ export function getLanguageOptions(locale: Locale): LanguageOption[] {
     flag: LOCALE_FLAGS[code],
   }));
 }
-

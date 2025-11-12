@@ -80,7 +80,8 @@ export default function AdminSessionPanel() {
       <section className="rounded-2xl border border-white/10 bg-[#0f0f18] p-6">
         <h2 className="text-lg font-semibold">Global session reset</h2>
         <p className="mt-2 text-sm text-zinc-400">
-          Force everyone to sign back in. Optionally require the Telegram link flow again.
+          Force everyone to sign back in. Optionally require the Telegram link
+          flow again.
         </p>
         <label className="mt-4 flex items-center gap-2 text-sm text-zinc-300">
           <input
@@ -104,7 +105,9 @@ export default function AdminSessionPanel() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold">Usage summary</h2>
-            <p className="text-sm text-zinc-400">Aggregate hours per user, last 100 users.</p>
+            <p className="text-sm text-zinc-400">
+              Aggregate hours per user, last 100 users.
+            </p>
           </div>
           <button
             className="btn-secondary focus-ring"

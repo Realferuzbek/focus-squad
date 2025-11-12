@@ -8,7 +8,8 @@ import { supabaseAdmin } from "@/lib/supabaseServer";
 export async function GET(request: NextRequest) {
   const guard = await requireAdminOrInternal({ request });
   if (!guard.ok) {
-    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    const message =
+      guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
     return NextResponse.json({ error: message }, { status: guard.status });
   }
 

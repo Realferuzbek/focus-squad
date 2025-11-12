@@ -8,7 +8,8 @@ const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, "..");
 const outputRoot = join(projectRoot, "public", "timer", "assets");
 
-const BASE_URL = "https://raw.githubusercontent.com/Realferuzbek/flip_countdown_new/main/";
+const BASE_URL =
+  "https://raw.githubusercontent.com/Realferuzbek/flip_countdown_new/main/";
 
 const FILES = [
   { local: "assets/backgrounds/background.jpg" },

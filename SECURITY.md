@@ -1,6 +1,9 @@
-Session & CSRF Hardening
+# Security Policy
+
+## Session & CSRF Hardening
+
 - Session cookie `next-auth.session-token` stays HttpOnly + SameSite=Lax + Path=/; `Secure` toggles via `NODE_ENV=production` or HTTPS `NEXTAUTH_URL`; no Domain; `sv` helper cookie follows the same policy.
-- __Host- migration: keep current name; plan a `SESSION_COOKIE_HOST_PREFIX` feature flag once every client is pinned to HTTPS + root path so the prefix change is safe.
+- \_\_Host- migration: keep current name; plan a `SESSION_COOKIE_HOST_PREFIX` feature flag once every client is pinned to HTTPS + root path so the prefix change is safe.
 - Session identifiers: mint fresh `sid` + `sidIssuedAt` on login, privilege elevation, and rolling at 15 minutes (config via `NEXTAUTH_SESSION_ROLLING_INTERVAL_MINUTES`, minimum 5); session data persists across rotations.
 - CSRF pattern: double-submit cookie `csrf-token` paired with header `X-CSRF-Token` and Origin/Referer validation inside middleware; client code must route POST/PUT/PATCH/DELETE through `csrfFetch`.
 - Forms: render `AdminPromoteForm` (or wire `csrfFetch` manually) so HTML forms forward the CSRF header while keeping server-rendered UX.

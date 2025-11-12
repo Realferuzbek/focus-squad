@@ -14,7 +14,10 @@ export function TimerTelemetryBeacon({ enabled }: TimerTelemetryBeaconProps) {
 
     const send = () => {
       if (cancelled) return;
-      if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      if (
+        typeof navigator !== "undefined" &&
+        typeof navigator.sendBeacon === "function"
+      ) {
         try {
           const blob = new Blob([], { type: "application/json" });
           navigator.sendBeacon(endpoint, blob);
@@ -35,4 +38,3 @@ export function TimerTelemetryBeacon({ enabled }: TimerTelemetryBeaconProps) {
 
   return null;
 }
-

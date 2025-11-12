@@ -25,7 +25,9 @@ const {
     "blocked status should propagate to JWT/session payloads",
   );
 
-  const redirectTarget = buildBlockedRedirectUrl("https://app.example.com/dashboard");
+  const redirectTarget = buildBlockedRedirectUrl(
+    "https://app.example.com/dashboard",
+  );
   assert.strictEqual(
     redirectTarget.pathname,
     "/api/auth/signout",
@@ -53,4 +55,3 @@ const {
 
 console.log("blocked-user e2e tests passed");
 process.exit(0);
-

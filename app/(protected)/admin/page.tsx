@@ -26,7 +26,9 @@ export default async function AdminPage() {
     <div className="min-h-[100dvh] bg-[#07070b] text-white">
       <div className="mx-auto max-w-5xl px-4 py-10">
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <h1 className="text-4xl font-bold tracking-tight">Admin Control Center</h1>
+          <h1 className="text-4xl font-bold tracking-tight">
+            Admin Control Center
+          </h1>
           <p className="text-sm text-white/55">
             Manage access, force resets, and review high-level usage.
           </p>
@@ -38,7 +40,9 @@ export default async function AdminPage() {
           <AdminSessionPanel />
 
           <section className="rounded-2xl border border-white/10 bg-[#0f0f18]/90 p-6 shadow-[0_18px_45px_-24px_rgba(140,122,245,0.35)]">
-            <h2 className="mb-4 text-xl font-semibold text-white/90">Promote/Demote</h2>
+            <h2 className="mb-4 text-xl font-semibold text-white/90">
+              Promote/Demote
+            </h2>
             <AdminPromoteForm className="flex flex-col gap-3 sm:flex-row" />
           </section>
 
@@ -55,7 +59,9 @@ export default async function AdminPage() {
                 {(users || []).map((u: any) => (
                   <tr key={u.id} className="border-t border-white/10">
                     <td className="p-3">{u.email}</td>
-                    <td className="p-3">{u.telegram_username ? `@${u.telegram_username}` : "—"}</td>
+                    <td className="p-3">
+                      {u.telegram_username ? `@${u.telegram_username}` : "—"}
+                    </td>
                     <td className="p-3">{u.is_admin ? "✅" : "—"}</td>
                   </tr>
                 ))}
@@ -63,7 +69,10 @@ export default async function AdminPage() {
             </table>
           </section>
 
-          <a href="/dashboard" className="inline-block text-zinc-400 hover:underline">
+          <a
+            href="/dashboard"
+            className="inline-block text-zinc-400 hover:underline"
+          >
             ← Back to dashboard
           </a>
         </div>

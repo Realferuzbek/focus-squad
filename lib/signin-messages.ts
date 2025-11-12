@@ -12,7 +12,8 @@ const DEFAULT_MESSAGE: SignInErrorMessage = {
 const MESSAGE_MAP: Record<string, SignInErrorMessage> = {
   SessionRequired: {
     title: "Session expired",
-    description: "Your previous session ended. Please sign in again to continue.",
+    description:
+      "Your previous session ended. Please sign in again to continue.",
   },
   OAuthSignin: {
     title: "Google sign-in unavailable",
@@ -21,7 +22,8 @@ const MESSAGE_MAP: Record<string, SignInErrorMessage> = {
   },
   OAuthCallback: {
     title: "Google didn't finish signing you in",
-    description: "Retry the Google sign-in. A private window often resolves this.",
+    description:
+      "Retry the Google sign-in. A private window often resolves this.",
   },
   OAuthAccountNotLinked: {
     title: "Use your original sign-in",
@@ -30,11 +32,13 @@ const MESSAGE_MAP: Record<string, SignInErrorMessage> = {
   },
   EmailSignin: {
     title: "Email sign-in disabled",
-    description: "Email links are unavailable. Use Continue with Google instead.",
+    description:
+      "Email links are unavailable. Use Continue with Google instead.",
   },
   CredentialsSignin: {
     title: "Password sign-in disabled",
-    description: "Password sign-in is unavailable. Use Continue with Google instead.",
+    description:
+      "Password sign-in is unavailable. Use Continue with Google instead.",
   },
   AccessDenied: {
     title: "Access denied",
@@ -60,7 +64,11 @@ export function sanitizeCallbackPath(
   if (trimmed !== raw) return undefined;
   if (!trimmed.startsWith("/")) return undefined;
   if (trimmed.startsWith("//")) return undefined;
-  if (trimmed.includes(" ") || trimmed.includes("\\") || trimmed.includes("\n")) {
+  if (
+    trimmed.includes(" ") ||
+    trimmed.includes("\\") ||
+    trimmed.includes("\n")
+  ) {
     return undefined;
   }
   if (trimmed.includes("://")) return undefined;
@@ -68,4 +76,3 @@ export function sanitizeCallbackPath(
 }
 
 export type { SignInErrorMessage };
-

@@ -7,7 +7,10 @@ const TIMER_APP_SRC = "/timer/flip_countdown_new/index.html";
 const TIMER_TELEMETRY_ENABLED =
   (process.env.ENABLE_TIMER_TELEMETRY ?? "1").trim() !== "0";
 
-function resolveTimerUrl(proto: string | null, host: string | null): string | null {
+function resolveTimerUrl(
+  proto: string | null,
+  host: string | null,
+): string | null {
   if (host) return `${proto ?? "https"}://${host}${TIMER_APP_SRC}`;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   if (!siteUrl) return null;
@@ -54,7 +57,10 @@ export async function POST(req: NextRequest) {
   const meta = { forwardedFor, userAgent };
 
   if (!resolvedTimerUrl) {
-    console.warn("[timer-telemetry] skipped, timer URL could not be resolved", meta);
+    console.warn(
+      "[timer-telemetry] skipped, timer URL could not be resolved",
+      meta,
+    );
     return NextResponse.json({ ok: false }, { status: 202 });
   }
 
@@ -73,4 +79,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false }, { status: 202 });
   }
 }
-

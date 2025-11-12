@@ -20,13 +20,9 @@ declare module "next/server" {
     static next(): NextResponse;
     static redirect(
       input: string | URL,
-      init?: number | ResponseInit
+      init?: number | ResponseInit,
     ): NextResponse;
-    static json(
-      body: unknown,
-      init?: number | ResponseInit
-    ): NextResponse;
+    static json(body: unknown, init?: number | ResponseInit): NextResponse;
     constructor(body?: BodyInit | null, init?: ResponseInit);
   }
 }
-

@@ -22,7 +22,10 @@ export function shouldDenySignIn(existing: BlockedRecord): boolean {
  * Resolves the next blocked flag that should be stored on the JWT/session.
  * Explicit Supabase values win over token state; otherwise the previous value is preserved.
  */
-export function resolveBlockedStatus(previous: unknown, record?: BlockedRecord): boolean {
+export function resolveBlockedStatus(
+  previous: unknown,
+  record?: BlockedRecord,
+): boolean {
   if (record && typeof record.is_blocked === "boolean") {
     return record.is_blocked;
   }
@@ -39,4 +42,3 @@ export function buildBlockedRedirectUrl(requestUrl: string): URL {
 }
 
 export { BLOCKED_QUERY_PARAM, BLOCKED_QUERY_VALUE, BLOCKED_CALLBACK_PATH };
-

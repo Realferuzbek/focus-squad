@@ -83,7 +83,9 @@ export default async function LinkTelegramPage() {
             {session.user?.name
               ? `Hi ${session.user.name.split(" ")[0]}, tap the button below to open @${botUser}.`
               : `Tap the button below to open @${botUser}.`}
-            {" Once you hit Start in Telegram, we’ll lock your account pairing instantly."}
+            {
+              " Once you hit Start in Telegram, we’ll lock your account pairing instantly."
+            }
           </p>
         </div>
 
@@ -97,13 +99,16 @@ export default async function LinkTelegramPage() {
 
           <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-zinc-400">
             <p className="font-semibold text-zinc-200 mb-1">Manual backup</p>
-            <p className="mb-2">If Telegram didn’t open, copy and send this inside the bot:</p>
+            <p className="mb-2">
+              If Telegram didn’t open, copy and send this inside the bot:
+            </p>
             <div className="flex items-center gap-2 rounded-xl bg-black/40 px-3 py-2 font-mono text-xs">
               <span className="text-zinc-500">/start</span>
               <span className="break-all text-zinc-200">{token}</span>
             </div>
             <p className="mt-2 text-xs text-zinc-500">
-              Tokens expire after 10 minutes. Refresh this page for a fresh one if needed.
+              Tokens expire after 10 minutes. Refresh this page for a fresh one
+              if needed.
             </p>
           </div>
         </div>
@@ -111,9 +116,17 @@ export default async function LinkTelegramPage() {
         <div className="mt-6 rounded-2xl border border-purple-500/20 bg-purple-500/10 px-4 py-3 text-sm text-purple-100">
           <p className="font-semibold">What happens next?</p>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-purple-50/80">
-            <li>Telegram opens with @{botUser}. Hit <strong>Start</strong>.</li>
-            <li>We verify this one-time code and link Telegram to your Google account.</li>
-            <li>Stay on this tab — we’ll move you to the dashboard as soon as the bot confirms.</li>
+            <li>
+              Telegram opens with @{botUser}. Hit <strong>Start</strong>.
+            </li>
+            <li>
+              We verify this one-time code and link Telegram to your Google
+              account.
+            </li>
+            <li>
+              Stay on this tab — we’ll move you to the dashboard as soon as the
+              bot confirms.
+            </li>
           </ol>
         </div>
       </div>

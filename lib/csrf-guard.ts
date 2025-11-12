@@ -38,8 +38,13 @@ export function validateCsrfTokens(
   options: ValidateCsrfOptions,
 ): CsrfValidationResult {
   const reasons: string[] = [];
-  const { cookieToken, headerToken, originHeader, refererHeader, expectedOrigin } =
-    options;
+  const {
+    cookieToken,
+    headerToken,
+    originHeader,
+    refererHeader,
+    expectedOrigin,
+  } = options;
 
   if (!cookieToken) reasons.push("missing_cookie");
   if (!headerToken) reasons.push("missing_header");
@@ -85,4 +90,3 @@ export function buildSessionCookieOptions(context: CookieSecurityContext) {
 export const __private = {
   WEBHOOK_PREFIXES,
 };
-

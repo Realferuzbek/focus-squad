@@ -1,11 +1,18 @@
-import { z } from 'zod';
-import { supabaseAdmin } from '@/lib/supabaseServer';
-import { LeaderboardExportPayload, LeaderboardScope } from '@/types/leaderboard';
+import { z } from "zod";
+import { supabaseAdmin } from "@/lib/supabaseServer";
+import {
+  LeaderboardExportPayload,
+  LeaderboardScope,
+} from "@/types/leaderboard";
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-export const REQUIRED_SCOPES = ['day', 'week', 'month'] as const satisfies LeaderboardScope[];
-export const SECRET_HEADER = 'x-leaderboard-secret';
+export const REQUIRED_SCOPES = [
+  "day",
+  "week",
+  "month",
+] as const satisfies LeaderboardScope[];
+export const SECRET_HEADER = "x-leaderboard-secret";
 
 const entrySchema = z
   .object({
@@ -13,8 +20,8 @@ const entrySchema = z
     username: z
       .string()
       .min(1)
-      .refine((value) => !value.includes('@'), {
-        message: 'username should not include the @ prefix',
+      .refine((value) => !value.includes("@"), {
+        message: "username should not include the @ prefix",
       }),
     minutes: z.number().int().min(0),
     title: z.string(),
@@ -25,17 +32,21 @@ const entrySchema = z
 const boardSchema = z
   .object({
     scope: z.enum(REQUIRED_SCOPES),
-    period_start: z.string().regex(ISO_DATE_PATTERN, 'period_start must be YYYY-MM-DD'),
-    period_end: z.string().regex(ISO_DATE_PATTERN, 'period_end must be YYYY-MM-DD'),
+    period_start: z
+      .string()
+      .regex(ISO_DATE_PATTERN, "period_start must be YYYY-MM-DD"),
+    period_end: z
+      .string()
+      .regex(ISO_DATE_PATTERN, "period_end must be YYYY-MM-DD"),
     entries: z.array(entrySchema).max(5),
   })
   .strict()
   .superRefine((board, ctx) => {
-    if (board.scope === 'day' && board.period_start !== board.period_end) {
+    if (board.scope === "day" && board.period_start !== board.period_end) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'day scope expects identical start and end dates',
-        path: ['period_end'],
+        message: "day scope expects identical start and end dates",
+        path: ["period_end"],
       });
     }
 
@@ -45,7 +56,7 @@ const boardSchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `duplicate rank detected: ${entry.rank}`,
-          path: ['entries', index, 'rank'],
+          path: ["entries", index, "rank"],
         });
       }
       seenRanks.add(entry.rank);
@@ -54,16 +65,14 @@ const boardSchema = z
 
 export const payloadSchema = z
   .object({
-    posted_at: z
-      .string()
-      .refine((value) => {
-        if (!value.endsWith('Z')) {
-          return false;
-        }
-        const parsed = new Date(value);
-        return !Number.isNaN(parsed.getTime());
-      }, 'posted_at must be an ISO timestamp in UTC (ending with Z)'),
-    source: z.literal('tracker'),
+    posted_at: z.string().refine((value) => {
+      if (!value.endsWith("Z")) {
+        return false;
+      }
+      const parsed = new Date(value);
+      return !Number.isNaN(parsed.getTime());
+    }, "posted_at must be an ISO timestamp in UTC (ending with Z)"),
+    source: z.literal("tracker"),
     message_id: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
     chat_id: z.number().int().max(Number.MAX_SAFE_INTEGER),
     boards: z.array(boardSchema).length(REQUIRED_SCOPES.length),
@@ -74,8 +83,8 @@ export const payloadSchema = z
     if (scopes.size !== payload.boards.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'board scopes must be unique',
-        path: ['boards'],
+        message: "board scopes must be unique",
+        path: ["boards"],
       });
     }
 
@@ -84,7 +93,7 @@ export const payloadSchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: `missing ${scope} board`,
-          path: ['boards'],
+          path: ["boards"],
         });
       }
     });
@@ -103,20 +112,21 @@ export async function storeFailedLeaderboardPayload(
   raw: unknown,
   issues: unknown,
 ) {
-  const { error } = await client
-    .from('leaderboard_meta')
-    .upsert({
-      key: 'last_failed_payload',
-      value: {
-        payload: raw,
-        issues,
-        recorded_at: new Date().toISOString(),
-      },
-      updated_at: new Date().toISOString(),
-    });
+  const { error } = await client.from("leaderboard_meta").upsert({
+    key: "last_failed_payload",
+    value: {
+      payload: raw,
+      issues,
+      recorded_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  });
 
   if (error) {
-    console.error('leaderboard ingest: failed to persist invalid payload for review', error);
+    console.error(
+      "leaderboard ingest: failed to persist invalid payload for review",
+      error,
+    );
     return false;
   }
 
@@ -156,7 +166,10 @@ type UpsertResult = {
   posted_at: string;
 };
 
-export async function upsertLeaderboardPayload(client: AdminClient, payload: LeaderboardExportPayload) {
+export async function upsertLeaderboardPayload(
+  client: AdminClient,
+  payload: LeaderboardExportPayload,
+) {
   const records = buildRecordsFromPayload(payload);
   const identifiers = records.map((record) => ({
     scope: record.scope,
@@ -171,16 +184,19 @@ export async function upsertLeaderboardPayload(client: AdminClient, payload: Lea
         (identifier) =>
           `(scope.eq.${identifier.scope},period_start.eq.${identifier.period_start},period_end.eq.${identifier.period_end})`,
       )
-      .join(',');
+      .join(",");
 
     if (orFilters) {
       const { data: existingRows, error: existingError } = await client
-        .from('leaderboards')
-        .select('scope, period_start, period_end')
+        .from("leaderboards")
+        .select("scope, period_start, period_end")
         .or(orFilters);
 
       if (existingError) {
-        console.error('leaderboard ingest: failed to check existing rows', existingError);
+        console.error(
+          "leaderboard ingest: failed to check existing rows",
+          existingError,
+        );
         throw existingError;
       }
 
@@ -189,11 +205,11 @@ export async function upsertLeaderboardPayload(client: AdminClient, payload: Lea
   }
 
   const { error } = await client
-    .from('leaderboards')
-    .upsert(records, { onConflict: 'scope,period_start,period_end' });
+    .from("leaderboards")
+    .upsert(records, { onConflict: "scope,period_start,period_end" });
 
   if (error) {
-    console.error('leaderboard ingest: failed to upsert snapshot', error);
+    console.error("leaderboard ingest: failed to upsert snapshot", error);
     throw error;
   }
 

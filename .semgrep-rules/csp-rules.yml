@@ -1,12 +1,15 @@
+---
 rules:
   - id: csp-unsafe-inline-style
     pattern: "'unsafe-inline'"
-    message: "Avoid 'unsafe-inline' in CSP styles; migrate to nonces or hashes."
+    message: >-
+      Avoid `unsafe-inline` in CSP styles; migrate to nonces or hashes.
     severity: WARNING
     languages: [javascript, typescript]
 
   - id: csp-report-only
-    pattern: "Content-Security-Policy-Report-Only"
-    message: "CSP is in report-only mode; plan to enforce after fixing violations."
+    pattern: Content-Security-Policy-Report-Only
+    message: >-
+      CSP is in report-only mode; plan to enforce after fixing violations.
     severity: INFO
     languages: [javascript, typescript]

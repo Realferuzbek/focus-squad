@@ -1,15 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
-type StorageClient = ReturnType<typeof createClient>['storage'];
+type StorageClient = ReturnType<typeof createClient>["storage"];
 
 let cachedStorage: StorageClient | undefined;
 
 function resolveSupabaseUrl() {
-  return (
-    process.env.NEXT_PUBLIC_SUPABASE_URL ??
-    process.env.SUPABASE_URL ??
-    ''
-  );
+  return process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "";
 }
 
 function requireEnv(value: string | undefined, name: string) {
@@ -24,11 +20,11 @@ export function getAdminStorage(): StorageClient {
   if (!cachedStorage) {
     const url = requireEnv(
       resolveSupabaseUrl(),
-      'NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL',
+      "NEXT_PUBLIC_SUPABASE_URL or SUPABASE_URL",
     );
     const serviceKey = requireEnv(
       process.env.SUPABASE_SERVICE_ROLE_KEY,
-      'SUPABASE_SERVICE_ROLE_KEY',
+      "SUPABASE_SERVICE_ROLE_KEY",
     );
 
     cachedStorage = createClient(url, serviceKey, {
@@ -41,7 +37,10 @@ export function getAdminStorage(): StorageClient {
 
 // tiny filename cleaner
 export function slugify(name: string) {
-  return name.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.\-_]/g, '').toLowerCase();
+  return name
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9.\-_]/g, "")
+    .toLowerCase();
 }
 
 export function pickPath(threadId: string, filename: string) {
@@ -52,6 +51,9 @@ export function pickLivePath(filename: string) {
   return `live-uploads/${crypto.randomUUID()}-${slugify(filename)}`;
 }
 
-export function pickLiveAssetPath(filename: string, variant: "avatar" | "wallpaper") {
+export function pickLiveAssetPath(
+  filename: string,
+  variant: "avatar" | "wallpaper",
+) {
   return `live-assets/${variant}/${crypto.randomUUID()}-${slugify(filename)}`;
 }

@@ -7,18 +7,28 @@ import Image from "next/image";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import dynamicImport from "next/dynamic";
-import { getLanguageOptions, getTranslations, type FeatureKey } from "@/lib/i18n";
+import {
+  getLanguageOptions,
+  getTranslations,
+  type FeatureKey,
+} from "@/lib/i18n";
 
 // EFFECT: Defers dashboard client-side heartbeat until after first paint to free up FCP.
-const UsageHeartbeat = dynamicImport(() => import("@/components/UsageHeartbeat"), {
-  ssr: false,
-  loading: () => null,
-});
+const UsageHeartbeat = dynamicImport(
+  () => import("@/components/UsageHeartbeat"),
+  {
+    ssr: false,
+    loading: () => null,
+  },
+);
 // EFFECT: Lazily hydrates the email bridge so the server hero can stream immediately.
-const SessionEmailBridge = dynamicImport(() => import("@/components/SessionEmailBridge"), {
-  ssr: false,
-  loading: () => null,
-});
+const SessionEmailBridge = dynamicImport(
+  () => import("@/components/SessionEmailBridge"),
+  {
+    ssr: false,
+    loading: () => null,
+  },
+);
 
 export default async function DashboardPage() {
   const session = await getCachedSession();
@@ -134,7 +144,9 @@ export default async function DashboardPage() {
                     className="object-cover"
                   />
                 ) : (
-                  <div className="grid h-full w-full place-items-center text-2xl">🎯</div>
+                  <div className="grid h-full w-full place-items-center text-2xl">
+                    🎯
+                  </div>
                 )}
               </div>
               <div>
@@ -189,7 +201,9 @@ export default async function DashboardPage() {
 
                 <div className="relative mt-6">
                   <h3 className="text-lg font-semibold">{feature.title}</h3>
-                  <p className="mt-2 text-sm text-zinc-400">{feature.description}</p>
+                  <p className="mt-2 text-sm text-zinc-400">
+                    {feature.description}
+                  </p>
                 </div>
               </Link>
             );

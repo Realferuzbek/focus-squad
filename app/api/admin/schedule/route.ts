@@ -1,6 +1,6 @@
 // app/api/admin/schedule/route.ts
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/adminGuard";
 import { supabaseAdmin } from "@/lib/supabaseServer";
@@ -8,7 +8,8 @@ import { supabaseAdmin } from "@/lib/supabaseServer";
 export async function GET() {
   const guard = await requireAdminSession();
   if (!guard.ok) {
-    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    const message =
+      guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
     return NextResponse.json({ error: message }, { status: guard.status });
   }
 
@@ -27,7 +28,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const guard = await requireAdminSession();
   if (!guard.ok) {
-    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    const message =
+      guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
     return NextResponse.json({ error: message }, { status: guard.status });
   }
 

@@ -50,10 +50,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Join required" }, { status: 403 });
   }
 
-  const limit = Math.max(
-    1,
-    Math.min(parsed.limit ?? DEFAULT_LIMIT, MAX_LIMIT),
-  );
+  const limit = Math.max(1, Math.min(parsed.limit ?? DEFAULT_LIMIT, MAX_LIMIT));
 
   const { data, error } = await sb
     .from("live_messages")

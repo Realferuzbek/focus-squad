@@ -1,7 +1,8 @@
 import { csrfFetch } from "./csrf-client";
 
 export async function registerWorker() {
-  if (typeof window === "undefined" || !("serviceWorker" in navigator)) return null;
+  if (typeof window === "undefined" || !("serviceWorker" in navigator))
+    return null;
   const existing = await navigator.serviceWorker.getRegistration("/sw.js");
   if (existing) return existing;
   try {
@@ -41,7 +42,10 @@ async function getRegistration() {
 }
 
 export async function subscribePush() {
-  if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+  if (
+    typeof Notification !== "undefined" &&
+    Notification.permission !== "granted"
+  ) {
     const permission = await Notification.requestPermission();
     if (permission !== "granted") {
       throw new Error("Notification permission denied");

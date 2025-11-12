@@ -6,8 +6,7 @@ export const DEFAULT_CSRF_HEADER_NAME = "x-csrf-token";
  * Prefers server-side env overrides but falls back to public env/no override.
  */
 const ENV: Record<string, string | undefined> =
-  (typeof globalThis !== "undefined" &&
-    (globalThis as any)?.process?.env) ||
+  (typeof globalThis !== "undefined" && (globalThis as any)?.process?.env) ||
   {};
 
 export const CSRF_COOKIE_NAME =
@@ -22,5 +21,3 @@ export const CSRF_HEADER_NAME =
   ENV.CSRF_HEADER_NAME ??
   ENV.NEXT_PUBLIC_CSRF_HEADER_NAME ??
   DEFAULT_CSRF_HEADER_NAME;
-
-

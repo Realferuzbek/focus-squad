@@ -42,20 +42,24 @@ export default function GlowPanel({
   }
 
   function handleEnter() {
-    if (overlayRef.current) overlayRef.current.style.opacity = subtle ? "0.9" : "1";
+    if (overlayRef.current)
+      overlayRef.current.style.opacity = subtle ? "0.9" : "1";
     if (haloRef.current) haloRef.current.style.opacity = "1";
   }
 
   function handleLeave() {
     if (overlayRef.current) overlayRef.current.style.opacity = "0";
-    if (haloRef.current) haloRef.current.style.opacity = subtle ? "0.55" : "0.75";
+    if (haloRef.current)
+      haloRef.current.style.opacity = subtle ? "0.55" : "0.75";
   }
 
   const wrapperClassName = useMemo(
     () =>
       [
         "relative overflow-hidden rounded-3xl border border-white/10 bg-[var(--swf-card)] transition duration-300 ease-out",
-        subtle ? "shadow-[0_18px_45px_-24px_rgba(140,122,245,0.55)]" : "shadow-[0_25px_80px_-28px_rgba(119,88,247,0.75)] hover:-translate-y-1",
+        subtle
+          ? "shadow-[0_18px_45px_-24px_rgba(140,122,245,0.55)]"
+          : "shadow-[0_25px_80px_-28px_rgba(119,88,247,0.75)] hover:-translate-y-1",
         className,
       ]
         .filter(Boolean)
@@ -77,29 +81,32 @@ export default function GlowPanel({
         ref={haloRef}
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-70 transition-opacity duration-500"
-        style={{
-          '--x': "50%",
-          '--y': "50%",
-          background:
-            "radial-gradient(420px circle at var(--x, 50%) var(--y, 50%), rgba(139,92,246,0.18), transparent 70%)",
-          mixBlendMode: "screen",
-        } as CSSProperties}
+        style={
+          {
+            "--x": "50%",
+            "--y": "50%",
+            background:
+              "radial-gradient(420px circle at var(--x, 50%) var(--y, 50%), rgba(139,92,246,0.18), transparent 70%)",
+            mixBlendMode: "screen",
+          } as CSSProperties
+        }
       />
 
       <div
         ref={overlayRef}
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-200"
-        style={{
-          '--x': "50%",
-          '--y': "50%",
-          background: `radial-gradient(280px circle at var(--x, 50%) var(--y, 50%), ${glowColor}, transparent 70%)`,
-          mixBlendMode: "screen",
-        } as CSSProperties}
+        style={
+          {
+            "--x": "50%",
+            "--y": "50%",
+            background: `radial-gradient(280px circle at var(--x, 50%) var(--y, 50%), ${glowColor}, transparent 70%)`,
+            mixBlendMode: "screen",
+          } as CSSProperties
+        }
       />
 
       <div className="relative z-10">{children}</div>
     </div>
   );
 }
-

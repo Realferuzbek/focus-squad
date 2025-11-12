@@ -42,7 +42,11 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
-        params: { prompt: "consent", access_type: "offline", response_type: "code" },
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code",
+        },
       },
     }),
   ],
@@ -51,7 +55,7 @@ export const authOptions: NextAuthOptions = {
   // Cookie options: do not set Domain to avoid cross-subdomain exposure; Secure only in production
   cookies: {
     sessionToken: {
-      name: process.env.NEXTAUTH_COOKIE_NAME || 'next-auth.session-token',
+      name: process.env.NEXTAUTH_COOKIE_NAME || "next-auth.session-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -103,9 +107,13 @@ export const authOptions: NextAuthOptions = {
       const prevIsAdmin = !!(token as any).is_admin;
       const prevIsDmAdmin = !!(token as any).is_dm_admin;
 
-      let sid = typeof (token as any).sid === "string" ? ((token as any).sid as string) : null;
+      let sid =
+        typeof (token as any).sid === "string"
+          ? ((token as any).sid as string)
+          : null;
       let sidIssuedAt =
-        typeof (token as any).sidIssuedAt === "number" && Number.isFinite((token as any).sidIssuedAt)
+        typeof (token as any).sidIssuedAt === "number" &&
+        Number.isFinite((token as any).sidIssuedAt)
           ? ((token as any).sidIssuedAt as number)
           : null;
 
@@ -131,7 +139,8 @@ export const authOptions: NextAuthOptions = {
       let nextIsDmAdmin = prevIsDmAdmin;
       let nextTelegramLinked = !!(token as any).telegram_linked;
       let nextAvatarUrl = (token as any).avatar_url ?? null;
-      let nextDisplayName = (token as any).display_name ?? (token as any).name ?? null;
+      let nextDisplayName =
+        (token as any).display_name ?? (token as any).name ?? null;
       let nextIsBlocked = isBlockedFlag((token as any).is_blocked);
       let profileRefreshedAt =
         typeof (token as any).profileRefreshedAt === "number"
@@ -210,9 +219,13 @@ export const authOptions: NextAuthOptions = {
       (session.user as any).is_admin = !!(token as any).is_admin;
       (session.user as any).is_dm_admin = !!(token as any).is_dm_admin;
       (session.user as any).telegram_linked = !!(token as any).telegram_linked;
-      (session.user as any).avatar_url = (token as any).avatar_url ?? session.user?.image ?? null;
-      (session.user as any).display_name = (token as any).display_name ?? session.user?.name ?? null;
-      (session.user as any).is_blocked = isBlockedFlag((token as any).is_blocked);
+      (session.user as any).avatar_url =
+        (token as any).avatar_url ?? session.user?.image ?? null;
+      (session.user as any).display_name =
+        (token as any).display_name ?? session.user?.name ?? null;
+      (session.user as any).is_blocked = isBlockedFlag(
+        (token as any).is_blocked,
+      );
       return session;
     },
   },

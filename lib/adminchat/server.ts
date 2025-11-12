@@ -65,16 +65,14 @@ export async function ensureParticipant(
   sbInstance?: ReturnType<typeof supabaseAdmin>,
 ) {
   const sb = sbInstance ?? supabaseAdmin();
-  const { error } = await sb
-    .from("dm_participants")
-    .upsert(
-      {
-        thread_id: threadId,
-        user_id: userId,
-        role,
-      },
-      { onConflict: "thread_id,user_id" },
-    );
+  const { error } = await sb.from("dm_participants").upsert(
+    {
+      thread_id: threadId,
+      user_id: userId,
+      role,
+    },
+    { onConflict: "thread_id,user_id" },
+  );
   if (error) throw error;
 }
 
@@ -103,9 +101,7 @@ export async function ensureAdminParticipants(
   if (error) throw error;
 }
 
-export async function ensureUserThread(
-  userId: string,
-): Promise<ThreadRow> {
+export async function ensureUserThread(userId: string): Promise<ThreadRow> {
   const existing = await fetchThreadByUserId(userId);
   const sb = supabaseAdmin();
   if (existing) {

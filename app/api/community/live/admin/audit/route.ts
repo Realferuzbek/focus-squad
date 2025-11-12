@@ -11,7 +11,10 @@ const MAX_LIMIT = 200;
 
 function handleError(error: unknown) {
   if (error instanceof LiveAdminError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: error.message },
+      { status: error.status },
+    );
   }
   console.error("[live_admin_audit]", error);
   return NextResponse.json({ error: "Internal error" }, { status: 500 });
@@ -38,7 +41,11 @@ function parseCursor(value: string | null) {
 const FILTER_KEYS = new Set(["all", "messages", "members", "settings"]);
 
 const FILTER_PATTERNS: Record<string, string[]> = {
-  messages: ["action.like.message.%", "action.eq.message_delete", "action.eq.message_edit"],
+  messages: [
+    "action.like.message.%",
+    "action.eq.message_delete",
+    "action.eq.message_edit",
+  ],
   members: [
     "action.like.members.%",
     "action.eq.member_remove",
@@ -85,9 +92,7 @@ export async function GET(req: NextRequest) {
 
   let query = context.client
     .from("live_stream_audit")
-    .select(
-      "id,at,action,actor,target_user,message_id,from_text,to_text",
-    )
+    .select("id,at,action,actor,target_user,message_id,from_text,to_text")
     .order("id", { ascending: false })
     .limit(limit + 1);
 
@@ -125,9 +130,9 @@ export async function GET(req: NextRequest) {
   }
 
   const items = sliced.map((row) => {
-    const actorProfile = row.actor ? userMap.get(row.actor) ?? null : null;
+    const actorProfile = row.actor ? (userMap.get(row.actor) ?? null) : null;
     const targetProfile = row.target_user
-      ? userMap.get(row.target_user) ?? null
+      ? (userMap.get(row.target_user) ?? null)
       : null;
 
     return {

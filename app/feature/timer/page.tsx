@@ -7,8 +7,7 @@ const TIMER_TELEMETRY_ENABLED =
 
 export const metadata: Metadata = {
   title: "Timer",
-  description:
-    "Focus Squad timer with Pomodoro, short, and long break modes.",
+  description: "Focus Squad timer with Pomodoro, short, and long break modes.",
 };
 
 export const dynamic = "force-static";

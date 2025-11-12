@@ -9,6 +9,7 @@ declare module "next-auth/jwt" {
 
   export type JWT = Record<string, unknown>;
 
-  export function getToken(params: GetTokenParams): Promise<JWT | string | null>;
+  export function getToken(
+    params: GetTokenParams,
+  ): Promise<JWT | string | null>;
 }
-

@@ -55,12 +55,20 @@ function needsCsrfHeader(method?: string): boolean {
   return STATE_CHANGING_METHODS.has(method.toUpperCase());
 }
 
-export function csrfFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+export function csrfFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<Response> {
   if (typeof window === "undefined") {
     return fetch(input, init);
   }
 
-  const method = (init.method ?? (typeof Request !== "undefined" && input instanceof Request ? input.method : "GET"))?.toUpperCase();
+  const method = (
+    init.method ??
+    (typeof Request !== "undefined" && input instanceof Request
+      ? input.method
+      : "GET")
+  )?.toUpperCase();
   const url = resolveUrl(input);
 
   if (!needsCsrfHeader(method) || !shouldAttachToUrl(url)) {

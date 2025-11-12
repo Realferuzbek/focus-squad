@@ -45,7 +45,10 @@ export async function GET(req: NextRequest) {
     if (admin && parsed.threadId) {
       const thread = await fetchThreadById(parsed.threadId);
       if (!thread) {
-        return NextResponse.json({ error: "Thread not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Thread not found" },
+          { status: 404 },
+        );
       }
       threadId = thread.id;
     } else {
@@ -95,7 +98,10 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = (data ?? []).filter((row: any) => {
-      const visibility = (row.visibility ?? []) as Array<{ user_id: string; hidden: boolean }>;
+      const visibility = (row.visibility ?? []) as Array<{
+        user_id: string;
+        hidden: boolean;
+      }>;
       const hidden = visibility.find(
         (entry) => entry.user_id === userId && entry.hidden,
       );
@@ -137,9 +143,6 @@ export async function GET(req: NextRequest) {
     }
   } catch (err) {
     console.error(err);
-    return NextResponse.json(
-      { error: "Unexpected error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }

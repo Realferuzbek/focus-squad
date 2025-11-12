@@ -14,7 +14,10 @@ function headersForResponse(context) {
 }
 
 (function testAppliedResponseHeaders() {
-  const devHeaders = headersForResponse({ isProduction: false, isSecureTransport: false });
+  const devHeaders = headersForResponse({
+    isProduction: false,
+    isSecureTransport: false,
+  });
   assert.strictEqual(devHeaders.get("X-Content-Type-Options"), "nosniff");
   assert.strictEqual(devHeaders.get("Referrer-Policy"), "no-referrer");
   assert.strictEqual(devHeaders.get("X-Frame-Options"), "DENY");
@@ -22,10 +25,19 @@ function headersForResponse(context) {
     devHeaders.get("Permissions-Policy"),
     "accelerometer=(), camera=(), geolocation=(), microphone=(), payment=(), usb=(), bluetooth=(), gyroscope=(), magnetometer=()",
   );
-  assert.strictEqual(devHeaders.get("Cross-Origin-Opener-Policy"), "same-origin");
-  assert.strictEqual(devHeaders.get("Cross-Origin-Resource-Policy"), "same-origin");
+  assert.strictEqual(
+    devHeaders.get("Cross-Origin-Opener-Policy"),
+    "same-origin",
+  );
+  assert.strictEqual(
+    devHeaders.get("Cross-Origin-Resource-Policy"),
+    "same-origin",
+  );
   const enforcedCsp = devHeaders.get("Content-Security-Policy");
-  assert(enforcedCsp.includes("default-src 'self'"), "CSP must include default-src self");
+  assert(
+    enforcedCsp.includes("default-src 'self'"),
+    "CSP must include default-src self",
+  );
   assert.strictEqual(
     devHeaders.get("Strict-Transport-Security"),
     null,
@@ -34,7 +46,10 @@ function headersForResponse(context) {
 })();
 
 (function testAppliedHstsWhenEligible() {
-  const prodHeaders = headersForResponse({ isProduction: true, isSecureTransport: true });
+  const prodHeaders = headersForResponse({
+    isProduction: true,
+    isSecureTransport: true,
+  });
   assert.strictEqual(
     prodHeaders.get("Strict-Transport-Security"),
     "max-age=31536000; includeSubDomains",
@@ -43,14 +58,29 @@ function headersForResponse(context) {
 })();
 
 (function testBuilderDefaults() {
-  const headersDev = buildSecurityHeaders({ isProduction: false, isSecureTransport: false });
-  assert(!("Strict-Transport-Security" in headersDev), "HSTS must not be present in non-production");
+  const headersDev = buildSecurityHeaders({
+    isProduction: false,
+    isSecureTransport: false,
+  });
+  assert(
+    !("Strict-Transport-Security" in headersDev),
+    "HSTS must not be present in non-production",
+  );
   assert(headersDev["X-Content-Type-Options"] === "nosniff");
-  assert("Content-Security-Policy" in headersDev, "CSP should be enforced by default");
+  assert(
+    "Content-Security-Policy" in headersDev,
+    "CSP should be enforced by default",
+  );
   assert.strictEqual(headersDev["X-Frame-Options"], "DENY");
 
-  const headersProd = buildSecurityHeaders({ isProduction: true, isSecureTransport: true });
-  assert(headersProd["Strict-Transport-Security"], "HSTS must be present in production+secure");
+  const headersProd = buildSecurityHeaders({
+    isProduction: true,
+    isSecureTransport: true,
+  });
+  assert(
+    headersProd["Strict-Transport-Security"],
+    "HSTS must be present in production+secure",
+  );
 
   process.env.SECURITY_CSP_ENFORCE = "0";
   const headersReportOnly = buildSecurityHeaders({ isProduction: false });
@@ -67,7 +97,9 @@ function headersForResponse(context) {
     !("X-Frame-Options" in headers),
     "Iframe-enabled responses should omit legacy X-Frame-Options so only CSP governs framing",
   );
-  const csp = headers["Content-Security-Policy"] || headers["Content-Security-Policy-Report-Only"];
+  const csp =
+    headers["Content-Security-Policy"] ||
+    headers["Content-Security-Policy-Report-Only"];
   assert(csp, "Iframe-enabled responses should still emit a CSP header");
   assert(
     csp.includes("frame-ancestors 'self'"),
@@ -81,15 +113,24 @@ function headersForResponse(context) {
 
 (function testDeriveHstsVariants() {
   assert.strictEqual(
-    deriveStrictTransportSecurity({ isProduction: true, isSecureTransport: true }),
+    deriveStrictTransportSecurity({
+      isProduction: true,
+      isSecureTransport: true,
+    }),
     "max-age=31536000; includeSubDomains",
   );
   assert.strictEqual(
-    deriveStrictTransportSecurity({ isProduction: true, isSecureTransport: false }),
+    deriveStrictTransportSecurity({
+      isProduction: true,
+      isSecureTransport: false,
+    }),
     null,
   );
   assert.strictEqual(
-    deriveStrictTransportSecurity({ isProduction: false, isSecureTransport: true }),
+    deriveStrictTransportSecurity({
+      isProduction: false,
+      isSecureTransport: true,
+    }),
     null,
   );
 })();

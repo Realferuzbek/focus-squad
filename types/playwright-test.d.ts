@@ -4,9 +4,8 @@ declare module "@playwright/test" {
   }
 
   export function defineConfig(
-    config: PlaywrightTestConfig
+    config: PlaywrightTestConfig,
   ): PlaywrightTestConfig;
 
   export const devices: Record<string, Record<string, unknown>>;
 }
-

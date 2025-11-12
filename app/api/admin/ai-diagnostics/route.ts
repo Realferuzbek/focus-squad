@@ -6,7 +6,8 @@ import { isAiChatEnabled } from "@/lib/featureFlags";
 export async function GET() {
   const guard = await requireAdminSession();
   if (!guard.ok) {
-    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    const message =
+      guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
     return NextResponse.json({ error: message }, { status: guard.status });
   }
 
@@ -16,7 +17,10 @@ export async function GET() {
       apiKeyPresent: Boolean(process.env.OPENAI_API_KEY),
       genModel: env.OPENAI_GEN_MODEL,
       embedModel: env.OPENAI_EMBED_MODEL,
-      useMockAi: process.env.USE_MOCK_AI === "1" || process.env.USE_MOCK_AI === "true" || (env.OPENAI_API_KEY && env.OPENAI_API_KEY.toLowerCase() === "mock"),
+      useMockAi:
+        process.env.USE_MOCK_AI === "1" ||
+        process.env.USE_MOCK_AI === "true" ||
+        (env.OPENAI_API_KEY && env.OPENAI_API_KEY.toLowerCase() === "mock"),
     },
     upstash: {
       urlPresent: Boolean(process.env.UPSTASH_VECTOR_REST_URL),

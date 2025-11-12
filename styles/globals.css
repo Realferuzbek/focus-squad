@@ -12,24 +12,47 @@
   --swf-border: rgba(255, 255, 255, 0.08);
 }
 
-html, body { height: 100%; background: #07070b; font-family: var(--font-sans), 'Inter', system-ui, sans-serif; color: rgba(255,255,255,0.92); }
+html,
+body {
+  height: 100%;
+  background: #07070b;
+  font-family: var(--font-sans), "Inter", system-ui, sans-serif;
+  color: rgba(255, 255, 255, 0.92);
+}
 
-* { scrollbar-width: thin; scrollbar-color: #333 transparent; }
-*::-webkit-scrollbar { height: 10px; width: 10px; }
-*::-webkit-scrollbar-thumb { background: #2a2a38; border-radius: 8px; }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #333 transparent;
+}
+*::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #2a2a38;
+  border-radius: 8px;
+}
 
 .btn-primary {
   @apply relative inline-flex h-11 items-center justify-center rounded-full px-6 text-sm font-semibold tracking-tight text-white transition;
-  background: linear-gradient(120deg, var(--swf-glow-start), var(--swf-glow-end));
+  background: linear-gradient(
+    120deg,
+    var(--swf-glow-start),
+    var(--swf-glow-end)
+  );
   box-shadow: 0 14px 35px rgba(139, 92, 246, 0.45);
   overflow: hidden;
 }
 .btn-primary::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background: radial-gradient(closest-side, rgba(255,255,255,.25), transparent 70%);
+  background: radial-gradient(
+    closest-side,
+    rgba(255, 255, 255, 0.25),
+    transparent 70%
+  );
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.3s ease;
@@ -43,4 +66,6 @@ html, body { height: 100%; background: #07070b; font-family: var(--font-sans), '
 .pill {
   @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#121217] px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white/60;
 }
-.focus-ring { @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400; }
+.focus-ring {
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400;
+}

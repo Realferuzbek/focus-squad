@@ -11,7 +11,10 @@ import {
 
 function handleError(error: unknown) {
   if (error instanceof LiveAdminError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: error.message },
+      { status: error.status },
+    );
   }
   console.error("[live_admin_members]", error);
   return NextResponse.json({ error: "Internal error" }, { status: 500 });
@@ -88,7 +91,10 @@ export async function POST(req: NextRequest) {
 
   if (removeId) {
     if (typeof removeId !== "string") {
-      return NextResponse.json({ error: "remove must be a string" }, { status: 400 });
+      return NextResponse.json(
+        { error: "remove must be a string" },
+        { status: 400 },
+      );
     }
 
     try {
@@ -104,7 +110,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (typeof restoreId !== "string") {
-    return NextResponse.json({ error: "restore must be a string" }, { status: 400 });
+    return NextResponse.json(
+      { error: "restore must be a string" },
+      { status: 400 },
+    );
   }
 
   try {

@@ -54,7 +54,9 @@ test("requireAdminSession accepts admin sessions", async () => {
 
 test("requireAdminOrInternal allows signed internal requests", async () => {
   process.env.NEXTAUTH_SECRET = "internal-secret";
-  const signature = createHash("sha256").update("internal-secret").digest("hex");
+  const signature = createHash("sha256")
+    .update("internal-secret")
+    .digest("hex");
   const request = new Request("https://example.com/api/admin/state", {
     headers: { [INTERNAL_ADMIN_SIGNATURE_HEADER]: signature },
   });
@@ -81,4 +83,3 @@ test("requireAdminOrInternal rejects unsigned internal requests", async () => {
   assert.equal(result.status, 401);
   assert.equal(result.message, "unauthorized");
 });
-

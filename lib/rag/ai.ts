@@ -24,7 +24,9 @@ const shouldUseResponsesApi = (model: string) => {
   );
 };
 
-export const openai = useMockAi ? null : new OpenAI({ apiKey: env.OPENAI_API_KEY });
+export const openai = useMockAi
+  ? null
+  : new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
 export async function embedBatch(inputs: string[]) {
   if (!inputs.length) return [];
@@ -40,8 +42,14 @@ export async function embedBatch(inputs: string[]) {
     } catch (err: unknown) {
       // Log and fall back to mock embeddings to keep the app responsive.
       // Avoid logging secrets; safely extract message/stack from unknown.
-      const msg = err && typeof err === "object" && "message" in err ? (err as any).message : String(err);
-      const stackFirst = err && typeof err === "object" && "stack" in err ? String((err as any).stack).split("\n")[0] : undefined;
+      const msg =
+        err && typeof err === "object" && "message" in err
+          ? (err as any).message
+          : String(err);
+      const stackFirst =
+        err && typeof err === "object" && "stack" in err
+          ? String((err as any).stack).split("\n")[0]
+          : undefined;
       console.error("[rag/ai] embedding call failed:", msg, stackFirst);
       return inputs.map((text) => mockEmbed(text));
     }
@@ -84,8 +92,14 @@ export async function generateAnswer(prompt: string) {
         if (text) return text;
       }
     } catch (err: unknown) {
-      const msg = err && typeof err === "object" && "message" in err ? (err as any).message : String(err);
-      const stackFirst = err && typeof err === "object" && "stack" in err ? String((err as any).stack).split("\n")[0] : undefined;
+      const msg =
+        err && typeof err === "object" && "message" in err
+          ? (err as any).message
+          : String(err);
+      const stackFirst =
+        err && typeof err === "object" && "stack" in err
+          ? String((err as any).stack).split("\n")[0]
+          : undefined;
       console.error("[rag/ai] generation call failed:", msg, stackFirst);
       // Return a helpful error message instead of falling back to mock
       return "I encountered an error while generating a response. Please try again in a moment.";
@@ -102,7 +116,7 @@ function extractResponseText(response: any): string {
   }
   if (Array.isArray(response.output)) {
     const pieces = response.output.flatMap((item: any) =>
-      Array.isArray(item?.content) ? item.content : []
+      Array.isArray(item?.content) ? item.content : [],
     );
     const text = pieces
       .map((piece: any) => {
@@ -165,7 +179,11 @@ function mockAnswerFromPrompt(prompt: string): string {
     });
   }
 
-  const question = prompt.split("User question:").slice(1).join("User question:").trim();
+  const question = prompt
+    .split("User question:")
+    .slice(1)
+    .join("User question:")
+    .trim();
 
   const summary = matches
     .slice(0, 2)
@@ -200,11 +218,11 @@ function mockAnswerFromPrompt(prompt: string): string {
 function ensureVectorDimensions(vectors: number[][]) {
   if (!vectors.length) return;
   const mismatched = vectors.find(
-    (vector) => vector.length !== env.UPSTASH_VECTOR_DIM
+    (vector) => vector.length !== env.UPSTASH_VECTOR_DIM,
   );
   if (mismatched) {
     throw new Error(
-      `Embedding dimension mismatch: model "${env.OPENAI_EMBED_MODEL}" returned ${mismatched.length} dimensions but the Upstash index expects ${env.UPSTASH_VECTOR_DIM}. Update OPENAI_EMBED_MODEL or recreate the index with the matching dimension.`
+      `Embedding dimension mismatch: model "${env.OPENAI_EMBED_MODEL}" returned ${mismatched.length} dimensions but the Upstash index expects ${env.UPSTASH_VECTOR_DIM}. Update OPENAI_EMBED_MODEL or recreate the index with the matching dimension.`,
     );
   }
 }

@@ -43,14 +43,18 @@ function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
           : "border-rose-400/40 text-rose-200"
       }`}
     >
-      <span className={`h-2 w-2 rounded-full ${ok ? "bg-emerald-300" : "bg-rose-300"}`} />
+      <span
+        className={`h-2 w-2 rounded-full ${ok ? "bg-emerald-300" : "bg-rose-300"}`}
+      />
       {label}
     </span>
   );
 }
 
 export default function AdminAiDiagnostics() {
-  const [diagnostics, setDiagnostics] = useState<DiagnosticsPayload | null>(null);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticsPayload | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,7 +62,9 @@ export default function AdminAiDiagnostics() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/ai-diagnostics", { cache: "no-store" });
+      const res = await fetch("/api/admin/ai-diagnostics", {
+        cache: "no-store",
+      });
       const body = (await res.json().catch(() => null)) as ApiResponse | null;
       if (!res.ok) {
         throw new Error(body?.error || "Unable to load AI diagnostics");
@@ -66,7 +72,9 @@ export default function AdminAiDiagnostics() {
       setDiagnostics(body?.diagnostics ?? null);
     } catch (err) {
       setDiagnostics(null);
-      setError(err instanceof Error ? err.message : "Unable to load AI diagnostics");
+      setError(
+        err instanceof Error ? err.message : "Unable to load AI diagnostics",
+      );
     } finally {
       setLoading(false);
     }
@@ -82,10 +90,15 @@ export default function AdminAiDiagnostics() {
     <section className="rounded-2xl border border-white/10 bg-[#0f0f18]/90 p-6 shadow-[0_18px_45px_-24px_rgba(140,122,245,0.35)]">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-sm uppercase tracking-[0.3em] text-white/45">Ask AI diagnostics</p>
-          <h2 className="mt-2 text-2xl font-semibold text-white">Connection health</h2>
+          <p className="text-sm uppercase tracking-[0.3em] text-white/45">
+            Ask AI diagnostics
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">
+            Connection health
+          </h2>
           <p className="text-sm text-white/60">
-            Verify that OpenAI, Upstash Vector, and the AI toggle are configured correctly.
+            Verify that OpenAI, Upstash Vector, and the AI toggle are configured
+            correctly.
           </p>
         </div>
         <button
@@ -109,14 +122,19 @@ export default function AdminAiDiagnostics() {
                   OpenAI
                 </h3>
                 <StatusBadge
-                  ok={diagnostics.openai.apiKeyPresent && !diagnostics.openai.useMockAi}
+                  ok={
+                    diagnostics.openai.apiKeyPresent &&
+                    !diagnostics.openai.useMockAi
+                  }
                   label={diagnostics.openai.useMockAi ? "Mock mode" : "Live"}
                 />
               </div>
               <dl className="mt-4 space-y-2 text-sm text-white/80">
                 <div className="flex items-center justify-between">
                   <dt className="text-white/60">API key</dt>
-                  <dd>{diagnostics.openai.apiKeyPresent ? "Detected" : "Missing"}</dd>
+                  <dd>
+                    {diagnostics.openai.apiKeyPresent ? "Detected" : "Missing"}
+                  </dd>
                 </div>
                 <div className="flex items-center justify-between">
                   <dt className="text-white/60">Gen model</dt>
@@ -124,13 +142,16 @@ export default function AdminAiDiagnostics() {
                 </div>
                 <div className="flex items-center justify-between">
                   <dt className="text-white/60">Embed model</dt>
-                  <dd className="text-white">{diagnostics.openai.embedModel}</dd>
+                  <dd className="text-white">
+                    {diagnostics.openai.embedModel}
+                  </dd>
                 </div>
               </dl>
               {diagnostics.openai.useMockAi && (
                 <p className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
-                  Mock mode is ON. Disable the <code className="text-amber-200">USE_MOCK_AI</code>{" "}
-                  toggle (or provide a real OpenAI key) to deliver live answers.
+                  Mock mode is ON. Disable the{" "}
+                  <code className="text-amber-200">USE_MOCK_AI</code> toggle (or
+                  provide a real OpenAI key) to deliver live answers.
                 </p>
               )}
             </div>
@@ -141,9 +162,13 @@ export default function AdminAiDiagnostics() {
                   Upstash Vector
                 </h3>
                 <StatusBadge
-                  ok={diagnostics.upstash.urlPresent && diagnostics.upstash.tokenPresent}
+                  ok={
+                    diagnostics.upstash.urlPresent &&
+                    diagnostics.upstash.tokenPresent
+                  }
                   label={
-                    diagnostics.upstash.urlPresent && diagnostics.upstash.tokenPresent
+                    diagnostics.upstash.urlPresent &&
+                    diagnostics.upstash.tokenPresent
                       ? "Connected"
                       : "Missing"
                   }
@@ -152,19 +177,27 @@ export default function AdminAiDiagnostics() {
               <dl className="mt-4 space-y-2 text-sm text-white/80">
                 <div className="flex items-center justify-between">
                   <dt className="text-white/60">REST URL</dt>
-                  <dd>{diagnostics.upstash.urlPresent ? "Detected" : "Missing"}</dd>
+                  <dd>
+                    {diagnostics.upstash.urlPresent ? "Detected" : "Missing"}
+                  </dd>
                 </div>
                 <div className="flex items-center justify-between">
                   <dt className="text-white/60">REST token</dt>
-                  <dd>{diagnostics.upstash.tokenPresent ? "Detected" : "Missing"}</dd>
+                  <dd>
+                    {diagnostics.upstash.tokenPresent ? "Detected" : "Missing"}
+                  </dd>
                 </div>
                 <div className="flex items-center justify-between">
                   <dt className="text-white/60">Index name</dt>
-                  <dd className="text-white">{diagnostics.upstash.indexName}</dd>
+                  <dd className="text-white">
+                    {diagnostics.upstash.indexName}
+                  </dd>
                 </div>
                 <div className="flex items-center justify-between">
                   <dt className="text-white/60">Vector dim</dt>
-                  <dd className="text-white">{diagnostics.upstash.vectorDim ?? "—"}</dd>
+                  <dd className="text-white">
+                    {diagnostics.upstash.vectorDim ?? "—"}
+                  </dd>
                 </div>
               </dl>
             </div>
@@ -178,7 +211,11 @@ export default function AdminAiDiagnostics() {
               <div className="mt-3 flex items-center gap-3">
                 <StatusBadge
                   ok={diagnostics.featureFlags.aiChatEnabled}
-                  label={diagnostics.featureFlags.aiChatEnabled ? "Assistant live" : "Assistant paused"}
+                  label={
+                    diagnostics.featureFlags.aiChatEnabled
+                      ? "Assistant live"
+                      : "Assistant paused"
+                  }
                 />
                 <p className="text-sm text-white/70">
                   {diagnostics.featureFlags.aiChatEnabled
@@ -195,11 +232,15 @@ export default function AdminAiDiagnostics() {
               <dl className="mt-3 space-y-2 text-sm text-white/80">
                 <div className="flex items-center justify-between">
                   <dt className="text-white/60">NODE_ENV</dt>
-                  <dd className="text-white">{diagnostics.runtime.nodeEnv ?? "—"}</dd>
+                  <dd className="text-white">
+                    {diagnostics.runtime.nodeEnv ?? "—"}
+                  </dd>
                 </div>
                 <div className="flex items-center justify-between">
                   <dt className="text-white/60">Vercel env</dt>
-                  <dd className="text-white">{diagnostics.runtime.vercelEnv ?? "—"}</dd>
+                  <dd className="text-white">
+                    {diagnostics.runtime.vercelEnv ?? "—"}
+                  </dd>
                 </div>
                 {lastUpdated && (
                   <div className="flex items-center justify-between">

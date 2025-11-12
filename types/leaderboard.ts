@@ -1,4 +1,4 @@
-export type LeaderboardScope = 'day' | 'week' | 'month';
+export type LeaderboardScope = "day" | "week" | "month";
 
 export interface LeaderboardEntry {
   rank: number;
@@ -17,7 +17,7 @@ export interface LeaderboardBoardSnapshot {
 
 export interface LeaderboardExportPayload {
   posted_at: string;
-  source: 'tracker';
+  source: "tracker";
   message_id: number;
   chat_id: number;
   boards: LeaderboardBoardSnapshot[];
@@ -34,7 +34,7 @@ export interface LeaderboardRow {
   entries: LeaderboardEntry[];
   raw_snapshot: LeaderboardBoardSnapshot & {
     posted_at: string;
-    source: 'tracker';
+    source: "tracker";
     message_id: number;
     chat_id: number;
   };

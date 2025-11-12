@@ -23,10 +23,9 @@ async function importTsModule(relativePath) {
   return import(dataUrl);
 }
 
-const {
-  resolveSignInError,
-  sanitizeCallbackPath,
-} = await importTsModule("lib/signin-messages.ts");
+const { resolveSignInError, sanitizeCallbackPath } = await importTsModule(
+  "lib/signin-messages.ts",
+);
 
 test("resolveSignInError returns structured fallback for unknown codes", () => {
   const result = resolveSignInError("SomethingElse");
@@ -64,4 +63,3 @@ test("sanitizeCallbackPath rejects absolute URLs and traversal", () => {
     assert.equal(sanitizeCallbackPath(candidate), undefined);
   }
 });
-

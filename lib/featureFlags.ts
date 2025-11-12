@@ -26,21 +26,26 @@ async function fetchFlag(key: string, defaultValue: boolean) {
     return value;
   } catch (error) {
     console.error(`[feature_flags] Failed to read flag "${key}"`, error);
-    flagCache.set(key, { value: defaultValue, expiresAt: now + FLAG_CACHE_MS / 2 });
+    flagCache.set(key, {
+      value: defaultValue,
+      expiresAt: now + FLAG_CACHE_MS / 2,
+    });
     return defaultValue;
   }
 }
 
-async function writeFlag(key: string, enabled: boolean, userId?: string | null) {
+async function writeFlag(
+  key: string,
+  enabled: boolean,
+  userId?: string | null,
+) {
   const sb = supabaseAdmin();
-  const { error } = await sb
-    .from("feature_flags")
-    .upsert({
-      key,
-      enabled,
-      updated_by: userId ?? null,
-      updated_at: new Date().toISOString(),
-    });
+  const { error } = await sb.from("feature_flags").upsert({
+    key,
+    enabled,
+    updated_by: userId ?? null,
+    updated_at: new Date().toISOString(),
+  });
 
   if (error) {
     throw error;
@@ -53,7 +58,10 @@ export async function isAiChatEnabled(defaultValue = true) {
   return fetchFlag(AI_CHAT_FLAG, defaultValue);
 }
 
-export async function setAiChatEnabled(enabled: boolean, userId?: string | null) {
+export async function setAiChatEnabled(
+  enabled: boolean,
+  userId?: string | null,
+) {
   await writeFlag(AI_CHAT_FLAG, enabled, userId);
   return enabled;
 }

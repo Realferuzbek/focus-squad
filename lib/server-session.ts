@@ -16,4 +16,3 @@ export const getCachedSession = cache(async (): Promise<Session | null> => {
     return null;
   }
 });
-

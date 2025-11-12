@@ -34,7 +34,10 @@ export async function POST(req: Request) {
   const { kind, filename, mime, bytes } = Body.parse(await req.json());
 
   if (!ALLOWED_MIME[kind].test(mime)) {
-    return NextResponse.json({ error: "Mime type not allowed" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Mime type not allowed" },
+      { status: 400 },
+    );
   }
 
   if (bytes > LIMITS[kind]) {

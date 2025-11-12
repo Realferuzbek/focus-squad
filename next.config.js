@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
+const withBundleAnalyzer = require("@next/bundle-analyzer")({
+  enabled: process.env.ANALYZE === "true",
   openAnalyzer: false,
 });
 
@@ -14,36 +14,36 @@ if (SUPABASE_URL) {
   }
 }
 
-const RAW = process.env.NEXT_PUBLIC_SITE_URL || '';
-let SITE_URL = 'https://studywithferuzbek.vercel.app';
+const RAW = process.env.NEXT_PUBLIC_SITE_URL || "";
+let SITE_URL = "https://studywithferuzbek.vercel.app";
 try {
   if (RAW) SITE_URL = new URL(RAW).toString();
 } catch {}
 
 // Build remote patterns array
 const remotePatterns = [
-  { protocol: 'https', hostname: '**.supabase.co' },
-  { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
-  { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
-  { protocol: 'https', hostname: 'media.licdn.com' },
+  { protocol: "https", hostname: "**.supabase.co" },
+  { protocol: "https", hostname: "lh3.googleusercontent.com" },
+  { protocol: "https", hostname: "avatars.githubusercontent.com" },
+  { protocol: "https", hostname: "media.licdn.com" },
 ];
 
 // Add Supabase host if available (for specific hostname matching)
 if (SUPABASE_HOST) {
-  remotePatterns.push({ protocol: 'https', hostname: SUPABASE_HOST });
+  remotePatterns.push({ protocol: "https", hostname: SUPABASE_HOST });
 }
 
 const nextConfig = {
   reactStrictMode: true,
-  experimental: { 
-    serverActions: { bodySizeLimit: '2mb' },
+  experimental: {
+    serverActions: { bodySizeLimit: "2mb" },
     // EFFECT: Tree-shakes lucide/date-fns imports to keep bundles lean.
-    optimizePackageImports: ['lucide-react', 'date-fns'],
+    optimizePackageImports: ["lucide-react", "date-fns"],
   },
   images: {
     remotePatterns,
     // EFFECT: Enable modern image formats so hero assets load faster.
-    formats: ['image/avif', 'image/webp'],
+    formats: ["image/avif", "image/webp"],
   },
   env: {
     NEXT_PUBLIC_SITE_URL: SITE_URL,

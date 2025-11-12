@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     if (!aiEnabled) {
       return NextResponse.json(
         { error: "AI assistant is currently disabled by admins." },
-        { status: 503 }
+        { status: 503 },
       );
     }
 
@@ -38,10 +38,12 @@ export async function POST(req: Request) {
 
     const [qvec] = await embedBatch([query]);
     if (!qvec || !Array.isArray(qvec) || qvec.length === 0) {
-      console.error("[api/chat] Failed to embed query or got invalid embedding");
+      console.error(
+        "[api/chat] Failed to embed query or got invalid embedding",
+      );
       return NextResponse.json(
         { error: "Failed to embed query" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -53,27 +55,31 @@ export async function POST(req: Request) {
         includeMetadata: true,
       });
     } catch (vectorError: any) {
-      console.error("[api/chat] Vector query failed:", vectorError?.message || vectorError);
+      console.error(
+        "[api/chat] Vector query failed:",
+        vectorError?.message || vectorError,
+      );
       return NextResponse.json(
-        { 
+        {
           error: "Unable to search the knowledge base. Please try again later.",
-          answer: "I'm having trouble accessing the knowledge base right now. Please try again in a moment."
+          answer:
+            "I'm having trouble accessing the knowledge base right now. Please try again in a moment.",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     const matches = (search as any)?.matches || [];
-    const validMatches = matches.filter((m: any) => 
-      m?.metadata && 
-      (m?.metadata?.chunk || m?.metadata?.url)
+    const validMatches = matches.filter(
+      (m: any) => m?.metadata && (m?.metadata?.chunk || m?.metadata?.url),
     );
 
     // If no valid matches found, return a helpful message
     if (validMatches.length === 0) {
       return NextResponse.json({
-        answer: "I couldn't find any relevant information in the indexed content for your question. This might mean:\n\n1. The content hasn't been indexed yet - try reindexing the site\n2. Your question might need to be rephrased to match the available content\n3. The content you're asking about might not be in the knowledge base yet\n\nTry asking about features, functionality, or content that's already on the site, or rephrase your question.",
-        sources: []
+        answer:
+          "I couldn't find any relevant information in the indexed content for your question. This might mean:\n\n1. The content hasn't been indexed yet - try reindexing the site\n2. Your question might need to be rephrased to match the available content\n3. The content you're asking about might not be in the knowledge base yet\n\nTry asking about features, functionality, or content that's already on the site, or rephrase your question.",
+        sources: [],
       });
     }
 
@@ -99,7 +105,10 @@ Provide a clear, helpful answer based on the sources above. If you're not confid
     try {
       rawAnswer = await generateAnswer(prompt);
     } catch (genError: any) {
-      console.error("[api/chat] Answer generation failed:", genError?.message || genError);
+      console.error(
+        "[api/chat] Answer generation failed:",
+        genError?.message || genError,
+      );
     }
 
     const answer =
@@ -108,14 +117,16 @@ Provide a clear, helpful answer based on the sources above. If you're not confid
 
     const sources = validMatches
       .map((m: any) => m?.metadata?.url)
-      .filter((url: any): url is string => Boolean(url) && typeof url === "string");
+      .filter(
+        (url: any): url is string => Boolean(url) && typeof url === "string",
+      );
 
     return NextResponse.json({ answer, sources });
   } catch (error) {
     console.error("[api/chat] failure", error);
     return NextResponse.json(
       { error: "AI assistant is temporarily unavailable." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

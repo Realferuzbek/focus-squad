@@ -12,7 +12,10 @@ export default function UsageHeartbeat() {
     const ping = async () => {
       if (document.visibilityState !== "visible") return;
       try {
-        await csrfFetch("/api/usage/heartbeat", { method: "POST", keepalive: true });
+        await csrfFetch("/api/usage/heartbeat", {
+          method: "POST",
+          keepalive: true,
+        });
       } catch {
         // ignore, fire-and-forget
       }

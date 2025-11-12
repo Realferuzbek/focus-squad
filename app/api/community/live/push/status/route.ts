@@ -19,7 +19,10 @@ export async function GET() {
 
   if (error) {
     console.error(error);
-    return NextResponse.json({ error: "Failed to load status" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to load status" },
+      { status: 500 },
+    );
   }
 
   const active = (data ?? []).some((row) => {

@@ -32,11 +32,7 @@ const fileSchema = z.object({
   filePath: z.string().min(1),
   fileMime: z.string().min(1),
   fileBytes: z.number().int().positive(),
-  text: z
-    .string()
-    .trim()
-    .max(4000, "Message too long")
-    .optional(),
+  text: z.string().trim().max(4000, "Message too long").optional(),
 });
 
 const bodySchema = z.union([textSchema, fileSchema]);
@@ -77,7 +73,9 @@ export async function GET(req: NextRequest) {
 
   let parsedQuery: z.infer<typeof querySchema>;
   try {
-    parsedQuery = querySchema.parse(Object.fromEntries(req.nextUrl.searchParams));
+    parsedQuery = querySchema.parse(
+      Object.fromEntries(req.nextUrl.searchParams),
+    );
   } catch {
     return NextResponse.json({ error: "Invalid query" }, { status: 400 });
   }
@@ -203,7 +201,10 @@ export async function POST(req: NextRequest) {
   if (isFilePayload(payload)) {
     const allowed = ALLOWED_MIME[payload.kind];
     if (!allowed.test(payload.fileMime)) {
-      return NextResponse.json({ error: "Mime type not allowed" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Mime type not allowed" },
+        { status: 400 },
+      );
     }
     if (payload.fileBytes > LIMITS[payload.kind]) {
       return NextResponse.json(

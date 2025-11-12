@@ -2,11 +2,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { applySecurityHeaders } from "./lib/security-headers";
 import { getToken } from "next-auth/jwt";
-import {
-  generateCsrfToken,
-  CSRF_COOKIE_NAME,
-  CSRF_HEADER,
-} from "./lib/csrf";
+import { generateCsrfToken, CSRF_COOKIE_NAME, CSRF_HEADER } from "./lib/csrf";
 import {
   requiresCsrfProtection,
   validateCsrfTokens,
@@ -20,8 +16,8 @@ import {
 
 type EnvMap = Record<string, string | undefined>;
 
-const ENV: EnvMap =
-  ((globalThis as Record<string, any>)?.process?.env ?? {}) as EnvMap;
+const ENV: EnvMap = ((globalThis as Record<string, any>)?.process?.env ??
+  {}) as EnvMap;
 
 const DEFAULT_SESSION_VERSION = "1";
 const SESSION_VERSION_CACHE_TTL_MS = 15_000;
@@ -147,7 +143,9 @@ async function resolveLatestSessionVersion(
         const signature = await getInternalAdminSignature();
         const fetchOptions: RequestInit = { cache: "no-store" };
         if (signature) {
-          fetchOptions.headers = { [INTERNAL_ADMIN_SIGNATURE_HEADER]: signature };
+          fetchOptions.headers = {
+            [INTERNAL_ADMIN_SIGNATURE_HEADER]: signature,
+          };
         }
         const res = await fetch(stateUrl.toString(), fetchOptions);
         if (res.ok) {
@@ -158,9 +156,7 @@ async function resolveLatestSessionVersion(
         }
       } catch {}
       const fallbackValue =
-        fallback ??
-        sessionVersionCache?.value ??
-        DEFAULT_SESSION_VERSION;
+        fallback ?? sessionVersionCache?.value ?? DEFAULT_SESSION_VERSION;
       writeSessionVersionCache(fallbackValue, SESSION_VERSION_FALLBACK_TTL_MS);
       return fallbackValue;
     })();

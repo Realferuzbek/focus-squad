@@ -42,15 +42,15 @@ export default function SignInInteractive({
   const callbackUrl = useMemo(() => {
     const callbackCandidates = params.getAll("callbackUrl");
     const callback =
-      callbackCandidates.find((value) => value != null) ?? params.get("callbackUrl");
+      callbackCandidates.find((value) => value != null) ??
+      params.get("callbackUrl");
     return sanitizeCallbackPath(callback) ?? defaultCallbackUrl;
   }, [params, defaultCallbackUrl]);
 
   const alertId = errorMessage ? "signin-error" : undefined;
   const blockedAlertId = blockedMessage ? "signin-blocked" : undefined;
-  const describedBy = [hintId, alertId, blockedAlertId]
-    .filter(Boolean)
-    .join(" ") || undefined;
+  const describedBy =
+    [hintId, alertId, blockedAlertId].filter(Boolean).join(" ") || undefined;
 
   const handleClick = useCallback(() => {
     if (redirecting) return;

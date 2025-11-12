@@ -8,7 +8,8 @@ type SessionEmailBridgeProps = {
 
 export default function SessionEmailBridge({ email }: SessionEmailBridgeProps) {
   useEffect(() => {
-    (window as unknown as Record<string, unknown>).__session_email = email ?? null;
+    (window as unknown as Record<string, unknown>).__session_email =
+      email ?? null;
   }, [email]);
 
   return null;

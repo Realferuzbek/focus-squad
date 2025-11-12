@@ -6,7 +6,7 @@ The tracker sends a single POST request to `/api/leaderboard/ingest` immediately
 
 The request **must** include the shared secret header:
 
-```
+```text
 X-Leaderboard-Secret: <LEADERBOARD_INGEST_SECRET>
 ```
 
@@ -18,29 +18,29 @@ The body is JSON with the following structure:
 
 ```jsonc
 {
-  "posted_at": "2024-05-09T12:34:56Z",   // ISO-8601 in UTC (must end with "Z")
-  "source": "tracker",                   // literal string
-  "message_id": 123,                      // Telegram message id
-  "chat_id": -1001234567890,              // Telegram chat id
+  "posted_at": "2024-05-09T12:34:56Z", // ISO-8601 in UTC (must end with "Z")
+  "source": "tracker", // literal string
+  "message_id": 123, // Telegram message id
+  "chat_id": -1001234567890, // Telegram chat id
   "boards": [
     {
-      "scope": "day",                    // one of day | week | month
-      "period_start": "2024-05-09",      // YYYY-MM-DD
-      "period_end": "2024-05-09",        // YYYY-MM-DD (same as start for day scope)
+      "scope": "day", // one of day | week | month
+      "period_start": "2024-05-09", // YYYY-MM-DD
+      "period_end": "2024-05-09", // YYYY-MM-DD (same as start for day scope)
       "entries": [
         {
-          "rank": 1,                      // integer 1..5, unique within the board
-          "username": "focus_user",     // username without leading @
-          "minutes": 240,                 // study minutes for the period
-          "title": "Top Scholar",       // optional tracker-provided label
-          "emojis": ["🔥", "💯"]         // ordered list of emoji markers
-        }
+          "rank": 1, // integer 1..5, unique within the board
+          "username": "focus_user", // username without leading @
+          "minutes": 240, // study minutes for the period
+          "title": "Top Scholar", // optional tracker-provided label
+          "emojis": ["🔥", "💯"], // ordered list of emoji markers
+        },
         // ... up to 5 entries
-      ]
+      ],
     },
     // week board
     // month board
-  ]
+  ],
 }
 ```
 
@@ -82,8 +82,12 @@ Consumers can fetch the most recent leaderboard snapshot for each scope by calli
       "message_id": 123,
       "chat_id": -1001234567890
     },
-    "week": { /* latest week snapshot or null */ },
-    "month": { /* latest month snapshot or null */ }
+    "week": {
+      /* latest week snapshot or null */
+    },
+    "month": {
+      /* latest month snapshot or null */
+    }
   }
 }
 ```

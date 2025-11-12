@@ -1,15 +1,18 @@
-# Focus Squad!
+# Focus Squad
 
-Next.js 14 app for the Focus Squad community. Features Google authentication via NextAuth, Supabase integration for task tracking, live session status powered by Telegram bot events, and real-time updates through Supabase Realtime!!!!!!!
+Next.js 14 app for the Focus Squad community. Features Google authentication via NextAuth, Supabase integration for task tracking, live session status powered by Telegram bot events, and real-time updates through Supabase Realtime.
 
 ## Getting Started
 
 1. Install dependencies:
+
    ```bash
    npm install
    ```
+
 2. Copy `.env.example` to `.env.local` (create one with the required keys) and fill in Supabase, Google, Telegram, and cron secrets.
 3. Run the dev server:
+
    ```bash
    npm run dev
    ```
@@ -20,8 +23,8 @@ See [`docs/leaderboard_export_contract.md`](./docs/leaderboard_export_contract.m
 
 Configure a hosted cron (for example, [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs)) to call the leaderboard health endpoint every day at 21:10 Asia/Tashkent (16:10 UTC). The job should use a simple GET request:
 
-```
-10 16 * * * https://<your-domain>/api/leaderboard/health
+```text
+10 16 * * * https://YOUR_DOMAIN/api/leaderboard/health
 ```
 
 The endpoint returns `{ ok, latestPostedAt, scopes }` and logs an error whenever a scope is missing or has not been updated in the last 24 hours.
@@ -36,7 +39,7 @@ node -e "const webpush = require('web-push'); const keys = webpush.generateVAPID
 
 Add the resulting values as:
 
-```
+```env
 VAPID_PUBLIC_KEY=...
 VAPID_PRIVATE_KEY=...
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
@@ -70,21 +73,21 @@ Set the following variables in `.env.local` to enable the AI-powered crawler and
 
 ```json
 {
-  "crons": [
-    { "path": "/api/reindex", "schedule": "0 3 * * *" }
-  ]
+  "crons": [{ "path": "/api/reindex", "schedule": "0 3 * * *" }]
 }
 ```
 
 Trigger the job manually with the shared secret:
 
-- Local test (after `npm run dev`):  
+- Local test (after `npm run dev`):
+
   ```bash
   curl -X POST http://localhost:3000/api/reindex \
     -H "x-indexer-secret: ${INDEXER_SECRET}"
   ```
 
-- Production (replace the domain if needed):  
+- Production (replace the domain if needed):
+
   ```bash
   curl -X POST https://study-with-feruzbek.vercel.app/api/reindex \
     -H "x-indexer-secret: ${INDEXER_SECRET}"
@@ -106,36 +109,38 @@ Trigger the job manually with the shared secret:
 
 ## ALL Vercel Environment Variables Keys
 
+```env
 APP_URL="https://studywithferuzbek.vercel.app"
-CRON_SECRET="<set-in-vercel>"
-GOOGLE_CLIENT_ID="<google-oauth-client-id>"
-GOOGLE_CLIENT_SECRET="<google-oauth-client-secret>"
-INDEXER_SECRET="<long-shared-secret>"
-LEADERBOARD_INGEST_SECRET="<leaderboard-ingest-secret>"
-NEXTAUTH_SECRET="<nextauth-secret>"
+CRON_SECRET="SET_IN_VERCEL"
+GOOGLE_CLIENT_ID="YOUR_GOOGLE_OAUTH_CLIENT_ID"
+GOOGLE_CLIENT_SECRET="YOUR_GOOGLE_OAUTH_CLIENT_SECRET"
+INDEXER_SECRET="YOUR_INDEXER_SECRET"
+LEADERBOARD_INGEST_SECRET="YOUR_LEADERBOARD_INGEST_SECRET"
+NEXTAUTH_SECRET="YOUR_NEXTAUTH_SECRET"
 NEXTAUTH_URL="https://studywithferuzbek.vercel.app"
 NEXT_PUBLIC_SITE_URL="https://studywithferuzbek.vercel.app"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="<supabase-anon-key>"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="YOUR_NEXT_PUBLIC_SUPABASE_ANON_KEY"
 NEXT_PUBLIC_SUPABASE_URL="https://rwjebnqymstetwgvwskm.supabase.co"
 NEXT_PUBLIC_TZ="Asia/Tashkent"
-NEXT_PUBLIC_VAPID_PUBLIC_KEY="<public-vapid-key>"
-OPENAI_API_KEY="<openai-api-key>"
+NEXT_PUBLIC_VAPID_PUBLIC_KEY="YOUR_PUBLIC_VAPID_KEY"
+OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
 OPENAI_EMBED_MODEL="text-embedding-3-small"
 OPENAI_GEN_MODEL="gpt-4.1"
 PUBLIC_TG_GROUP_LINK="https://t.me/studywithferuzbek"
 SITE_BASE_URL="https://studywithferuzbek.vercel.app"
-SUPABASE_ANON_KEY="<supabase-anon-key>"
-SUPABASE_SERVICE_ROLE_KEY="<supabase-service-role-key>"
+SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
+SUPABASE_SERVICE_ROLE_KEY="YOUR_SUPABASE_SERVICE_ROLE_KEY"
 SUPABASE_URL="https://rwjebnqymstetwgvwskm.supabase.co"
-TELEGRAM_BOT_TOKEN="<telegram-bot-token>"
+TELEGRAM_BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
 TELEGRAM_BOT_USERNAME="Studywithferuzbek_bot"
-TELEGRAM_GROUP_ID="<telegram-group-id>"
-TELEGRAM_WEBHOOK_SECRET="<telegram-webhook-secret>"
+TELEGRAM_GROUP_ID="YOUR_TELEGRAM_GROUP_ID"
+TELEGRAM_WEBHOOK_SECRET="YOUR_TELEGRAM_WEBHOOK_SECRET"
 UPSTASH_INDEX_NAME="study_with_feruzbek_site"
-UPSTASH_VECTOR_REST_TOKEN="<upstash-vector-rest-token>"
+UPSTASH_VECTOR_REST_TOKEN="YOUR_UPSTASH_VECTOR_REST_TOKEN"
 UPSTASH_VECTOR_REST_URL="https://noble-moose-77370-us1-vector.upstash.io"
-VAPID_PRIVATE_KEY="<private-vapid-key>"
-VAPID_PUBLIC_KEY="<public-vapid-key>"
+VAPID_PRIVATE_KEY="YOUR_PRIVATE_VAPID_KEY"
+VAPID_PUBLIC_KEY="YOUR_PUBLIC_VAPID_KEY"
 VAPID_SUBJECT="https://studywithferuzbek.vercel.app"
-WEB_PUSH_PRIVATE_KEY="<web-push-private-key>"
-WEB_PUSH_PUBLIC_KEY="<web-push-public-key>"
+WEB_PUSH_PRIVATE_KEY="YOUR_WEB_PUSH_PRIVATE_KEY"
+WEB_PUSH_PUBLIC_KEY="YOUR_WEB_PUSH_PUBLIC_KEY"
+```

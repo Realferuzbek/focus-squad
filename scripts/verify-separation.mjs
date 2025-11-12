@@ -1,21 +1,21 @@
 #!/usr/bin/env node
-import { execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { extname } from 'node:path';
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { extname } from "node:path";
 
 const disallowedPattern = /study_with_feruzbek_tracker/;
 const ignoredExtensions = new Set([
-  '.md',
-  '.mdx',
-  '.markdown',
-  '.MD',
-  '.MDX',
-  '.MARKDOWN'
+  ".md",
+  ".mdx",
+  ".markdown",
+  ".MD",
+  ".MDX",
+  ".MARKDOWN",
 ]);
-const ignoredPrefixes = ['docs/'];
+const ignoredPrefixes = ["docs/"];
 
-const files = execSync('git ls-files', { encoding: 'utf8' })
-  .split('\n')
+const files = execSync("git ls-files", { encoding: "utf8" })
+  .split("\n")
   .filter(Boolean)
   .filter((file) => {
     if (ignoredPrefixes.some((prefix) => file.startsWith(prefix))) {
@@ -35,7 +35,7 @@ const files = execSync('git ls-files', { encoding: 'utf8' })
 const violations = [];
 
 for (const file of files) {
-  const content = readFileSync(file, 'utf8');
+  const content = readFileSync(file, "utf8");
   if (!disallowedPattern.test(content)) {
     continue;
   }
@@ -55,4 +55,4 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-console.log('No coupling to tracker repo detected.');
+console.log("No coupling to tracker repo detected.");

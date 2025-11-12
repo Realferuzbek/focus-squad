@@ -30,7 +30,13 @@ import type {
   ListedRemoved,
 } from "@/lib/live/admin";
 
-type TabKey = "general" | "members" | "removed" | "appearance" | "admins" | "recent";
+type TabKey =
+  | "general"
+  | "members"
+  | "removed"
+  | "appearance"
+  | "admins"
+  | "recent";
 
 type AdminStateUpdatePayload = {
   groupName: string;
@@ -99,7 +105,9 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
 function getFocusable(root: HTMLElement | null) {
   if (!root) return [] as HTMLElement[];
-  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => {
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+  ).filter((element) => {
     const styles = window.getComputedStyle(element);
     return styles.visibility !== "hidden" && styles.display !== "none";
   });
@@ -192,7 +200,17 @@ function drawAvatarPreview(
     canvas.height = AVATAR_PREVIEW_SIZE;
   }
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(image, cropX, cropY, cropSize, cropSize, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(
+    image,
+    cropX,
+    cropY,
+    cropSize,
+    cropSize,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
 }
 
 function getWallpaperBase(image: HTMLImageElement) {
@@ -206,7 +224,10 @@ function getWallpaperBase(image: HTMLImageElement) {
   return { baseWidth, baseHeight: baseWidth / ratio };
 }
 
-function resolveWallpaperRect(image: HTMLImageElement, crop: WallpaperCropState) {
+function resolveWallpaperRect(
+  image: HTMLImageElement,
+  crop: WallpaperCropState,
+) {
   const { baseWidth, baseHeight } = getWallpaperBase(image);
   const cropWidth = baseWidth / crop.zoom;
   const cropHeight = baseHeight / crop.zoom;
@@ -231,7 +252,10 @@ function drawWallpaperPreview(
 ) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  const { cropX, cropY, cropWidth, cropHeight } = resolveWallpaperRect(image, crop);
+  const { cropX, cropY, cropWidth, cropHeight } = resolveWallpaperRect(
+    image,
+    crop,
+  );
   if (canvas.width !== WALLPAPER_PREVIEW_WIDTH) {
     canvas.width = WALLPAPER_PREVIEW_WIDTH;
     canvas.height = WALLPAPER_PREVIEW_HEIGHT;
@@ -286,7 +310,10 @@ async function exportWallpaperFile(
   image: HTMLImageElement,
   crop: WallpaperCropState,
 ): Promise<File> {
-  const { cropX, cropY, cropWidth, cropHeight } = resolveWallpaperRect(image, crop);
+  const { cropX, cropY, cropWidth, cropHeight } = resolveWallpaperRect(
+    image,
+    crop,
+  );
   const canvas = document.createElement("canvas");
   canvas.width = WALLPAPER_EXPORT_WIDTH;
   canvas.height = WALLPAPER_EXPORT_HEIGHT;
@@ -311,7 +338,9 @@ async function exportWallpaperFile(
   if (!blob) {
     throw new Error("wallpaper-blob");
   }
-  return new File([blob], `wallpaper-${Date.now()}.webp`, { type: "image/webp" });
+  return new File([blob], `wallpaper-${Date.now()}.webp`, {
+    type: "image/webp",
+  });
 }
 
 function getInitial(displayName: string | null, email: string | null) {
@@ -414,7 +443,7 @@ function truncateText(text: string, limit = 140) {
 }
 
 function categorizeAction(action: string): AuditFilter {
-  if (action.startsWith("message." ) || action.startsWith("message_")) {
+  if (action.startsWith("message.") || action.startsWith("message_")) {
     return "messages";
   }
   if (action.startsWith("members.") || action.startsWith("member_")) {
@@ -506,9 +535,15 @@ export default function LiveAdminDrawer({
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
 
   const [nameInput, setNameInput] = useState(state.groupName);
-  const [descriptionInput, setDescriptionInput] = useState(state.groupDescription ?? "");
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(state.groupAvatarUrl ?? null);
-  const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(state.wallpaperUrl ?? null);
+  const [descriptionInput, setDescriptionInput] = useState(
+    state.groupDescription ?? "",
+  );
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    state.groupAvatarUrl ?? null,
+  );
+  const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(
+    state.wallpaperUrl ?? null,
+  );
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [wallpaperUploading, setWallpaperUploading] = useState(false);
 
@@ -524,7 +559,9 @@ export default function LiveAdminDrawer({
     image: HTMLImageElement;
     file: File;
   } | null>(null);
-  const [wallpaperCrop, setWallpaperCrop] = useState<WallpaperCropState | null>(null);
+  const [wallpaperCrop, setWallpaperCrop] = useState<WallpaperCropState | null>(
+    null,
+  );
   const wallpaperCanvasRef = useRef<HTMLCanvasElement>(null);
   const wallpaperDragRef = useRef<DragState | null>(null);
 
@@ -551,31 +588,29 @@ export default function LiveAdminDrawer({
   const [adminSearchValue, setAdminSearchValue] = useState("");
   const [adminQuery, setAdminQuery] = useState("");
   const [adminActionId, setAdminActionId] = useState<string | null>(null);
-  const [confirmDialog, setConfirmDialog] = useState<
-    | {
-        type: "member" | "admin";
-        userId: string;
-        name: string;
-        body: string;
-      }
-    | null
-  >(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    type: "member" | "admin";
+    userId: string;
+    name: string;
+    body: string;
+  } | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   const membersParentRef = useRef<HTMLDivElement>(null);
   const removedParentRef = useRef<HTMLDivElement>(null);
 
-const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
-const [auditCursor, setAuditCursor] = useState<string | null>(null);
-const [auditHasMore, setAuditHasMore] = useState(false);
-const [auditLoading, setAuditLoading] = useState(false);
-const [auditFilter, setAuditFilter] = useState<AuditFilter>("all");
-const auditParentRef = useRef<HTMLDivElement>(null);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [auditCursor, setAuditCursor] = useState<string | null>(null);
+  const [auditHasMore, setAuditHasMore] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditFilter, setAuditFilter] = useState<AuditFilter>("all");
+  const auditParentRef = useRef<HTMLDivElement>(null);
 
   const membersVirtualizer = useVirtualizer({
-    count: currentTab === "members"
-      ? members.length + (membersHasMore || membersLoading ? 1 : 0)
-      : 0,
+    count:
+      currentTab === "members"
+        ? members.length + (membersHasMore || membersLoading ? 1 : 0)
+        : 0,
     getScrollElement: () => membersParentRef.current,
     estimateSize: () => 88,
     overscan: 6,
@@ -583,22 +618,27 @@ const auditParentRef = useRef<HTMLDivElement>(null);
   const memberVirtualItems = membersVirtualizer.getVirtualItems();
 
   const removedVirtualizer = useVirtualizer({
-    count: currentTab === "removed"
-      ? removed.length + (removedHasMore || removedLoading ? 1 : 0)
-      : 0,
+    count:
+      currentTab === "removed"
+        ? removed.length + (removedHasMore || removedLoading ? 1 : 0)
+        : 0,
     getScrollElement: () => removedParentRef.current,
     estimateSize: () => 88,
     overscan: 6,
   });
   const removedVirtualItems = removedVirtualizer.getVirtualItems();
 
-  const adminIdSet = useMemo(() => new Set(admins.map((admin) => admin.userId)), [admins]);
-  const lastAdminId = admins.length === 1 ? admins[0]?.userId ?? null : null;
+  const adminIdSet = useMemo(
+    () => new Set(admins.map((admin) => admin.userId)),
+    [admins],
+  );
+  const lastAdminId = admins.length === 1 ? (admins[0]?.userId ?? null) : null;
 
   const auditVirtualizer = useVirtualizer({
-    count: currentTab === "recent"
-      ? auditEntries.length + (auditHasMore || auditLoading ? 1 : 0)
-      : 0,
+    count:
+      currentTab === "recent"
+        ? auditEntries.length + (auditHasMore || auditLoading ? 1 : 0)
+        : 0,
     getScrollElement: () => auditParentRef.current,
     estimateSize: () => 76,
     overscan: 8,
@@ -621,7 +661,13 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     setDescriptionInput(state.groupDescription ?? "");
     setAvatarUrl(state.groupAvatarUrl ?? null);
     setWallpaperUrl(state.wallpaperUrl ?? null);
-  }, [open, state.groupAvatarUrl, state.groupDescription, state.groupName, state.wallpaperUrl]);
+  }, [
+    open,
+    state.groupAvatarUrl,
+    state.groupDescription,
+    state.groupName,
+    state.wallpaperUrl,
+  ]);
 
   useEffect(() => {
     if (open) return;
@@ -704,16 +750,25 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     [wallpaperEditor],
   );
 
-  const normalizedDescription = descriptionInput.trim() ? descriptionInput.trim() : null;
-  const baselineDescription = state.groupDescription ? state.groupDescription.trim() : null;
+  const normalizedDescription = descriptionInput.trim()
+    ? descriptionInput.trim()
+    : null;
+  const baselineDescription = state.groupDescription
+    ? state.groupDescription.trim()
+    : null;
   const generalDirty =
-    nameInput.trim() !== state.groupName || normalizedDescription !== baselineDescription;
+    nameInput.trim() !== state.groupName ||
+    normalizedDescription !== baselineDescription;
   const appearanceDirty =
     (avatarUrl ?? null) !== (state.groupAvatarUrl ?? null) ||
     (wallpaperUrl ?? null) !== (state.wallpaperUrl ?? null);
 
   const canSaveGeneral =
-    currentTab === "general" && generalDirty && !saving && !avatarUploading && !wallpaperUploading;
+    currentTab === "general" &&
+    generalDirty &&
+    !saving &&
+    !avatarUploading &&
+    !wallpaperUploading;
   const canSaveAppearance =
     currentTab === "appearance" &&
     appearanceDirty &&
@@ -723,16 +778,19 @@ const auditParentRef = useRef<HTMLDivElement>(null);
 
   const signAndUpload = useCallback(
     async (file: File, variant: "avatar" | "wallpaper") => {
-      const res = await csrfFetch(`/api/community/live/admin/${variant}/sign-upload`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          filename: file.name,
-          mime: file.type,
-          bytes: file.size,
-          variant,
-        }),
-      });
+      const res = await csrfFetch(
+        `/api/community/live/admin/${variant}/sign-upload`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: file.name,
+            mime: file.type,
+            bytes: file.size,
+            variant,
+          }),
+        },
+      );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "sign");
@@ -871,13 +929,23 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     } finally {
       setAvatarUploading(false);
     }
-  }, [avatarCrop, avatarEditor, onError, onNotice, persistState, signAndUpload]);
+  }, [
+    avatarCrop,
+    avatarEditor,
+    onError,
+    onNotice,
+    persistState,
+    signAndUpload,
+  ]);
 
   const handleWallpaperUpload = useCallback(async () => {
     if (!wallpaperEditor || !wallpaperCrop) return;
     try {
       setWallpaperUploading(true);
-      const file = await exportWallpaperFile(wallpaperEditor.image, wallpaperCrop);
+      const file = await exportWallpaperFile(
+        wallpaperEditor.image,
+        wallpaperCrop,
+      );
       const uploadedUrl = await signAndUpload(file, "wallpaper");
       await persistState({ wallpaperUrl: uploadedUrl });
       setWallpaperUrl(uploadedUrl);
@@ -891,7 +959,14 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     } finally {
       setWallpaperUploading(false);
     }
-  }, [onError, onNotice, persistState, signAndUpload, wallpaperCrop, wallpaperEditor]);
+  }, [
+    onError,
+    onNotice,
+    persistState,
+    signAndUpload,
+    wallpaperCrop,
+    wallpaperEditor,
+  ]);
 
   const handleAvatarRemove = useCallback(async () => {
     if (avatarUploading) return;
@@ -969,12 +1044,15 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     [applyAvatarCrop],
   );
 
-  const handleAvatarPointerUp = useCallback((event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (avatarDragRef.current?.pointerId === event.pointerId) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-      avatarDragRef.current = null;
-    }
-  }, []);
+  const handleAvatarPointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      if (avatarDragRef.current?.pointerId === event.pointerId) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+        avatarDragRef.current = null;
+      }
+    },
+    [],
+  );
 
   const handleWallpaperPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -1230,7 +1308,8 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     if (!parent) return;
     const virtualItems = memberVirtualItems;
     if (!virtualItems.length) return;
-    const distance = parent.scrollHeight - (parent.scrollTop + parent.clientHeight);
+    const distance =
+      parent.scrollHeight - (parent.scrollTop + parent.clientHeight);
     const lastItem = virtualItems[virtualItems.length - 1];
     if (lastItem.index < members.length && distance >= 200) return;
     void loadMembers(false);
@@ -1250,7 +1329,8 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     if (!parent) return;
     const virtualItems = removedVirtualItems;
     if (!virtualItems.length) return;
-    const distance = parent.scrollHeight - (parent.scrollTop + parent.clientHeight);
+    const distance =
+      parent.scrollHeight - (parent.scrollTop + parent.clientHeight);
     const lastItem = virtualItems[virtualItems.length - 1];
     if (lastItem.index < removed.length && distance >= 200) return;
     void loadRemoved(false);
@@ -1288,7 +1368,9 @@ const auditParentRef = useRef<HTMLDivElement>(null);
           hasMore: boolean;
           nextCursor: string | null;
         } = await res.json();
-        setAuditEntries((prev) => (reset ? data.items : [...prev, ...data.items]));
+        setAuditEntries((prev) =>
+          reset ? data.items : [...prev, ...data.items],
+        );
         setAuditHasMore(data.hasMore);
         setAuditCursor(data.nextCursor ?? null);
       } catch (error) {
@@ -1305,7 +1387,9 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     if (!open) return;
     setAdminsLoading(true);
     try {
-      const res = await fetch("/api/community/live/admin/admins", { cache: "no-store" });
+      const res = await fetch("/api/community/live/admin/admins", {
+        cache: "no-store",
+      });
       if (!res.ok) {
         throw new Error("admins");
       }
@@ -1336,13 +1420,17 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     setAdminMatchesLoading(true);
     try {
       const params = new URLSearchParams({ q: adminQuery });
-      const res = await fetch(`/api/community/live/admin/admins?${params.toString()}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(
+        `/api/community/live/admin/admins?${params.toString()}`,
+        {
+          cache: "no-store",
+        },
+      );
       if (!res.ok) {
         throw new Error("admin-search");
       }
-      const data: { admins: ListedAdmin[]; matches: AdminCandidate[] } = await res.json();
+      const data: { admins: ListedAdmin[]; matches: AdminCandidate[] } =
+        await res.json();
       setAdmins(data.admins ?? []);
       setAdminMatches(data.matches ?? []);
     } catch (error) {
@@ -1394,7 +1482,8 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     if (!parent) return;
     const virtualItems = auditVirtualizer.getVirtualItems();
     if (!virtualItems.length) return;
-    const distance = parent.scrollHeight - (parent.scrollTop + parent.clientHeight);
+    const distance =
+      parent.scrollHeight - (parent.scrollTop + parent.clientHeight);
     const lastItem = virtualItems[virtualItems.length - 1];
     if (lastItem.index < auditEntries.length && distance >= 200) return;
     void loadAudit(false);
@@ -1412,7 +1501,8 @@ const auditParentRef = useRef<HTMLDivElement>(null);
       setMemberActionId(userId);
       const snapshotMembers = members;
       const snapshotRemoved = removed;
-      const removedMember = members.find((member) => member.userId === userId) ?? null;
+      const removedMember =
+        members.find((member) => member.userId === userId) ?? null;
       setMembers((prev) => prev.filter((member) => member.userId !== userId));
       if (removedMember) {
         const optimisticRemoved: ListedRemoved = {
@@ -1448,17 +1538,14 @@ const auditParentRef = useRef<HTMLDivElement>(null);
     [loadMembers, loadRemoved, members, onError, onNotice, onRefresh, removed],
   );
 
-  const handleRemoveMember = useCallback(
-    (member: ListedMember) => {
-      setConfirmDialog({
-        type: "member",
-        userId: member.userId,
-        name: member.displayName ?? member.email ?? "Member",
-        body: "They will be unable to join until restored.",
-      });
-    },
-    [],
-  );
+  const handleRemoveMember = useCallback((member: ListedMember) => {
+    setConfirmDialog({
+      type: "member",
+      userId: member.userId,
+      name: member.displayName ?? member.email ?? "Member",
+      body: "They will be unable to join until restored.",
+    });
+  }, []);
 
   const handleRestoreMember = useCallback(
     async (userId: string) => {
@@ -1555,7 +1642,9 @@ const auditParentRef = useRef<HTMLDivElement>(null);
   const performRemoveAdmin = useCallback(
     async (userId: string) => {
       if (admins.length <= 1) {
-        onError("You are the final admin. Add another admin before stepping down.");
+        onError(
+          "You are the final admin. Add another admin before stepping down.",
+        );
         return;
       }
       setAdminActionId(userId);
@@ -1591,13 +1680,30 @@ const auditParentRef = useRef<HTMLDivElement>(null);
         setAdminActionId(null);
       }
     },
-    [adminMatches, admins, loadAdmins, onError, onNotice, onRefresh, refreshAdminSearch],
+    [
+      adminMatches,
+      admins,
+      loadAdmins,
+      onError,
+      onNotice,
+      onRefresh,
+      refreshAdminSearch,
+    ],
   );
 
   const handleRemoveAdmin = useCallback(
-    (admin: { userId: string; displayName: string | null; email: string | null }) => {
-      if (admins.length <= 1 || (admin.userId === viewerId && admins.length <= 1)) {
-        onError("You are the final admin. Add another admin before stepping down.");
+    (admin: {
+      userId: string;
+      displayName: string | null;
+      email: string | null;
+    }) => {
+      if (
+        admins.length <= 1 ||
+        (admin.userId === viewerId && admins.length <= 1)
+      ) {
+        onError(
+          "You are the final admin. Add another admin before stepping down.",
+        );
         return;
       }
       setConfirmDialog({
@@ -1682,8 +1788,12 @@ const auditParentRef = useRef<HTMLDivElement>(null);
       >
         <header className="flex items-start justify-between border-b border-white/10 px-4 py-4 sm:px-6 sm:py-5">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-white/40">Live Control</p>
-            <h2 className="mt-1 text-xl font-semibold leading-tight sm:text-2xl">{state.groupName}</h2>
+            <p className="text-xs uppercase tracking-[0.3em] text-white/40">
+              Live Control
+            </p>
+            <h2 className="mt-1 text-xl font-semibold leading-tight sm:text-2xl">
+              {state.groupName}
+            </h2>
             <p className="mt-2 text-xs text-white/50">
               {state.subscribersCount.toLocaleString("en-US")} subscribers ·{" "}
               {state.isLive ? "Open" : "Locked"}
@@ -1734,45 +1844,63 @@ const auditParentRef = useRef<HTMLDivElement>(null);
           {currentTab === "general" && (
             <div className="h-full overflow-y-auto pr-1">
               <div className="space-y-6">
-              <div>
-                <label className="text-sm font-medium text-white/70" htmlFor="group-name">
-                  Group name
-                </label>
-                <input
-                  id="group-name"
-                  value={nameInput}
-                  onChange={(event) => setNameInput(event.target.value.slice(0, 120))}
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-300/60"
-                />
-              </div>
-              <div>
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-white/70" htmlFor="group-description">
-                    Description
+                <div>
+                  <label
+                    className="text-sm font-medium text-white/70"
+                    htmlFor="group-name"
+                  >
+                    Group name
                   </label>
-                  <span className="text-xs text-white/40">{descriptionWords} / 40 words</span>
+                  <input
+                    id="group-name"
+                    value={nameInput}
+                    onChange={(event) =>
+                      setNameInput(event.target.value.slice(0, 120))
+                    }
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-300/60"
+                  />
                 </div>
-                <textarea
-                  id="group-description"
-                  value={descriptionInput}
-                  onChange={(event) => setDescriptionInput(event.target.value)}
-                  rows={4}
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-300/60"
-                  placeholder="What should members feel when they join this space?"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-sm text-white/70">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-wide text-white/40">Subscribers</p>
-                  <p className="mt-2 text-xl font-semibold">
-                    {state.subscribersCount.toLocaleString("en-US")}
-                  </p>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label
+                      className="text-sm font-medium text-white/70"
+                      htmlFor="group-description"
+                    >
+                      Description
+                    </label>
+                    <span className="text-xs text-white/40">
+                      {descriptionWords} / 40 words
+                    </span>
+                  </div>
+                  <textarea
+                    id="group-description"
+                    value={descriptionInput}
+                    onChange={(event) =>
+                      setDescriptionInput(event.target.value)
+                    }
+                    rows={4}
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-300/60"
+                    placeholder="What should members feel when they join this space?"
+                  />
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-wide text-white/40">Status</p>
-                  <p className="mt-2 text-xl font-semibold">{state.isLive ? "Open" : "Locked"}</p>
+                <div className="grid grid-cols-2 gap-3 text-sm text-white/70">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/40">
+                      Subscribers
+                    </p>
+                    <p className="mt-2 text-xl font-semibold">
+                      {state.subscribersCount.toLocaleString("en-US")}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs uppercase tracking-wide text-white/40">
+                      Status
+                    </p>
+                    <p className="mt-2 text-xl font-semibold">
+                      {state.isLive ? "Open" : "Locked"}
+                    </p>
+                  </div>
                 </div>
-              </div>
               </div>
             </div>
           )}
@@ -1783,8 +1911,12 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                 <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
                   <header className="flex items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-white">Group avatar</h3>
-                      <p className="text-xs text-white/50">Square · max 3&nbsp;MB</p>
+                      <h3 className="text-sm font-semibold text-white">
+                        Group avatar
+                      </h3>
+                      <p className="text-xs text-white/50">
+                        Square · max 3&nbsp;MB
+                      </p>
                     </div>
                     <button
                       type="button"
@@ -1810,7 +1942,9 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                             onPointerUp={handleAvatarPointerUp}
                             onPointerLeave={handleAvatarPointerUp}
                           />
-                          <p className="text-xs text-white/40">Drag to reposition · adjust zoom below</p>
+                          <p className="text-xs text-white/40">
+                            Drag to reposition · adjust zoom below
+                          </p>
                         </div>
                         <div className="flex items-center gap-3">
                           <input
@@ -1876,7 +2010,10 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                           )}
                         </div>
                         <div className="flex flex-col gap-2 text-xs text-white/60">
-                          <span>Recommended: crisp square PNG or photo with transparent background.</span>
+                          <span>
+                            Recommended: crisp square PNG or photo with
+                            transparent background.
+                          </span>
                           {avatarUrl ? (
                             <button
                               type="button"
@@ -1887,7 +2024,9 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                               {avatarUploading ? "Removing…" : "Remove avatar"}
                             </button>
                           ) : (
-                            <span className="text-white/40">No avatar yet.</span>
+                            <span className="text-white/40">
+                              No avatar yet.
+                            </span>
                           )}
                         </div>
                       </div>
@@ -1898,8 +2037,12 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                 <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
                   <header className="flex items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-white">Wallpaper</h3>
-                      <p className="text-xs text-white/50">16:9 crop · max 3&nbsp;MB</p>
+                      <h3 className="text-sm font-semibold text-white">
+                        Wallpaper
+                      </h3>
+                      <p className="text-xs text-white/50">
+                        16:9 crop · max 3&nbsp;MB
+                      </p>
                     </div>
                     <button
                       type="button"
@@ -1925,7 +2068,9 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                             onPointerUp={handleWallpaperPointerUp}
                             onPointerLeave={handleWallpaperPointerUp}
                           />
-                          <p className="text-xs text-white/40">Drag to reframe · zoom for finer details</p>
+                          <p className="text-xs text-white/40">
+                            Drag to reframe · zoom for finer details
+                          </p>
                         </div>
                         <div className="flex items-center gap-3">
                           <input
@@ -1991,7 +2136,10 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                           )}
                         </div>
                         <div className="flex flex-col gap-2 text-xs text-white/60">
-                          <span>Use a wide image so it feels immersive. We apply a gentle vignette automatically.</span>
+                          <span>
+                            Use a wide image so it feels immersive. We apply a
+                            gentle vignette automatically.
+                          </span>
                           {wallpaperUrl ? (
                             <button
                               type="button"
@@ -1999,10 +2147,14 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                               disabled={wallpaperUploading}
                               className="self-start rounded-full border border-white/10 px-3 py-1 text-xs font-medium text-white/70 transition hover:bg-white/10 disabled:opacity-60"
                             >
-                              {wallpaperUploading ? "Removing…" : "Remove wallpaper"}
+                              {wallpaperUploading
+                                ? "Removing…"
+                                : "Remove wallpaper"}
                             </button>
                           ) : (
-                            <span className="text-white/40">No wallpaper yet.</span>
+                            <span className="text-white/40">
+                              No wallpaper yet.
+                            </span>
                           )}
                         </div>
                       </>
@@ -2020,14 +2172,17 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
                   <input
                     value={membersSearchValue}
-                    onChange={(event) => setMembersSearchValue(event.target.value)}
+                    onChange={(event) =>
+                      setMembersSearchValue(event.target.value)
+                    }
                     placeholder="Search members by name or email…"
                     className="w-full rounded-2xl border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-300/60"
                   />
                 </div>
                 <div className="mt-2 flex items-center justify-between text-xs text-white/40">
                   <span>
-                    Active now: {state.activeMembers.toLocaleString("en-US")} members
+                    Active now: {state.activeMembers.toLocaleString("en-US")}{" "}
+                    members
                   </span>
                   <span>Showing {members.length} loaded</span>
                 </div>
@@ -2082,10 +2237,15 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                                   <p className="font-medium text-white">
                                     {member.displayName ?? "Member"}
                                   </p>
-                                  <p className="text-xs text-white/50">{member.email ?? "—"}</p>
+                                  <p className="text-xs text-white/50">
+                                    {member.email ?? "—"}
+                                  </p>
                                   {member.joinedAt && (
                                     <p className="mt-1 text-xs text-white/40">
-                                      Joined {new Date(member.joinedAt).toLocaleDateString()}
+                                      Joined{" "}
+                                      {new Date(
+                                        member.joinedAt,
+                                      ).toLocaleDateString()}
                                     </p>
                                   )}
                                 </div>
@@ -2121,12 +2281,16 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
                   <input
                     value={removedSearchValue}
-                    onChange={(event) => setRemovedSearchValue(event.target.value)}
+                    onChange={(event) =>
+                      setRemovedSearchValue(event.target.value)
+                    }
                     placeholder="Search removed members…"
                     className="w-full rounded-2xl border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-300/60"
                   />
                 </div>
-                <p className="mt-2 text-xs text-white/40">Restored members can join again.</p>
+                <p className="mt-2 text-xs text-white/40">
+                  Restored members can join again.
+                </p>
               </div>
               <div
                 ref={removedParentRef}
@@ -2178,17 +2342,24 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                                   <p className="font-medium text-white">
                                     {entry.displayName ?? "Member"}
                                   </p>
-                                  <p className="text-xs text-white/50">{entry.email ?? "—"}</p>
+                                  <p className="text-xs text-white/50">
+                                    {entry.email ?? "—"}
+                                  </p>
                                   {entry.removedAt && (
                                     <p className="mt-1 text-xs text-white/40">
-                                      Removed {new Date(entry.removedAt).toLocaleString()}
+                                      Removed{" "}
+                                      {new Date(
+                                        entry.removedAt,
+                                      ).toLocaleString()}
                                     </p>
                                   )}
                                 </div>
                               </div>
                               <button
                                 type="button"
-                                onClick={() => handleRestoreMember(entry.userId)}
+                                onClick={() =>
+                                  handleRestoreMember(entry.userId)
+                                }
                                 disabled={removedActionId === entry.userId}
                                 className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                               >
@@ -2217,19 +2388,24 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
                   <input
                     value={adminSearchValue}
-                    onChange={(event) => setAdminSearchValue(event.target.value)}
+                    onChange={(event) =>
+                      setAdminSearchValue(event.target.value)
+                    }
                     placeholder="Search subscribers to promote…"
                     className="w-full rounded-2xl border border-white/10 bg-white/5 py-2.5 pl-9 pr-3 text-sm text-white outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-300/60"
                   />
                 </div>
                 <p className="mt-2 text-xs text-white/40">
-                  Grant admin access to trusted members. Don’t remove yourself if you’d be the last admin.
+                  Grant admin access to trusted members. Don’t remove yourself
+                  if you’d be the last admin.
                 </p>
               </div>
               <div className="flex-1 overflow-y-auto pr-1">
                 <div className="space-y-6">
                   <div>
-                    <h3 className="text-xs uppercase tracking-[0.3em] text-white/40">Current admins</h3>
+                    <h3 className="text-xs uppercase tracking-[0.3em] text-white/40">
+                      Current admins
+                    </h3>
                     <div className="mt-3 space-y-3">
                       {adminsLoading && admins.length === 0 && (
                         <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white/70">
@@ -2244,7 +2420,8 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                       )}
                       {admins.map((admin) => {
                         const busy = adminActionId === admin.userId;
-                        const disableSelf = admin.userId === viewerId && lastAdminId === viewerId;
+                        const disableSelf =
+                          admin.userId === viewerId && lastAdminId === viewerId;
                         return (
                           <div
                             key={admin.userId}
@@ -2265,10 +2442,15 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                                     </span>
                                   )}
                                 </p>
-                                <p className="text-xs text-white/50">{admin.email ?? "—"}</p>
+                                <p className="text-xs text-white/50">
+                                  {admin.email ?? "—"}
+                                </p>
                                 {admin.addedAt && (
                                   <p className="mt-1 text-xs text-white/40">
-                                    Admin since {new Date(admin.addedAt).toLocaleDateString()}
+                                    Admin since{" "}
+                                    {new Date(
+                                      admin.addedAt,
+                                    ).toLocaleDateString()}
                                   </p>
                                 )}
                                 {disableSelf && (
@@ -2297,7 +2479,9 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-xs uppercase tracking-[0.3em] text-white/40">Invite admins</h3>
+                    <h3 className="text-xs uppercase tracking-[0.3em] text-white/40">
+                      Invite admins
+                    </h3>
                     <div className="mt-3 space-y-3">
                       {adminMatchesLoading && (
                         <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white/70">
@@ -2305,11 +2489,13 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                           Searching members…
                         </div>
                       )}
-                      {!adminMatchesLoading && adminQuery && adminMatches.length === 0 && (
-                        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/60">
-                          No subscribers found with that search.
-                        </div>
-                      )}
+                      {!adminMatchesLoading &&
+                        adminQuery &&
+                        adminMatches.length === 0 && (
+                          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/60">
+                            No subscribers found with that search.
+                          </div>
+                        )}
                       {!adminQuery && (
                         <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-4 py-3 text-xs text-white/50">
                           Start typing to search active subscribers.
@@ -2319,7 +2505,9 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                         const busy = adminActionId === candidate.userId;
                         const isAdmin = candidate.isAdmin;
                         const disableSelf =
-                          isAdmin && candidate.userId === viewerId && lastAdminId === viewerId;
+                          isAdmin &&
+                          candidate.userId === viewerId &&
+                          lastAdminId === viewerId;
                         return (
                           <div
                             key={candidate.userId}
@@ -2335,20 +2523,29 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                                 <p className="font-medium text-white">
                                   {candidate.displayName ?? "Member"}
                                 </p>
-                                <p className="text-xs text-white/50">{candidate.email ?? "—"}</p>
+                                <p className="text-xs text-white/50">
+                                  {candidate.email ?? "—"}
+                                </p>
                                 {candidate.addedAt ? (
                                   <p className="mt-1 text-xs text-white/40">
-                                    Admin since {new Date(candidate.addedAt).toLocaleDateString()}
+                                    Admin since{" "}
+                                    {new Date(
+                                      candidate.addedAt,
+                                    ).toLocaleDateString()}
                                   </p>
                                 ) : (
-                                  <p className="mt-1 text-xs text-white/40">Active subscriber</p>
+                                  <p className="mt-1 text-xs text-white/40">
+                                    Active subscriber
+                                  </p>
                                 )}
                               </div>
                             </div>
                             <button
                               type="button"
                               onClick={() =>
-                                isAdmin ? handleRemoveAdmin(candidate) : handleGrantAdmin(candidate.userId)
+                                isAdmin
+                                  ? handleRemoveAdmin(candidate)
+                                  : handleGrantAdmin(candidate.userId)
                               }
                               disabled={disableSelf || busy}
                               className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
@@ -2440,24 +2637,37 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                               <div className="flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-2 text-xs uppercase text-white/40">
                                   <span className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/60">
-                                    {AUDIT_FILTER_LABEL[categorizeAction(entry.action)]}
+                                    {
+                                      AUDIT_FILTER_LABEL[
+                                        categorizeAction(entry.action)
+                                      ]
+                                    }
                                   </span>
                                 </div>
                                 <span className="whitespace-nowrap text-xs uppercase text-white/40">
                                   {formatRelativeTime(entry.at)}
                                 </span>
                               </div>
-                              <p className="font-medium text-white">{summarizeAuditEntry(entry)}</p>
-                              {entry.fromText && entry.fromText !== entry.toText && (
-                                <div className="space-y-1 text-xs text-white/50">
-                                  <p className="truncate text-white/40">Previous: {truncateText(entry.fromText)}</p>
-                                  {entry.toText && (
-                                    <p className="truncate text-white/50">New: {truncateText(entry.toText)}</p>
-                                  )}
-                                </div>
-                              )}
+                              <p className="font-medium text-white">
+                                {summarizeAuditEntry(entry)}
+                              </p>
+                              {entry.fromText &&
+                                entry.fromText !== entry.toText && (
+                                  <div className="space-y-1 text-xs text-white/50">
+                                    <p className="truncate text-white/40">
+                                      Previous: {truncateText(entry.fromText)}
+                                    </p>
+                                    {entry.toText && (
+                                      <p className="truncate text-white/50">
+                                        New: {truncateText(entry.toText)}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
                               {!entry.fromText && entry.toText && (
-                                <p className="truncate text-xs text-white/50">Value: {truncateText(entry.toText)}</p>
+                                <p className="truncate text-xs text-white/50">
+                                  Value: {truncateText(entry.toText)}
+                                </p>
                               )}
                             </article>
                           )}
@@ -2549,8 +2759,12 @@ const auditParentRef = useRef<HTMLDivElement>(null);
                 disabled={confirmBusy}
                 className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#080814] transition hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {confirmBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {confirmDialog.type === "member" ? "Remove member" : "Remove admin"}
+                {confirmBusy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+                {confirmDialog.type === "member"
+                  ? "Remove member"
+                  : "Remove admin"}
               </button>
             </div>
           </div>

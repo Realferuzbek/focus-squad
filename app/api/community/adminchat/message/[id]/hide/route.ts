@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { fetchThreadById, fetchThreadByUserId, isDmAdmin } from "@/lib/adminchat/server";
+import {
+  fetchThreadById,
+  fetchThreadByUserId,
+  isDmAdmin,
+} from "@/lib/adminchat/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
 type RouteParams = {
@@ -92,7 +96,10 @@ export async function POST(_: Request, { params }: RouteParams) {
       );
     }
 
-    const preview = buildMessagePreview(messageRow.kind, messageRow.text ?? null);
+    const preview = buildMessagePreview(
+      messageRow.kind,
+      messageRow.text ?? null,
+    );
     const { error: auditError } = await sb.from("dm_audit").insert({
       thread_id: messageRow.thread_id,
       actor_id: userId,
@@ -107,9 +114,6 @@ export async function POST(_: Request, { params }: RouteParams) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error(err);
-    return NextResponse.json(
-      { error: "Unexpected error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }

@@ -14,7 +14,8 @@ type UsageRow = {
 export async function GET() {
   const guard = await requireAdminSession();
   if (!guard.ok) {
-    const message = guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
+    const message =
+      guard.message === "unauthorized" ? "Unauthorized" : "Admin only";
     return NextResponse.json({ error: message }, { status: guard.status });
   }
 
@@ -34,7 +35,12 @@ export async function GET() {
   rows.forEach((row) => {
     const startTs = new Date(row.started_at).getTime();
     const endTs = new Date(row.last_seen_at).getTime();
-    if (!Number.isFinite(startTs) || !Number.isFinite(endTs) || endTs <= startTs) return;
+    if (
+      !Number.isFinite(startTs) ||
+      !Number.isFinite(endTs) ||
+      endTs <= startTs
+    )
+      return;
     const hours = (endTs - startTs) / (1000 * 60 * 60);
     totals.set(row.user_id, (totals.get(row.user_id) ?? 0) + hours);
   });

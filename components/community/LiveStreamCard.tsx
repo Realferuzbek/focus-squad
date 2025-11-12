@@ -50,7 +50,9 @@ export default function LiveStreamCard() {
       : undefined;
 
   const membersLabel =
-    members !== undefined ? `${members} ${members === 1 ? "member" : "members"}` : "—";
+    members !== undefined
+      ? `${members} ${members === 1 ? "member" : "members"}`
+      : "—";
 
   const badgeClasses = isLive
     ? "bg-emerald-500/15 text-emerald-200 border-emerald-400/40"

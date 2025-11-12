@@ -1,184 +1,451 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flip Countdown</title>
-  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
-  <link rel="alternate icon" href="./assets/icon.png" />
-  <link rel="stylesheet" href="./styles.css?v=20241029d" />
-</head>
-<body>
-  <div id="app" class="app">
-    <div class="bg"></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flip Countdown</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+    <link rel="alternate icon" href="./assets/icon.png" />
+    <link rel="stylesheet" href="./styles.css?v=20241029d" />
+  </head>
+  <body>
+    <div id="app" class="app">
+      <div class="bg"></div>
 
-    <div class="content">
-      <div class="mode-toggle" role="group" aria-label="Timer modes">
-        <button class="mode-btn is-active" type="button" data-mode="pomodoro">pomodoro</button>
-        <button class="mode-btn" type="button" data-mode="short">short break</button>
-        <button class="mode-btn" type="button" data-mode="long">long break</button>
-      </div>
+      <div class="content">
+        <div class="mode-toggle" role="group" aria-label="Timer modes">
+          <button class="mode-btn is-active" type="button" data-mode="pomodoro">
+            pomodoro
+          </button>
+          <button class="mode-btn" type="button" data-mode="short">
+            short break
+          </button>
+          <button class="mode-btn" type="button" data-mode="long">
+            long break
+          </button>
+        </div>
 
-      <div class="time-wrap" id="timeWrap" data-i18n="time.editTitle" data-i18n-attr="title" title="">
-        <div class="flip mm-tens" data-digit="0"></div>
-        <div class="flip mm-ones" data-digit="0"></div>
-        <div class="colon">:</div>
-        <div class="flip ss-tens" data-digit="0"></div>
-        <div class="flip ss-ones" data-digit="0"></div>
-      </div>
+        <div
+          class="time-wrap"
+          id="timeWrap"
+          data-i18n="time.editTitle"
+          data-i18n-attr="title"
+          title=""
+        >
+          <div class="flip mm-tens" data-digit="0"></div>
+          <div class="flip mm-ones" data-digit="0"></div>
+          <div class="colon">:</div>
+          <div class="flip ss-tens" data-digit="0"></div>
+          <div class="flip ss-ones" data-digit="0"></div>
+        </div>
 
-      <input id="timeInput" class="time-input" maxlength="5" placeholder="" aria-label="" data-i18n="time.placeholder" data-i18n-attr="placeholder" data-i18n-attr2="aria-label" />
+        <input
+          id="timeInput"
+          class="time-input"
+          maxlength="5"
+          placeholder=""
+          aria-label=""
+          data-i18n="time.placeholder"
+          data-i18n-attr="placeholder"
+          data-i18n-attr2="aria-label"
+        />
 
-      <div class="hint" aria-hidden="true"></div>
+        <div class="hint" aria-hidden="true"></div>
 
-      <div class="controls" role="group" aria-label="Timer controls">
-        <button id="startBtn" class="control-btn control-btn--primary" type="button">start</button>
-        <button id="resetBtn" class="control-btn control-btn--icon" type="button" aria-label="Restart timer" title="Restart timer">
+        <div class="controls" role="group" aria-label="Timer controls">
+          <button
+            id="startBtn"
+            class="control-btn control-btn--primary"
+            type="button"
+          >
+            start
+          </button>
+          <button
+            id="resetBtn"
+            class="control-btn control-btn--icon"
+            type="button"
+            aria-label="Restart timer"
+            title="Restart timer"
+          >
             <svg viewBox="0 0 24 24" aria-hidden="true" class="icon-refresh">
               <!-- Arc is stroked; arrowhead is a small filled triangle for the crisp “reference” look -->
-              <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <g
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <!-- 300° clockwise arc ending near 1–2 o’clock -->
-                <path d="M20 12a8 8 0 1 1-2.4-5.7"/>
+                <path d="M20 12a8 8 0 1 1-2.4-5.7" />
               </g>
               <!-- solid arrowhead pointing clockwise at the arc end -->
-              <path d="M21 6.6l-3.2-3.2v6.4z" fill="currentColor"/>
+              <path d="M21 6.6l-3.2-3.2v6.4z" fill="currentColor" />
             </svg>
           </button>
-        <button id="fab-bg" class="control-btn control-btn--icon" type="button" aria-label="" title="" data-i18n="fab.backgrounds" data-i18n-attr="aria-label" data-i18n-attr2="title" hidden>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="currentColor" fill-rule="evenodd" d="M17.98 8.55L21.39 10.00L21.39 14.00L17.98 15.45L18.42 19.13L14.97 21.13L12.00 18.90L9.03 21.13L5.58 19.13L6.02 15.45L2.61 14.00L2.61 10.00L6.02 8.55L5.58 4.87L9.03 2.87L12.00 5.10L14.97 2.87L18.42 4.87L17.98 8.55ZM12.00 8.90a3.1 3.1 0 1 1 0 6.2a3.1 3.1 0 1 1 0 -6.2Z"/>
-            <circle cx="12" cy="12" r="2.35" fill="rgba(8,10,16,.92)"/>
-          </svg>
-        </button>
+          <button
+            id="fab-bg"
+            class="control-btn control-btn--icon"
+            type="button"
+            aria-label=""
+            title=""
+            data-i18n="fab.backgrounds"
+            data-i18n-attr="aria-label"
+            data-i18n-attr2="title"
+            hidden
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                fill-rule="evenodd"
+                d="M17.98 8.55L21.39 10.00L21.39 14.00L17.98 15.45L18.42 19.13L14.97 21.13L12.00 18.90L9.03 21.13L5.58 19.13L6.02 15.45L2.61 14.00L2.61 10.00L6.02 8.55L5.58 4.87L9.03 2.87L12.00 5.10L14.97 2.87L18.42 4.87L17.98 8.55ZM12.00 8.90a3.1 3.1 0 1 1 0 6.2a3.1 3.1 0 1 1 0 -6.2Z"
+              />
+              <circle cx="12" cy="12" r="2.35" fill="rgba(8,10,16,.92)" />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      <!-- audio src set from JS -->
+      <audio id="alarm" preload="auto"></audio>
     </div>
 
-    <!-- audio src set from JS -->
-    <audio id="alarm" preload="auto"></audio>
-  </div>
+    <!-- Floating action: Fullscreen -->
+    <div class="fab-wrap" aria-live="polite">
+      <button
+        id="fab-fs"
+        class="fab"
+        type="button"
+        aria-label=""
+        title=""
+        data-i18n="fab.fullscreen"
+        data-i18n-attr="aria-label"
+        data-i18n-attr2="title"
+        hidden
+      >
+        <!-- radiant fullscreen icon -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <g
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.7"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M8 5.5H5.5V8" />
+            <path d="M16 5.5h2.5V8" />
+            <path d="M5.5 16v2.5H8" />
+            <path d="M18.5 16v2.5H16" />
+          </g>
+        </svg>
+      </button>
+      <button
+        id="fab-alarm-stop"
+        class="fab fab--alarm"
+        type="button"
+        aria-label=""
+        title=""
+        data-i18n="fab.alarm"
+        data-i18n-attr="aria-label"
+        data-i18n-attr2="title"
+        hidden
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <g
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="6.5" y="6.5" width="11" height="11" rx="2.2" />
+          </g>
+        </svg>
+      </button>
+    </div>
 
-  <!-- Floating action: Fullscreen -->
-  <div class="fab-wrap" aria-live="polite">
-    <button id="fab-fs" class="fab" type="button" aria-label="" title="" data-i18n="fab.fullscreen" data-i18n-attr="aria-label" data-i18n-attr2="title" hidden>
-      <!-- radiant fullscreen icon -->
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M8 5.5H5.5V8" />
-          <path d="M16 5.5h2.5V8" />
-          <path d="M5.5 16v2.5H8" />
-          <path d="M18.5 16v2.5H16" />
-        </g>
-      </svg>
-    </button>
-    <button id="fab-alarm-stop" class="fab fab--alarm" type="button" aria-label="" title="" data-i18n="fab.alarm" data-i18n-attr="aria-label" data-i18n-attr2="title" hidden>
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="6.5" y="6.5" width="11" height="11" rx="2.2"/>
-        </g>
-      </svg>
-    </button>
-  </div>
-
-  <!-- Background picker sheet -->
-  <div id="bg-sheet" class="sheet" hidden>
-    <div class="sheet__backdrop" data-close></div>
-    <div class="sheet__panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1">
-      <h2 id="sheet-title" class="visually-hidden" data-i18n="settings.title">Settings</h2>
-      <input type="radio" name="sheet-tab" id="sheet-tab-timers" class="sheet__tab-input" />
-      <input type="radio" name="sheet-tab" id="sheet-tab-background" class="sheet__tab-input" checked />
-      <input type="radio" name="sheet-tab" id="sheet-tab-language" class="sheet__tab-input" />
-      <button class="sheet__close icon-btn" type="button" data-close aria-label="" data-i18n="common.close" data-i18n-attr="aria-label" data-i18n-attr2="title" title="">✕</button>
-      <div class="sheet__layout">
-        <nav class="sheet__sidebar" aria-label="Settings sections">
-          <label for="sheet-tab-timers" class="sheet__tab" id="sheet-tab-timers-label">
-            <span data-i18n="tab.pomodoro">Pomodoro</span>
-          </label>
-          <label for="sheet-tab-background" class="sheet__tab" id="sheet-tab-background-label">
-            <span data-i18n="tab.background">Background</span>
-          </label>
-          <label for="sheet-tab-language" class="sheet__tab" id="sheet-tab-language-label">
-            <span data-i18n="tab.language">Language</span>
-          </label>
-        </nav>
-        <div class="sheet__content">
-          <section class="sheet__pane sheet__pane--timers" role="region" aria-labelledby="sheet-tab-timers-label">
-            <header class="sheet__section-header">
-              <div>
-                <h3 data-i18n="pomodoro.title">Pomodoro</h3>
-                <p data-i18n="pomodoro.subtitle">Dial in focus and breaks for your perfect flow.</p>
-              </div>
-            </header>
-            <div class="pomodoro-grid" role="group" aria-label="Timer durations">
-              <div class="pomodoro-field">
-                <label class="pomodoro-label" for="pomodoro-focus" data-i18n="pomodoro.field.focus">Pomodoro</label>
-                <div class="pomodoro-input">
-                  <input id="pomodoro-focus" type="number" inputmode="numeric" min="1" max="99" value="25" aria-describedby="pomodoro-focus-meta" />
+    <!-- Background picker sheet -->
+    <div id="bg-sheet" class="sheet" hidden>
+      <div class="sheet__backdrop" data-close></div>
+      <div
+        class="sheet__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sheet-title"
+        tabindex="-1"
+      >
+        <h2 id="sheet-title" class="visually-hidden" data-i18n="settings.title">
+          Settings
+        </h2>
+        <input
+          type="radio"
+          name="sheet-tab"
+          id="sheet-tab-timers"
+          class="sheet__tab-input"
+        />
+        <input
+          type="radio"
+          name="sheet-tab"
+          id="sheet-tab-background"
+          class="sheet__tab-input"
+          checked
+        />
+        <input
+          type="radio"
+          name="sheet-tab"
+          id="sheet-tab-language"
+          class="sheet__tab-input"
+        />
+        <button
+          class="sheet__close icon-btn"
+          type="button"
+          data-close
+          aria-label=""
+          data-i18n="common.close"
+          data-i18n-attr="aria-label"
+          data-i18n-attr2="title"
+          title=""
+        >
+          ✕
+        </button>
+        <div class="sheet__layout">
+          <nav class="sheet__sidebar" aria-label="Settings sections">
+            <label
+              for="sheet-tab-timers"
+              class="sheet__tab"
+              id="sheet-tab-timers-label"
+            >
+              <span data-i18n="tab.pomodoro">Pomodoro</span>
+            </label>
+            <label
+              for="sheet-tab-background"
+              class="sheet__tab"
+              id="sheet-tab-background-label"
+            >
+              <span data-i18n="tab.background">Background</span>
+            </label>
+            <label
+              for="sheet-tab-language"
+              class="sheet__tab"
+              id="sheet-tab-language-label"
+            >
+              <span data-i18n="tab.language">Language</span>
+            </label>
+          </nav>
+          <div class="sheet__content">
+            <section
+              class="sheet__pane sheet__pane--timers"
+              role="region"
+              aria-labelledby="sheet-tab-timers-label"
+            >
+              <header class="sheet__section-header">
+                <div>
+                  <h3 data-i18n="pomodoro.title">Pomodoro</h3>
+                  <p data-i18n="pomodoro.subtitle">
+                    Dial in focus and breaks for your perfect flow.
+                  </p>
                 </div>
-                <span id="pomodoro-focus-meta" class="pomodoro-meta" data-i18n="pomodoro.minutes">minutes</span>
-              </div>
-              <div class="pomodoro-field">
-                <label class="pomodoro-label" for="pomodoro-short" data-i18n="pomodoro.field.short">Short Break</label>
-                <div class="pomodoro-input">
-                  <input id="pomodoro-short" type="number" inputmode="numeric" min="1" max="99" value="5" aria-describedby="pomodoro-short-meta" />
+              </header>
+              <div
+                class="pomodoro-grid"
+                role="group"
+                aria-label="Timer durations"
+              >
+                <div class="pomodoro-field">
+                  <label
+                    class="pomodoro-label"
+                    for="pomodoro-focus"
+                    data-i18n="pomodoro.field.focus"
+                    >Pomodoro</label
+                  >
+                  <div class="pomodoro-input">
+                    <input
+                      id="pomodoro-focus"
+                      type="number"
+                      inputmode="numeric"
+                      min="1"
+                      max="99"
+                      value="25"
+                      aria-describedby="pomodoro-focus-meta"
+                    />
+                  </div>
+                  <span
+                    id="pomodoro-focus-meta"
+                    class="pomodoro-meta"
+                    data-i18n="pomodoro.minutes"
+                    >minutes</span
+                  >
                 </div>
-                <span id="pomodoro-short-meta" class="pomodoro-meta" data-i18n="pomodoro.minutes">minutes</span>
-              </div>
-              <div class="pomodoro-field">
-                <label class="pomodoro-label" for="pomodoro-long" data-i18n="pomodoro.field.long">Long Break</label>
-                <div class="pomodoro-input">
-                  <input id="pomodoro-long" type="number" inputmode="numeric" min="1" max="99" value="15" aria-describedby="pomodoro-long-meta" />
+                <div class="pomodoro-field">
+                  <label
+                    class="pomodoro-label"
+                    for="pomodoro-short"
+                    data-i18n="pomodoro.field.short"
+                    >Short Break</label
+                  >
+                  <div class="pomodoro-input">
+                    <input
+                      id="pomodoro-short"
+                      type="number"
+                      inputmode="numeric"
+                      min="1"
+                      max="99"
+                      value="5"
+                      aria-describedby="pomodoro-short-meta"
+                    />
+                  </div>
+                  <span
+                    id="pomodoro-short-meta"
+                    class="pomodoro-meta"
+                    data-i18n="pomodoro.minutes"
+                    >minutes</span
+                  >
                 </div>
-                <span id="pomodoro-long-meta" class="pomodoro-meta" data-i18n="pomodoro.minutes">minutes</span>
+                <div class="pomodoro-field">
+                  <label
+                    class="pomodoro-label"
+                    for="pomodoro-long"
+                    data-i18n="pomodoro.field.long"
+                    >Long Break</label
+                  >
+                  <div class="pomodoro-input">
+                    <input
+                      id="pomodoro-long"
+                      type="number"
+                      inputmode="numeric"
+                      min="1"
+                      max="99"
+                      value="15"
+                      aria-describedby="pomodoro-long-meta"
+                    />
+                  </div>
+                  <span
+                    id="pomodoro-long-meta"
+                    class="pomodoro-meta"
+                    data-i18n="pomodoro.minutes"
+                    >minutes</span
+                  >
+                </div>
               </div>
-            </div>
-            <footer class="pomodoro-actions">
-              <button type="button" class="pomodoro-btn pomodoro-btn--outline" id="pomodoro-reset-btn" data-i18n="pomodoro.reset">Reset all</button>
-              <div class="pomodoro-actions__spacer" aria-hidden="true"></div>
-              <button type="button" class="pomodoro-btn pomodoro-btn--muted" id="pomodoro-close-btn" data-close data-i18n="pomodoro.close">Close</button>
-              <button type="button" class="pomodoro-btn pomodoro-btn--primary" id="pomodoro-save-btn" data-i18n="pomodoro.save">Save changes</button>
-            </footer>
-          </section>
-          <section class="sheet__pane sheet__pane--background" role="region" aria-labelledby="sheet-tab-background-label">
-            <header class="sheet__section-header sheet__section-header--background">
-              <div>
-                <h3 id="bg-title" data-i18n="background.title">Select theme</h3>
-                <p data-i18n="background.subtitle">Tap a scene to refresh your focus space in seconds.</p>
+              <footer class="pomodoro-actions">
+                <button
+                  type="button"
+                  class="pomodoro-btn pomodoro-btn--outline"
+                  id="pomodoro-reset-btn"
+                  data-i18n="pomodoro.reset"
+                >
+                  Reset all
+                </button>
+                <div class="pomodoro-actions__spacer" aria-hidden="true"></div>
+                <button
+                  type="button"
+                  class="pomodoro-btn pomodoro-btn--muted"
+                  id="pomodoro-close-btn"
+                  data-close
+                  data-i18n="pomodoro.close"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  class="pomodoro-btn pomodoro-btn--primary"
+                  id="pomodoro-save-btn"
+                  data-i18n="pomodoro.save"
+                >
+                  Save changes
+                </button>
+              </footer>
+            </section>
+            <section
+              class="sheet__pane sheet__pane--background"
+              role="region"
+              aria-labelledby="sheet-tab-background-label"
+            >
+              <header
+                class="sheet__section-header sheet__section-header--background"
+              >
+                <div>
+                  <h3 id="bg-title" data-i18n="background.title">
+                    Select theme
+                  </h3>
+                  <p data-i18n="background.subtitle">
+                    Tap a scene to refresh your focus space in seconds.
+                  </p>
+                </div>
+              </header>
+              <div
+                id="bg-grid"
+                class="sheet__grid theme-options"
+                role="list"
+              ></div>
+            </section>
+            <section
+              class="sheet__pane sheet__pane--language"
+              role="region"
+              aria-labelledby="sheet-tab-language-label"
+            >
+              <header class="sheet__section-header">
+                <div>
+                  <h3 data-i18n="language.title">Language</h3>
+                  <p data-i18n="language.subtitle">
+                    Choose how the interface speaks to you.
+                  </p>
+                </div>
+              </header>
+              <div
+                class="language-options"
+                role="radiogroup"
+                aria-label=""
+                data-i18n="language.groupLabel"
+                data-i18n-attr="aria-label"
+              >
+                <label class="language-option">
+                  <input type="radio" name="language-option" value="en" />
+                  <span
+                    class="language-option__indicator"
+                    aria-hidden="true"
+                  ></span>
+                  <span
+                    class="language-option__label"
+                    data-i18n="language.option.en"
+                    >English</span
+                  >
+                </label>
+                <label class="language-option">
+                  <input type="radio" name="language-option" value="uz" />
+                  <span
+                    class="language-option__indicator"
+                    aria-hidden="true"
+                  ></span>
+                  <span
+                    class="language-option__label"
+                    data-i18n="language.option.uz"
+                    >Uzbek</span
+                  >
+                </label>
+                <label class="language-option">
+                  <input type="radio" name="language-option" value="ru" />
+                  <span
+                    class="language-option__indicator"
+                    aria-hidden="true"
+                  ></span>
+                  <span
+                    class="language-option__label"
+                    data-i18n="language.option.ru"
+                    >Russian</span
+                  >
+                </label>
               </div>
-            </header>
-            <div id="bg-grid" class="sheet__grid theme-options" role="list"></div>
-          </section>
-          <section class="sheet__pane sheet__pane--language" role="region" aria-labelledby="sheet-tab-language-label">
-            <header class="sheet__section-header">
-              <div>
-                <h3 data-i18n="language.title">Language</h3>
-                <p data-i18n="language.subtitle">Choose how the interface speaks to you.</p>
-              </div>
-            </header>
-            <div class="language-options" role="radiogroup" aria-label="" data-i18n="language.groupLabel" data-i18n-attr="aria-label">
-              <label class="language-option">
-                <input type="radio" name="language-option" value="en" />
-                <span class="language-option__indicator" aria-hidden="true"></span>
-                <span class="language-option__label" data-i18n="language.option.en">English</span>
-              </label>
-              <label class="language-option">
-                <input type="radio" name="language-option" value="uz" />
-                <span class="language-option__indicator" aria-hidden="true"></span>
-                <span class="language-option__label" data-i18n="language.option.uz">Uzbek</span>
-              </label>
-              <label class="language-option">
-                <input type="radio" name="language-option" value="ru" />
-                <span class="language-option__indicator" aria-hidden="true"></span>
-                <span class="language-option__label" data-i18n="language.option.ru">Russian</span>
-              </label>
-            </div>
-            <p class="language-hint" data-i18n="language.hint">Applies instantly across the app.</p>
-          </section>
+              <p class="language-hint" data-i18n="language.hint">
+                Applies instantly across the app.
+              </p>
+            </section>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Load as module so we can resolve assets robustly -->
-  <script type="module" src="./script.js?v=20241029e"></script>
-</body>
+    <!-- Load as module so we can resolve assets robustly -->
+    <script type="module" src="./script.js?v=20241029e"></script>
+  </body>
 </html>

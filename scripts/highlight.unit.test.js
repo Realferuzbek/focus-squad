@@ -1,12 +1,8 @@
 const assert = require("assert");
 const { loadTsModule } = require("./test-helpers/load-ts");
 
-const {
-  escapeHtml,
-  buildPlainSnippet,
-  buildHighlightSnippet,
-  ensureSafeHtml,
-} = loadTsModule("lib/highlight.ts");
+const { escapeHtml, buildPlainSnippet, buildHighlightSnippet, ensureSafeHtml } =
+  loadTsModule("lib/highlight.ts");
 
 (function testEscapeHtml() {
   const escaped = escapeHtml(`<script>alert("&")</script>`);
@@ -42,4 +38,3 @@ const {
 
 console.log("highlight unit tests passed");
 process.exit(0);
-

@@ -56,9 +56,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const publicUrl = storage
-    .from("live_assets")
-    .getPublicUrl(path)
+  const publicUrl = storage.from("live_assets").getPublicUrl(path)
     .data?.publicUrl;
 
   return NextResponse.json({

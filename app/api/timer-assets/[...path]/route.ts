@@ -11,10 +11,7 @@ const TYPE: Record<string, string> = {
   ico: "image/x-icon",
 };
 
-export async function GET(
-  _req: Request,
-  ctx: { params: { path: string[] } }
-) {
+export async function GET(_req: Request, ctx: { params: { path: string[] } }) {
   const path = ctx.params.path.join("/");
   const upstream = `https://raw.githubusercontent.com/Realferuzbek/flip_countdown_new/main/${path}`;
   const res = await fetch(upstream, { next: { revalidate: 3600 } });

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { fetchThreadById, fetchThreadByUserId, isDmAdmin, mapMessage } from "@/lib/adminchat/server";
+import {
+  fetchThreadById,
+  fetchThreadByUserId,
+  isDmAdmin,
+  mapMessage,
+} from "@/lib/adminchat/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
 const bodySchema = z.object({
@@ -130,10 +135,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ message: mapMessage(updated) });
   } catch (err) {
     console.error(err);
-    return NextResponse.json(
-      { error: "Unexpected error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }
 
@@ -194,7 +196,10 @@ export async function DELETE(_: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const preview = buildMessagePreview(messageRow.kind, messageRow.text ?? null);
+    const preview = buildMessagePreview(
+      messageRow.kind,
+      messageRow.text ?? null,
+    );
     const { error: auditError } = await sb.from("dm_audit").insert({
       thread_id: messageRow.thread_id,
       actor_id: userId,
@@ -209,9 +214,6 @@ export async function DELETE(_: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error(err);
-    return NextResponse.json(
-      { error: "Unexpected error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }

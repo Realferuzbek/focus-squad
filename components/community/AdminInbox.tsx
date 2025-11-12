@@ -79,7 +79,14 @@ export default function AdminInbox({
       if (onCloseMobile) onCloseMobile();
       onThreadOpen?.();
     },
-    [pathname, router, searchParams, onCloseMobile, onThreadOpen, onSelectThread],
+    [
+      pathname,
+      router,
+      searchParams,
+      onCloseMobile,
+      onThreadOpen,
+      onSelectThread,
+    ],
   );
 
   const panel = (
@@ -106,7 +113,8 @@ export default function AdminInbox({
       <div className="flex flex-col gap-2 overflow-y-auto pr-1">
         {sortedThreads.map((thread) => {
           const isActive = thread.id === activeThreadId;
-          const avatar = thread.avatarUrl ?? thread.targetUser?.avatarUrl ?? null;
+          const avatar =
+            thread.avatarUrl ?? thread.targetUser?.avatarUrl ?? null;
           const label =
             thread.targetUser?.name ??
             thread.targetUser?.email ??
@@ -130,12 +138,7 @@ export default function AdminInbox({
             >
               <div className="relative h-11 w-11 overflow-hidden rounded-2xl border border-white/10 bg-white/10 text-lg">
                 {avatar ? (
-                  <Image
-                    src={avatar}
-                    alt=""
-                    fill
-                    className="object-cover"
-                  />
+                  <Image src={avatar} alt="" fill className="object-cover" />
                 ) : (
                   <div className="grid h-full w-full place-items-center text-base">
                     💬
@@ -201,16 +204,18 @@ export default function AdminInbox({
             initial={{ x: "-100%" }}
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
-            transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 36 }}
+            transition={
+              prefersReducedMotion
+                ? { duration: 0 }
+                : { type: "spring", stiffness: 380, damping: 36 }
+            }
           >
             {panel}
           </motion.aside>
         )}
       </AnimatePresence>
 
-      <div className="hidden h-full w-80 md:block">
-        {panel}
-      </div>
+      <div className="hidden h-full w-80 md:block">{panel}</div>
     </>
   );
 }

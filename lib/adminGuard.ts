@@ -25,7 +25,9 @@ export interface AdminGuardSessionSuccess {
   user: AdminUser;
 }
 
-export type AdminGuardSessionResult = AdminGuardSessionSuccess | AdminGuardFailure;
+export type AdminGuardSessionResult =
+  | AdminGuardSessionSuccess
+  | AdminGuardFailure;
 
 export interface AdminGuardOrInternalSuccess {
   ok: true;
@@ -47,18 +49,25 @@ export interface AdminGuardOrInternalOptions extends ResolveSessionOptions {
   request: NextRequest | Request;
 }
 
-function buildFailure(status: 401 | 403, message: UnauthorizedMessage): AdminGuardFailure {
+function buildFailure(
+  status: 401 | 403,
+  message: UnauthorizedMessage,
+): AdminGuardFailure {
   return { ok: false, status, message };
 }
 
-function normalizeAdminUser(session: Session | null | undefined): AdminGuardSessionResult {
+function normalizeAdminUser(
+  session: Session | null | undefined,
+): AdminGuardSessionResult {
   const user = session?.user as Record<string, unknown> | undefined;
   const emailRaw = typeof user?.email === "string" ? user.email : null;
   if (!user || !emailRaw) {
     return buildFailure(401, "unauthorized");
   }
 
-  const isAdmin = user.is_admin === true || (user as { is_admin?: unknown }).is_admin === true;
+  const isAdmin =
+    user.is_admin === true ||
+    (user as { is_admin?: unknown }).is_admin === true;
   if (!isAdmin) {
     return buildFailure(403, "forbidden");
   }
@@ -71,7 +80,9 @@ function normalizeAdminUser(session: Session | null | undefined): AdminGuardSess
   };
 }
 
-async function resolveSession(options?: ResolveSessionOptions): Promise<Session | null> {
+async function resolveSession(
+  options?: ResolveSessionOptions,
+): Promise<Session | null> {
   if (options && "session" in options) {
     return options.session ?? null;
   }
@@ -90,7 +101,10 @@ function verifyInternalSignature(request: Request | NextRequest): boolean {
     const providedBuffer = Buffer.from(provided, "hex");
     if (providedBuffer.length !== expected.length) return false;
     // Ensure both arguments to timingSafeEqual are Buffers (as required by Node.js API)
-    return timingSafeEqual(providedBuffer as Uint8Array, expected as Uint8Array);
+    return timingSafeEqual(
+      providedBuffer as Uint8Array,
+      expected as Uint8Array,
+    );
   } catch {
     return false;
   }
@@ -111,4 +125,3 @@ export async function requireAdminOrInternal(
   }
   return requireAdminSession(options);
 }
-

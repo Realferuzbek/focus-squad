@@ -40,17 +40,16 @@ import { buildPlainSnippet, ensureSafeHtml } from "@/lib/highlight";
 
 const EmojiPicker = dynamic(
   () =>
-    Promise.all([
-      import("@emoji-mart/react"),
-      import("@emoji-mart/data"),
-    ]).then(([mod, data]) => {
-      const Picker = mod.default;
-      const EmojiPickerComponent = (props: any) => (
-        <Picker data={data.default} {...props} />
-      );
-      EmojiPickerComponent.displayName = "LiveEmojiPicker";
-      return EmojiPickerComponent;
-    }),
+    Promise.all([import("@emoji-mart/react"), import("@emoji-mart/data")]).then(
+      ([mod, data]) => {
+        const Picker = mod.default;
+        const EmojiPickerComponent = (props: any) => (
+          <Picker data={data.default} {...props} />
+        );
+        EmojiPickerComponent.displayName = "LiveEmojiPicker";
+        return EmojiPickerComponent;
+      },
+    ),
   { ssr: false },
 );
 
@@ -138,10 +137,17 @@ type LiveChatClientProps = {
   adminState?: LiveAdminStateSnapshot | null;
 };
 
-export default function LiveChatClient({ user, adminState }: LiveChatClientProps) {
+export default function LiveChatClient({
+  user,
+  adminState,
+}: LiveChatClientProps) {
   const [isLive, setIsLive] = useState(adminState?.isLive ?? false);
-  const [memberCount, setMemberCount] = useState(adminState?.subscribersCount ?? 0);
-  const [groupName, setGroupName] = useState(adminState?.groupName ?? "Live Stream Chat");
+  const [memberCount, setMemberCount] = useState(
+    adminState?.subscribersCount ?? 0,
+  );
+  const [groupName, setGroupName] = useState(
+    adminState?.groupName ?? "Live Stream Chat",
+  );
   const [groupDescription, setGroupDescription] = useState<string | null>(
     adminState?.groupDescription ?? null,
   );
@@ -151,9 +157,13 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
   const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(
     adminState?.wallpaperUrl ?? null,
   );
-  const [wallpaperReadyUrl, setWallpaperReadyUrl] = useState<string | null>(null);
+  const [wallpaperReadyUrl, setWallpaperReadyUrl] = useState<string | null>(
+    null,
+  );
   const [wallpaperVisible, setWallpaperVisible] = useState(false);
-  const [wallpaperFit, setWallpaperFit] = useState<"cover" | "contain">("cover");
+  const [wallpaperFit, setWallpaperFit] = useState<"cover" | "contain">(
+    "cover",
+  );
   const [isNarrowViewport, setIsNarrowViewport] = useState(false);
   const [wallpaperParallax, setWallpaperParallax] = useState(0);
   const [adminActiveMembers, setAdminActiveMembers] = useState(
@@ -199,7 +209,9 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     setGroupDescription(adminState.groupDescription ?? null);
     setGroupAvatarUrl(adminState.groupAvatarUrl ?? null);
     setWallpaperUrl(adminState.wallpaperUrl ?? null);
-    setAdminActiveMembers(adminState.activeMembers ?? adminState.subscribersCount ?? 0);
+    setAdminActiveMembers(
+      adminState.activeMembers ?? adminState.subscribersCount ?? 0,
+    );
     setAdminRemovedMembers(adminState.removedMembers ?? 0);
   }, [adminState]);
 
@@ -296,7 +308,9 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
           setGroupDescription(state.groupDescription ?? null);
           setGroupAvatarUrl(state.groupAvatarUrl ?? null);
           setWallpaperUrl(state.wallpaperUrl ?? null);
-          setAdminActiveMembers(state.activeMembers ?? state.subscribersCount ?? 0);
+          setAdminActiveMembers(
+            state.activeMembers ?? state.subscribersCount ?? 0,
+          );
           setAdminRemovedMembers(state.removedMembers ?? 0);
         }
         return true;
@@ -311,7 +325,9 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     [pushError],
   );
 
-  const interactiveTransition = prefersReducedMotion ? "" : "transition duration-200";
+  const interactiveTransition = prefersReducedMotion
+    ? ""
+    : "transition duration-200";
   const focusRing =
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0c1a]";
   const headerButtonClass = `flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-white/80 ${interactiveTransition} ${focusRing} hover:border-white/40 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 sm:h-11 sm:w-11`;
@@ -328,12 +344,20 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
       backgroundPosition: "center",
       backgroundRepeat: "no-repeat",
       opacity: wallpaperVisible ? 1 : 0,
-      transform: prefersReducedMotion ? undefined : `translateY(${wallpaperParallax}px)`,
+      transform: prefersReducedMotion
+        ? undefined
+        : `translateY(${wallpaperParallax}px)`,
       transition: prefersReducedMotion
         ? "opacity 0.25s ease"
         : "opacity 0.4s ease, transform 0.6s ease",
     } as CSSProperties;
-  }, [prefersReducedMotion, wallpaperFit, wallpaperParallax, wallpaperReadyUrl, wallpaperVisible]);
+  }, [
+    prefersReducedMotion,
+    wallpaperFit,
+    wallpaperParallax,
+    wallpaperReadyUrl,
+    wallpaperVisible,
+  ]);
   const liveStatusLabel = isLive ? "Open" : "Locked";
 
   useEffect(() => {
@@ -643,7 +667,12 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
       .channel("live_stream_state")
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "live_stream_state", filter: "id=eq.1" },
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "live_stream_state",
+          filter: "id=eq.1",
+        },
         () => {
           fetchState().catch((err) => console.error("state update", err));
         },
@@ -657,8 +686,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const atBottom =
-      el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
     autoScrollRef.current = atBottom;
     if (el.scrollTop < 160 && hasMore && !loadingMore) {
       setLoadingMore(true);
@@ -771,7 +799,7 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
               authorAvatar: user.avatarUrl ?? null,
               kind: payload.file.kind,
               text: body.text ?? null,
-              filePath: payload.file ? body.filePath ?? null : null,
+              filePath: payload.file ? (body.filePath ?? null) : null,
               fileMime: payload.file.file.type,
               fileBytes: payload.file.file.size,
               createdAt: new Date().toISOString(),
@@ -836,9 +864,12 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     async (message: LiveMessage) => {
       if (!message.realId) return;
       try {
-        const res = await csrfFetch(`/api/community/live/messages/${message.realId}`, {
-          method: "DELETE",
-        });
+        const res = await csrfFetch(
+          `/api/community/live/messages/${message.realId}`,
+          {
+            method: "DELETE",
+          },
+        );
         if (!res.ok) {
           const status = res.status;
           const data = await res.json().catch(() => ({}));
@@ -898,7 +929,9 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
 
   const handleJoin = useCallback(async () => {
     try {
-      const res = await csrfFetch("/api/community/live/join", { method: "POST" });
+      const res = await csrfFetch("/api/community/live/join", {
+        method: "POST",
+      });
       if (!res.ok) {
         const status = res.status;
         const data = await res.json().catch(() => ({}));
@@ -919,7 +952,9 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
 
   const handleLeave = useCallback(async () => {
     try {
-      const res = await csrfFetch("/api/community/live/leave", { method: "POST" });
+      const res = await csrfFetch("/api/community/live/leave", {
+        method: "POST",
+      });
       if (!res.ok) {
         const status = res.status;
         const data = await res.json().catch(() => ({}));
@@ -943,12 +978,16 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     async (query: string) => {
       setSearching(true);
       try {
-        const res = await fetch(`/api/community/live/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(
+          `/api/community/live/search?q=${encodeURIComponent(query)}`,
+        );
         if (!res.ok) {
           const status = res.status;
           const data = await res.json().catch(() => ({}));
           pushError(
-            STATUS_MESSAGES[status] ?? data.error ?? "Search failed. Try again soon.",
+            STATUS_MESSAGES[status] ??
+              data.error ??
+              "Search failed. Try again soon.",
           );
           setSearchResults([]);
           return;
@@ -978,7 +1017,9 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
   const handleSearchSelect = useCallback(
     (message: LiveMessage) => {
       setShowSearch(false);
-      const index = sortedMessages.findIndex((item) => item.realId === message.realId);
+      const index = sortedMessages.findIndex(
+        (item) => item.realId === message.realId,
+      );
       if (index >= 0) {
         virtualizer.scrollToIndex(index, { align: "center" });
       }
@@ -1006,7 +1047,9 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
 
   const toUint8 = useCallback((base64String: string) => {
     const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const base64 = (base64String + padding)
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
     const rawData = atob(base64);
     const outputArray = new Uint8Array(rawData.length);
     for (let i = 0; i < rawData.length; ++i) {
@@ -1126,7 +1169,9 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
       timerRef.current = null;
     }
     if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+      mediaRecorderRef.current.stream
+        .getTracks()
+        .forEach((track) => track.stop());
       mediaRecorderRef.current = null;
     }
     audioChunksRef.current = [];
@@ -1176,7 +1221,8 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
     }
   }, [pushError, recording, resetRecording, sendMessage]);
 
-  const composerDisabled = (!joined && !isLiveAdmin) || (!isLive && !isLiveAdmin) || sending;
+  const composerDisabled =
+    (!joined && !isLiveAdmin) || (!isLive && !isLiveAdmin) || sending;
   const showJoinBanner = !joined && !isLiveAdmin;
   const lockBannerText = !isLive
     ? isLiveAdmin
@@ -1191,589 +1237,648 @@ export default function LiveChatClient({ user, adminState }: LiveChatClientProps
       : "Opens during livestream"
     : undefined;
 
-  const handleEmoji = useCallback(
-    (emoji: any) => {
-      const native = emoji?.native;
-      if (!native) return;
-      setComposer((prev) => prev + native);
-    },
-    [],
-  );
+  const handleEmoji = useCallback((emoji: any) => {
+    const native = emoji?.native;
+    if (!native) return;
+    setComposer((prev) => prev + native);
+  }, []);
 
   return (
     <>
       <div className="flex min-h-[calc(100dvh-4rem)] flex-col gap-6 text-white">
-      {notices.length > 0 && (
-        <div className="pointer-events-none fixed bottom-6 right-4 z-50 flex w-full max-w-xs flex-col gap-3 sm:pointer-events-auto">
-          {notices.map((notice) => (
-            <div
-              key={notice.id}
-              role="status"
-              aria-live="assertive"
-              className={`pointer-events-auto rounded-2xl border px-4 py-3 text-sm shadow-lg backdrop-blur ${
-                notice.variant === "success"
-                  ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-100"
-                  : "border-rose-400/60 bg-rose-500/20 text-rose-100"
-              }`}
-            >
-              {notice.text}
-            </div>
-          ))}
-        </div>
-      )}
-      <section
-        className={`relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-[#181832] via-[#10102a] to-[#1e1335] ${
-          prefersReducedMotion ? "" : "shadow-[0_20px_60px_rgba(118,76,255,0.35)]"
-        }`}
-      >
-        <div className="absolute inset-0 overflow-hidden">
-          {wallpaperStyle && (
-            <div
-              aria-hidden="true"
-              className={`absolute inset-0 bg-no-repeat ${
-                prefersReducedMotion ? "" : "will-change-transform"
-              }`}
-              style={wallpaperStyle}
-            />
-          )}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#050515]/65 via-[#050515]/25 to-[#050515]/80" />
-        </div>
-        <div
-          className={`relative flex flex-col gap-6 p-4 sm:p-8 ${
-            prefersReducedMotion ? "bg-black/30" : "bg-white/5 backdrop-blur-md"
+        {notices.length > 0 && (
+          <div className="pointer-events-none fixed bottom-6 right-4 z-50 flex w-full max-w-xs flex-col gap-3 sm:pointer-events-auto">
+            {notices.map((notice) => (
+              <div
+                key={notice.id}
+                role="status"
+                aria-live="assertive"
+                className={`pointer-events-auto rounded-2xl border px-4 py-3 text-sm shadow-lg backdrop-blur ${
+                  notice.variant === "success"
+                    ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-100"
+                    : "border-rose-400/60 bg-rose-500/20 text-rose-100"
+                }`}
+              >
+                {notice.text}
+              </div>
+            ))}
+          </div>
+        )}
+        <section
+          className={`relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-[#181832] via-[#10102a] to-[#1e1335] ${
+            prefersReducedMotion
+              ? ""
+              : "shadow-[0_20px_60px_rgba(118,76,255,0.35)]"
           }`}
         >
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-start gap-4">
-              <GroupAvatar name={groupName} avatarUrl={groupAvatarUrl} />
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.4em] text-white/50">Live Energy</p>
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <h1 className="truncate text-2xl font-semibold sm:text-3xl md:text-4xl">{groupName}</h1>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white/80">
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        isLive ? "bg-emerald-400" : "bg-white/40"
-                      } ${!prefersReducedMotion && isLive ? "animate-pulse" : ""}`}
-                    />
-                    {liveStatusLabel}
-                  </span>
-                </div>
-                {groupDescription && (
-                  <p className="mt-2 max-w-xl text-sm text-white/70">{groupDescription}</p>
-                )}
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/70">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1">
-                    {displayMemberCount} subscribers
-                  </span>
-                  {isLiveAdmin && (
-                    <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1">
-                      {adminActiveMembers} active · {adminRemovedMembers} removed
+          <div className="absolute inset-0 overflow-hidden">
+            {wallpaperStyle && (
+              <div
+                aria-hidden="true"
+                className={`absolute inset-0 bg-no-repeat ${
+                  prefersReducedMotion ? "" : "will-change-transform"
+                }`}
+                style={wallpaperStyle}
+              />
+            )}
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#050515]/65 via-[#050515]/25 to-[#050515]/80" />
+          </div>
+          <div
+            className={`relative flex flex-col gap-6 p-4 sm:p-8 ${
+              prefersReducedMotion
+                ? "bg-black/30"
+                : "bg-white/5 backdrop-blur-md"
+            }`}
+          >
+            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-4">
+                <GroupAvatar name={groupName} avatarUrl={groupAvatarUrl} />
+                <div className="min-w-0">
+                  <p className="text-xs uppercase tracking-[0.4em] text-white/50">
+                    Live Energy
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <h1 className="truncate text-2xl font-semibold sm:text-3xl md:text-4xl">
+                      {groupName}
+                    </h1>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white/80">
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          isLive ? "bg-emerald-400" : "bg-white/40"
+                        } ${!prefersReducedMotion && isLive ? "animate-pulse" : ""}`}
+                      />
+                      {liveStatusLabel}
                     </span>
+                  </div>
+                  {groupDescription && (
+                    <p className="mt-2 max-w-xl text-sm text-white/70">
+                      {groupDescription}
+                    </p>
                   )}
-                  {joined && unreadCount > 0 && (
-                    <span
-                      className="inline-flex items-center gap-2 rounded-full border border-violet-400/60 bg-violet-500/20 px-3 py-1 text-xs font-semibold text-violet-100"
-                      aria-live="polite"
-                    >
-                      {unreadCount} new
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/70">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1">
+                      {displayMemberCount} subscribers
                     </span>
-                  )}
+                    {isLiveAdmin && (
+                      <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1">
+                        {adminActiveMembers} active · {adminRemovedMembers}{" "}
+                        removed
+                      </span>
+                    )}
+                    {joined && unreadCount > 0 && (
+                      <span
+                        className="inline-flex items-center gap-2 rounded-full border border-violet-400/60 bg-violet-500/20 px-3 py-1 text-xs font-semibold text-violet-100"
+                        aria-live="polite"
+                      >
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="hidden items-center gap-2 md:flex">
-              {isLiveAdmin ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => openAdminPanel("general")}
-                    title="Edit group"
-                    aria-label="Edit group"
-                    className={headerButtonClass}
-                  >
-                    <Pencil className="h-5 w-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => togglePush(!pushEnabled)}
-                    disabled={pushBusy}
-                    aria-label={pushEnabled ? "Disable live notifications" : "Enable live notifications"}
-                    aria-pressed={pushEnabled}
-                    title={pushEnabled ? "Disable live notifications" : "Enable live notifications"}
-                    className={`${headerButtonClass} ${pushEnabled ? "text-white" : ""}`}
-                  >
-                    {pushBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Bell className="h-5 w-5" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => joined && setShowSearch(true)}
-                    disabled={!joined}
-                    aria-label="Search chat"
-                    aria-disabled={!joined}
-                    title={joined ? "Search messages" : "Join chat to search the archive"}
-                    className={`${headerButtonClass} ${!joined ? "opacity-40" : ""}`}
-                  >
-                    <Search className="h-5 w-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openAdminPanel("recent")}
-                    title="Recent actions"
-                    aria-label="Recent actions"
-                    className={headerButtonClass}
-                  >
-                    <Clock className="h-5 w-5" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => togglePush(!pushEnabled)}
-                    disabled={pushBusy}
-                    aria-label={pushEnabled ? "Disable live notifications" : "Enable live notifications"}
-                    aria-pressed={pushEnabled}
-                    title={pushEnabled ? "Disable live notifications" : "Enable live notifications"}
-                    className={`${headerButtonClass} ${pushEnabled ? "text-white" : ""}`}
-                  >
-                    {pushBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Bell className="h-5 w-5" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => joined && setShowSearch(true)}
-                    disabled={!joined}
-                    aria-label="Search chat"
-                    aria-disabled={!joined}
-                    title={joined ? "Search messages" : "Join chat to search the archive"}
-                    className={`${headerButtonClass} ${!joined ? "opacity-40" : ""}`}
-                  >
-                    <Search className="h-5 w-5" />
-                  </button>
-                  <div className="relative">
+              <div className="hidden items-center gap-2 md:flex">
+                {isLiveAdmin ? (
+                  <>
                     <button
                       type="button"
-                      onClick={() => setMenuOpen((prev) => !prev)}
-                      aria-label="Chat menu"
-                      aria-expanded={menuOpen}
+                      onClick={() => openAdminPanel("general")}
+                      title="Edit group"
+                      aria-label="Edit group"
                       className={headerButtonClass}
                     >
-                      <MoreVertical className="h-5 w-5" />
+                      <Pencil className="h-5 w-5" />
                     </button>
-                    {menuOpen && (
-                      <div className="absolute right-0 top-12 z-20 w-48 rounded-2xl border border-white/10 bg-[#161624]/95 p-2 shadow-xl backdrop-blur">
+                    <button
+                      type="button"
+                      onClick={() => togglePush(!pushEnabled)}
+                      disabled={pushBusy}
+                      aria-label={
+                        pushEnabled
+                          ? "Disable live notifications"
+                          : "Enable live notifications"
+                      }
+                      aria-pressed={pushEnabled}
+                      title={
+                        pushEnabled
+                          ? "Disable live notifications"
+                          : "Enable live notifications"
+                      }
+                      className={`${headerButtonClass} ${pushEnabled ? "text-white" : ""}`}
+                    >
+                      {pushBusy ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Bell className="h-5 w-5" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => joined && setShowSearch(true)}
+                      disabled={!joined}
+                      aria-label="Search chat"
+                      aria-disabled={!joined}
+                      title={
+                        joined
+                          ? "Search messages"
+                          : "Join chat to search the archive"
+                      }
+                      className={`${headerButtonClass} ${!joined ? "opacity-40" : ""}`}
+                    >
+                      <Search className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openAdminPanel("recent")}
+                      title="Recent actions"
+                      aria-label="Recent actions"
+                      className={headerButtonClass}
+                    >
+                      <Clock className="h-5 w-5" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => togglePush(!pushEnabled)}
+                      disabled={pushBusy}
+                      aria-label={
+                        pushEnabled
+                          ? "Disable live notifications"
+                          : "Enable live notifications"
+                      }
+                      aria-pressed={pushEnabled}
+                      title={
+                        pushEnabled
+                          ? "Disable live notifications"
+                          : "Enable live notifications"
+                      }
+                      className={`${headerButtonClass} ${pushEnabled ? "text-white" : ""}`}
+                    >
+                      {pushBusy ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Bell className="h-5 w-5" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => joined && setShowSearch(true)}
+                      disabled={!joined}
+                      aria-label="Search chat"
+                      aria-disabled={!joined}
+                      title={
+                        joined
+                          ? "Search messages"
+                          : "Join chat to search the archive"
+                      }
+                      className={`${headerButtonClass} ${!joined ? "opacity-40" : ""}`}
+                    >
+                      <Search className="h-5 w-5" />
+                    </button>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setMenuOpen((prev) => !prev)}
+                        aria-label="Chat menu"
+                        aria-expanded={menuOpen}
+                        className={headerButtonClass}
+                      >
+                        <MoreVertical className="h-5 w-5" />
+                      </button>
+                      {menuOpen && (
+                        <div className="absolute right-0 top-12 z-20 w-48 rounded-2xl border border-white/10 bg-[#161624]/95 p-2 shadow-xl backdrop-blur">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              closeAllMenus();
+                              handleLeave().catch((err) => console.error(err));
+                            }}
+                            className={menuItemClass}
+                          >
+                            Leave chat
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowSearch(true);
+                              closeAllMenus();
+                            }}
+                            className={`${menuItemClass} text-white/70`}
+                          >
+                            About
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-end md:hidden">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    isLiveAdmin
+                      ? setMobileAdminMenuOpen((prev) => !prev)
+                      : setMenuOpen((prev) => !prev)
+                  }
+                  aria-label="More actions"
+                  aria-expanded={isLiveAdmin ? mobileAdminMenuOpen : menuOpen}
+                  className={headerButtonClass}
+                >
+                  <MoreVertical className="h-5 w-5" />
+                </button>
+                {(isLiveAdmin ? mobileAdminMenuOpen : menuOpen) && (
+                  <div className="absolute right-0 top-12 z-30 w-56 rounded-2xl border border-white/10 bg-[#161624]/95 p-2 shadow-xl backdrop-blur">
+                    {isLiveAdmin ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            openAdminPanel("general");
+                            closeAllMenus();
+                          }}
+                          className={menuItemClass}
+                        >
+                          Edit group
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            openAdminPanel("recent");
+                            closeAllMenus();
+                          }}
+                          className={menuItemClass}
+                        >
+                          Recent actions
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            togglePush(!pushEnabled);
+                            closeAllMenus();
+                          }}
+                          disabled={pushBusy}
+                          className={menuItemClass}
+                        >
+                          {pushEnabled
+                            ? "Disable notifications"
+                            : "Enable notifications"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!joined) return;
+                            setShowSearch(true);
+                            closeAllMenus();
+                          }}
+                          disabled={!joined}
+                          className={`${menuItemClass} ${!joined ? "opacity-40" : ""}`}
+                        >
+                          Search
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
                             closeAllMenus();
                             handleLeave().catch((err) => console.error(err));
                           }}
-                          className={menuItemClass}
+                          className={`${menuItemClass} text-white/70`}
                         >
                           Leave chat
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            togglePush(!pushEnabled);
+                            closeAllMenus();
+                          }}
+                          disabled={pushBusy}
+                          className={menuItemClass}
+                        >
+                          {pushEnabled
+                            ? "Disable notifications"
+                            : "Enable notifications"}
                         </button>
                         <button
                           type="button"
                           onClick={() => {
+                            if (!joined) return;
                             setShowSearch(true);
                             closeAllMenus();
                           }}
+                          disabled={!joined}
+                          className={`${menuItemClass} ${!joined ? "opacity-40" : ""}`}
+                        >
+                          Search
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            closeAllMenus();
+                            handleLeave().catch((err) => console.error(err));
+                          }}
                           className={`${menuItemClass} text-white/70`}
                         >
-                          About
+                          Leave chat
                         </button>
-                      </div>
+                      </>
                     )}
                   </div>
-                </>
-              )}
+                )}
+              </div>
             </div>
           </div>
-          <div className="flex items-center justify-end md:hidden">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() =>
-                  isLiveAdmin
-                    ? setMobileAdminMenuOpen((prev) => !prev)
-                    : setMenuOpen((prev) => !prev)
-                }
-                aria-label="More actions"
-                aria-expanded={isLiveAdmin ? mobileAdminMenuOpen : menuOpen}
-                className={headerButtonClass}
-              >
-                <MoreVertical className="h-5 w-5" />
-              </button>
-              {(isLiveAdmin ? mobileAdminMenuOpen : menuOpen) && (
-                <div className="absolute right-0 top-12 z-30 w-56 rounded-2xl border border-white/10 bg-[#161624]/95 p-2 shadow-xl backdrop-blur">
-                  {isLiveAdmin ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          openAdminPanel("general");
-                          closeAllMenus();
-                        }}
-                        className={menuItemClass}
-                      >
-                        Edit group
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          openAdminPanel("recent");
-                          closeAllMenus();
-                        }}
-                        className={menuItemClass}
-                      >
-                        Recent actions
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          togglePush(!pushEnabled);
-                          closeAllMenus();
-                        }}
-                        disabled={pushBusy}
-                        className={menuItemClass}
-                      >
-                        {pushEnabled ? "Disable notifications" : "Enable notifications"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!joined) return;
-                          setShowSearch(true);
-                          closeAllMenus();
-                        }}
-                        disabled={!joined}
-                        className={`${menuItemClass} ${!joined ? "opacity-40" : ""}`}
-                      >
-                        Search
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          closeAllMenus();
-                          handleLeave().catch((err) => console.error(err));
-                        }}
-                        className={`${menuItemClass} text-white/70`}
-                      >
-                        Leave chat
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          togglePush(!pushEnabled);
-                          closeAllMenus();
-                        }}
-                        disabled={pushBusy}
-                        className={menuItemClass}
-                      >
-                        {pushEnabled ? "Disable notifications" : "Enable notifications"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!joined) return;
-                          setShowSearch(true);
-                          closeAllMenus();
-                        }}
-                        disabled={!joined}
-                        className={`${menuItemClass} ${!joined ? "opacity-40" : ""}`}
-                      >
-                        Search
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          closeAllMenus();
-                          handleLeave().catch((err) => console.error(err));
-                        }}
-                        className={`${menuItemClass} text-white/70`}
-                      >
-                        Leave chat
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <GlowPanel className="flex flex-1 flex-col overflow-hidden bg-gradient-to-br from-[#0c0c1a] via-[#101032] to-[#0c0c1a]">
-        <div className="space-y-3 border-b border-white/10 px-6 py-4">
-          {showJoinBanner && (
-            <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-              Join to chat and unlock the complete live history.
-            </div>
-          )}
-          {lockBannerText && (
-            <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-              {lockBannerText}
-            </div>
-          )}
-        </div>
-        <div className="relative flex-1">
-          <div ref={scrollRef} className="h-full overflow-y-auto px-4 py-6">
-            <div
-              style={{
-                height: virtualizer.getTotalSize(),
-                position: "relative",
-                width: "100%",
-              }}
-            >
-              {virtualizer.getVirtualItems().map((item) => {
-                const message = sortedMessages[item.index];
-                if (!message) return null;
-                return (
-                  <div
-                    key={message.id}
-                    ref={(node) => {
-                      if (node) {
-                        virtualizer.measureElement(node);
-                      }
-                    }}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translateY(${item.start}px)`,
-                    }}
-                  >
-                    <MessageBubble
-                      message={message}
-                      me={user}
-                      resolveFileUrl={resolveFileUrl}
-                      onDelete={handleDeleteMessage}
-                      joined={joined}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-            {initialLoading && (
-              <div className="flex items-center justify-center py-10 text-white/60">
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Loading live feed…
+        <GlowPanel className="flex flex-1 flex-col overflow-hidden bg-gradient-to-br from-[#0c0c1a] via-[#101032] to-[#0c0c1a]">
+          <div className="space-y-3 border-b border-white/10 px-6 py-4">
+            {showJoinBanner && (
+              <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                Join to chat and unlock the complete live history.
+              </div>
+            )}
+            {lockBannerText && (
+              <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                {lockBannerText}
               </div>
             )}
           </div>
-          {loadingMore && (
-            <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/40 px-4 py-1 text-xs text-white/60 backdrop-blur">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Fetching earlier moments…
-              </span>
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-white/10 px-4 py-4">
-          {showJoinBanner && (
-            <div className="mb-4 flex items-center justify-between rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white/80">
-              <span>You’re seeing highlights — join to send messages and scroll deeper.</span>
-              <button
-                type="button"
-                onClick={() => handleJoin().catch((err) => console.error(err))}
-                className={`rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#0f0f1f] ${interactiveTransition} ${focusRing} hover:bg-white/80`}
+          <div className="relative flex-1">
+            <div ref={scrollRef} className="h-full overflow-y-auto px-4 py-6">
+              <div
+                style={{
+                  height: virtualizer.getTotalSize(),
+                  position: "relative",
+                  width: "100%",
+                }}
               >
-                Join chat
-              </button>
-            </div>
-          )}
-          {lockBannerText && !showJoinBanner && !isLiveAdmin && (
-            <div className="mb-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-              {lockBannerText}
-            </div>
-          )}
-          <div className="flex items-end gap-3 rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur">
-            <button
-              type="button"
-              disabled={composerDisabled}
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="Attach a file"
-              aria-disabled={composerDisabled}
-              title={!isLive ? lockedTooltip : "Attach a file"}
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white ${interactiveTransition} ${focusRing} hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40`}
-            >
-              <Paperclip className="h-5 w-5" />
-            </button>
-            <TextareaAutosize
-              minRows={1}
-              maxRows={6}
-              value={composer}
-              onChange={(event) => setComposer(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  if (!composerDisabled) handleSendText();
-                }
-              }}
-              disabled={composerDisabled}
-              placeholder={
-                !joined
-                  ? "Join to share the hype…"
-                  : !isLive
-                    ? "We’ll open the floor once we’re live."
-                    : "Drop a message for the stream…"
-              }
-              className="flex-1 resize-none bg-transparent text-base text-white placeholder-white/40 outline-none"
-            />
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={composerDisabled}
-                onClick={() => setShowEmoji((prev) => !prev)}
-                aria-label="Insert emoji"
-                aria-disabled={composerDisabled}
-                title={!isLive ? lockedTooltip : "Insert emoji"}
-                className={`flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white ${interactiveTransition} ${focusRing} hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40`}
-              >
-                <Smile className="h-5 w-5" />
-              </button>
-              <button
-                type="button"
-                disabled={composerDisabled}
-                onClick={() => handleMic().catch((err) => console.error(err))}
-                aria-label={recording ? "Stop voice recording" : "Record a voice message"}
-                aria-disabled={composerDisabled}
-                title={
-                  !isLive ? lockedTooltip : recording ? "Stop recording" : "Record a voice message"
-                }
-                className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white ${interactiveTransition} ${focusRing} hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 ${recording ? "border-rose-400 bg-rose-500/20" : ""}`}
-              >
-                <Mic className="h-5 w-5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSendText()}
-                disabled={composerDisabled || !composer.trim()}
-                aria-label="Send message"
-                title={!isLive ? lockedTooltip : "Send message"}
-                aria-disabled={composerDisabled || !composer.trim()}
-                className={`flex h-11 w-11 items-center justify-center rounded-full bg-violet-500 text-white ${interactiveTransition} ${focusRing} hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-40`}
-              >
-                <Send className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-          {recording && (
-            <div className="mt-3 flex items-center justify-between rounded-xl border border-rose-400/30 bg-rose-500/15 px-4 py-2 text-sm text-rose-100">
-              <span>Recording · {formatDuration(recordingSeconds)}</span>
-              <button
-                type="button"
-                className={`rounded-full border border-rose-100/40 px-3 py-1 text-xs uppercase tracking-wide ${interactiveTransition} ${focusRing}`}
-                onClick={() => handleMic().catch((err) => console.error(err))}
-              >
-                Stop
-              </button>
-            </div>
-          )}
-          {recordingError && (
-            <p className="mt-2 text-sm text-rose-200/80">{recordingError}</p>
-          )}
-        </div>
-      </GlowPanel>
-
-      {showEmoji && (
-        <div className="fixed inset-0 z-30 grid place-items-center bg-black/50 p-6">
-          <div className="relative w-full max-w-xl rounded-3xl border border-white/10 bg-[#121228] p-4 shadow-2xl">
-            <button
-              type="button"
-              aria-label="Close emoji picker"
-              className={`absolute right-4 top-4 text-sm text-white/60 ${interactiveTransition} ${focusRing}`}
-              onClick={() => setShowEmoji(false)}
-            >
-              close
-            </button>
-            <EmojiPicker onEmojiSelect={handleEmoji} theme="dark" />
-          </div>
-        </div>
-      )}
-
-      {showSearch && (
-        <div className="fixed inset-0 z-40 bg-[#050514]/90 backdrop-blur">
-          <div className="mx-auto flex h-full max-w-3xl flex-col px-6 py-10">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Search the live chat</h2>
-              <button
-                type="button"
-                onClick={() => setShowSearch(false)}
-                aria-label="Close search"
-                className={`rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 ${interactiveTransition} ${focusRing} hover:bg-white/10`}
-              >
-                Close
-              </button>
-            </div>
-            <form onSubmit={handleSearchSubmit} className="mt-6 flex gap-3">
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                placeholder="Keywords, phrases, or vibes…"
-                className={`flex-1 rounded-2xl border px-4 py-3 text-white outline-none transition ${searchFocused ? "border-violet-400 bg-white/15" : "border-white/15 bg-white/10"}`}
-              />
-              <button
-                type="submit"
-                disabled={!searchQuery.trim()}
-                aria-disabled={!searchQuery.trim()}
-                className={`rounded-2xl bg-violet-500 px-4 py-3 text-sm font-semibold text-white ${interactiveTransition} ${focusRing} hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-40`}
-              >
-                Search
-              </button>
-            </form>
-            <div className="mt-6 space-y-3 overflow-auto">
-              {searching && (
-                <div className="flex items-center gap-2 text-sm text-white/70">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Searching…
+                {virtualizer.getVirtualItems().map((item) => {
+                  const message = sortedMessages[item.index];
+                  if (!message) return null;
+                  return (
+                    <div
+                      key={message.id}
+                      ref={(node) => {
+                        if (node) {
+                          virtualizer.measureElement(node);
+                        }
+                      }}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${item.start}px)`,
+                      }}
+                    >
+                      <MessageBubble
+                        message={message}
+                        me={user}
+                        resolveFileUrl={resolveFileUrl}
+                        onDelete={handleDeleteMessage}
+                        joined={joined}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              {initialLoading && (
+                <div className="flex items-center justify-center py-10 text-white/60">
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Loading live feed…
                 </div>
               )}
-              {!searching && searchResults.length === 0 && searchQuery.trim() && (
-                <p className="text-sm text-white/60">
-                  No matches yet — try another phrase.
-                </p>
-              )}
-              {searchResults.map((message) => (
+            </div>
+            {loadingMore && (
+              <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/40 px-4 py-1 text-xs text-white/60 backdrop-blur">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Fetching earlier moments…
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-white/10 px-4 py-4">
+            {showJoinBanner && (
+              <div className="mb-4 flex items-center justify-between rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm text-white/80">
+                <span>
+                  You’re seeing highlights — join to send messages and scroll
+                  deeper.
+                </span>
                 <button
-                  key={`${message.realId}-${message.createdAt}`}
                   type="button"
-                  onClick={() => handleSearchSelect(message)}
-                  className={`w-full rounded-2xl border border-white/10 bg-white/10 p-4 text-left text-sm text-white/80 ${interactiveTransition} ${focusRing} hover:border-white/30 hover:bg-white/15`}
+                  onClick={() =>
+                    handleJoin().catch((err) => console.error(err))
+                  }
+                  className={`rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#0f0f1f] ${interactiveTransition} ${focusRing} hover:bg-white/80`}
                 >
-                  <p className="text-xs uppercase text-white/40">
-                    {formatTimestamp(message.createdAt)}
-                  </p>
-                  <p
-                    className="mt-2 text-base text-white"
-                    dangerouslySetInnerHTML={{
-                      __html: ensureSafeHtml(
-                        message.highlight ?? highlightFallback(message),
-                      ),
-                    }}
-                  />
+                  Join chat
                 </button>
-              ))}
+              </div>
+            )}
+            {lockBannerText && !showJoinBanner && !isLiveAdmin && (
+              <div className="mb-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                {lockBannerText}
+              </div>
+            )}
+            <div className="flex items-end gap-3 rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur">
+              <button
+                type="button"
+                disabled={composerDisabled}
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Attach a file"
+                aria-disabled={composerDisabled}
+                title={!isLive ? lockedTooltip : "Attach a file"}
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white ${interactiveTransition} ${focusRing} hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40`}
+              >
+                <Paperclip className="h-5 w-5" />
+              </button>
+              <TextareaAutosize
+                minRows={1}
+                maxRows={6}
+                value={composer}
+                onChange={(event) => setComposer(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    if (!composerDisabled) handleSendText();
+                  }
+                }}
+                disabled={composerDisabled}
+                placeholder={
+                  !joined
+                    ? "Join to share the hype…"
+                    : !isLive
+                      ? "We’ll open the floor once we’re live."
+                      : "Drop a message for the stream…"
+                }
+                className="flex-1 resize-none bg-transparent text-base text-white placeholder-white/40 outline-none"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={composerDisabled}
+                  onClick={() => setShowEmoji((prev) => !prev)}
+                  aria-label="Insert emoji"
+                  aria-disabled={composerDisabled}
+                  title={!isLive ? lockedTooltip : "Insert emoji"}
+                  className={`flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white ${interactiveTransition} ${focusRing} hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40`}
+                >
+                  <Smile className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  disabled={composerDisabled}
+                  onClick={() => handleMic().catch((err) => console.error(err))}
+                  aria-label={
+                    recording
+                      ? "Stop voice recording"
+                      : "Record a voice message"
+                  }
+                  aria-disabled={composerDisabled}
+                  title={
+                    !isLive
+                      ? lockedTooltip
+                      : recording
+                        ? "Stop recording"
+                        : "Record a voice message"
+                  }
+                  className={`flex h-11 w-11 items-center justify-center rounded-full border border-white/20 text-white ${interactiveTransition} ${focusRing} hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 ${recording ? "border-rose-400 bg-rose-500/20" : ""}`}
+                >
+                  <Mic className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSendText()}
+                  disabled={composerDisabled || !composer.trim()}
+                  aria-label="Send message"
+                  title={!isLive ? lockedTooltip : "Send message"}
+                  aria-disabled={composerDisabled || !composer.trim()}
+                  className={`flex h-11 w-11 items-center justify-center rounded-full bg-violet-500 text-white ${interactiveTransition} ${focusRing} hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-40`}
+                >
+                  <Send className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            {recording && (
+              <div className="mt-3 flex items-center justify-between rounded-xl border border-rose-400/30 bg-rose-500/15 px-4 py-2 text-sm text-rose-100">
+                <span>Recording · {formatDuration(recordingSeconds)}</span>
+                <button
+                  type="button"
+                  className={`rounded-full border border-rose-100/40 px-3 py-1 text-xs uppercase tracking-wide ${interactiveTransition} ${focusRing}`}
+                  onClick={() => handleMic().catch((err) => console.error(err))}
+                >
+                  Stop
+                </button>
+              </div>
+            )}
+            {recordingError && (
+              <p className="mt-2 text-sm text-rose-200/80">{recordingError}</p>
+            )}
+          </div>
+        </GlowPanel>
+
+        {showEmoji && (
+          <div className="fixed inset-0 z-30 grid place-items-center bg-black/50 p-6">
+            <div className="relative w-full max-w-xl rounded-3xl border border-white/10 bg-[#121228] p-4 shadow-2xl">
+              <button
+                type="button"
+                aria-label="Close emoji picker"
+                className={`absolute right-4 top-4 text-sm text-white/60 ${interactiveTransition} ${focusRing}`}
+                onClick={() => setShowEmoji(false)}
+              >
+                close
+              </button>
+              <EmojiPicker onEmojiSelect={handleEmoji} theme="dark" />
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,video/*,audio/*,.pdf,.zip,.rar,.doc,.docx,.ppt,.pptx,.txt"
-        className="hidden"
-        onChange={handleFileSelected}
-      />
+        {showSearch && (
+          <div className="fixed inset-0 z-40 bg-[#050514]/90 backdrop-blur">
+            <div className="mx-auto flex h-full max-w-3xl flex-col px-6 py-10">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">Search the live chat</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowSearch(false)}
+                  aria-label="Close search"
+                  className={`rounded-full border border-white/20 px-3 py-1 text-sm text-white/70 ${interactiveTransition} ${focusRing} hover:bg-white/10`}
+                >
+                  Close
+                </button>
+              </div>
+              <form onSubmit={handleSearchSubmit} className="mt-6 flex gap-3">
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  placeholder="Keywords, phrases, or vibes…"
+                  className={`flex-1 rounded-2xl border px-4 py-3 text-white outline-none transition ${searchFocused ? "border-violet-400 bg-white/15" : "border-white/15 bg-white/10"}`}
+                />
+                <button
+                  type="submit"
+                  disabled={!searchQuery.trim()}
+                  aria-disabled={!searchQuery.trim()}
+                  className={`rounded-2xl bg-violet-500 px-4 py-3 text-sm font-semibold text-white ${interactiveTransition} ${focusRing} hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-40`}
+                >
+                  Search
+                </button>
+              </form>
+              <div className="mt-6 space-y-3 overflow-auto">
+                {searching && (
+                  <div className="flex items-center gap-2 text-sm text-white/70">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Searching…
+                  </div>
+                )}
+                {!searching &&
+                  searchResults.length === 0 &&
+                  searchQuery.trim() && (
+                    <p className="text-sm text-white/60">
+                      No matches yet — try another phrase.
+                    </p>
+                  )}
+                {searchResults.map((message) => (
+                  <button
+                    key={`${message.realId}-${message.createdAt}`}
+                    type="button"
+                    onClick={() => handleSearchSelect(message)}
+                    className={`w-full rounded-2xl border border-white/10 bg-white/10 p-4 text-left text-sm text-white/80 ${interactiveTransition} ${focusRing} hover:border-white/30 hover:bg-white/15`}
+                  >
+                    <p className="text-xs uppercase text-white/40">
+                      {formatTimestamp(message.createdAt)}
+                    </p>
+                    <p
+                      className="mt-2 text-base text-white"
+                      dangerouslySetInnerHTML={{
+                        __html: ensureSafeHtml(
+                          message.highlight ?? highlightFallback(message),
+                        ),
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*,audio/*,.pdf,.zip,.rar,.doc,.docx,.ppt,.pptx,.txt"
+          className="hidden"
+          onChange={handleFileSelected}
+        />
       </div>
       {isLiveAdmin && (
         <LiveAdminDrawer
@@ -1901,7 +2006,10 @@ function MessageBubble({
       title={allowDelete ? "Long press or right-click to delete" : undefined}
     >
       {!isMine && (
-        <AvatarBadge name={message.authorName} avatarUrl={message.authorAvatar} />
+        <AvatarBadge
+          name={message.authorName}
+          avatarUrl={message.authorAvatar}
+        />
       )}
       <div
         className={`max-w-[70%] rounded-3xl px-4 py-3 shadow-xl transition ${
@@ -1911,7 +2019,7 @@ function MessageBubble({
         }`}
       >
         <div className="flex items-center justify-between text-xs uppercase tracking-wide text-white/60">
-          <span>{isMine ? "You" : message.authorName ?? "Member"}</span>
+          <span>{isMine ? "You" : (message.authorName ?? "Member")}</span>
           <span>{formatTimestamp(message.createdAt)}</span>
         </div>
         {message.text && (
@@ -1932,9 +2040,7 @@ function MessageBubble({
                 Loading media…
               </div>
             )}
-            {!error && url && (
-              <MediaAttachment message={message} url={url} />
-            )}
+            {!error && url && <MediaAttachment message={message} url={url} />}
           </div>
         )}
       </div>
@@ -2061,7 +2167,8 @@ function formatBytes(bytes: number | null) {
   if (!bytes) return "";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 

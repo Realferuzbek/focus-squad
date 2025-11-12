@@ -5,10 +5,14 @@ import dynamic from "next/dynamic";
 
 const ChatWidget = dynamic(() => import("./ChatWidget"), { ssr: false });
 
-type IdleWindow = Window & typeof globalThis & {
-  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-  cancelIdleCallback?: (handle: number) => void;
-};
+type IdleWindow = Window &
+  typeof globalThis & {
+    requestIdleCallback?: (
+      callback: IdleRequestCallback,
+      options?: IdleRequestOptions,
+    ) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
 
 export default function DeferredChatWidget() {
   const [ready, setReady] = useState(false);

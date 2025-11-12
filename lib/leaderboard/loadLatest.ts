@@ -1,8 +1,8 @@
-import { unstable_cache } from 'next/cache';
+import { unstable_cache } from "next/cache";
 
-import { supabaseAdmin } from '@/lib/supabaseServer';
-import { REQUIRED_SCOPES } from './ingest';
-import type { LeaderboardEntry, LeaderboardScope } from '@/types/leaderboard';
+import { supabaseAdmin } from "@/lib/supabaseServer";
+import { REQUIRED_SCOPES } from "./ingest";
+import type { LeaderboardEntry, LeaderboardScope } from "@/types/leaderboard";
 
 export interface LeaderboardSnapshot {
   scope: LeaderboardScope;
@@ -22,11 +22,13 @@ async function fetchLatestSnapshots(): Promise<SnapshotRecord> {
   const results = await Promise.all(
     REQUIRED_SCOPES.map(async (scope) => {
       const { data, error } = await client
-        .from('leaderboards')
-        .select('scope, period_start, period_end, posted_at, entries, message_id, chat_id')
-        .eq('scope', scope)
-        .order('posted_at', { ascending: false })
-        .order('period_end', { ascending: false })
+        .from("leaderboards")
+        .select(
+          "scope, period_start, period_end, posted_at, entries, message_id, chat_id",
+        )
+        .eq("scope", scope)
+        .order("posted_at", { ascending: false })
+        .order("period_end", { ascending: false })
         .limit(1);
 
       if (error) {
@@ -38,7 +40,9 @@ async function fetchLatestSnapshots(): Promise<SnapshotRecord> {
         return [scope, null] as const;
       }
 
-      const entries = Array.isArray(row.entries) ? (row.entries as LeaderboardEntry[]) : [];
+      const entries = Array.isArray(row.entries)
+        ? (row.entries as LeaderboardEntry[])
+        : [];
 
       return [
         scope,
@@ -58,7 +62,10 @@ async function fetchLatestSnapshots(): Promise<SnapshotRecord> {
   return Object.fromEntries(results) as SnapshotRecord;
 }
 
-export const loadLatestLeaderboards = unstable_cache(fetchLatestSnapshots, ['leaderboard-latest'], {
-  revalidate: 60,
-});
-
+export const loadLatestLeaderboards = unstable_cache(
+  fetchLatestSnapshots,
+  ["leaderboard-latest"],
+  {
+    revalidate: 60,
+  },
+);

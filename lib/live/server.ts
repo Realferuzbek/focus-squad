@@ -41,12 +41,10 @@ export function mapLiveMessage(row: LiveMessageRow): LiveMessage {
   const rawAuthor =
     Array.isArray(row.author) && row.author.length
       ? row.author[0]
-      : (row.author as
-          | {
-              display_name: string | null;
-              avatar_url: string | null;
-            }
-          | null);
+      : (row.author as {
+          display_name: string | null;
+          avatar_url: string | null;
+        } | null);
 
   return {
     id: row.id,

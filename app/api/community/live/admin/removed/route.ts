@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import {
-  LiveAdminError,
-  listRemoved,
-  requireAdmin,
-} from "@/lib/live/admin";
+import { LiveAdminError, listRemoved, requireAdmin } from "@/lib/live/admin";
 
 function handleError(error: unknown) {
   if (error instanceof LiveAdminError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: error.message },
+      { status: error.status },
+    );
   }
   console.error("[live_admin_removed]", error);
   return NextResponse.json({ error: "Internal error" }, { status: 500 });

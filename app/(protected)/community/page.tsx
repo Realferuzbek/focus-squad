@@ -28,8 +28,9 @@ export default function CommunityPage() {
             Stay connected with the squad
           </h1>
           <p className="max-w-2xl text-base text-white/60">
-            Tap into the collective energy. Jump into admin chat for direct support,
-            and explore the spaces we&apos;re crafting for focused collaboration.
+            Tap into the collective energy. Jump into admin chat for direct
+            support, and explore the spaces we&apos;re crafting for focused
+            collaboration.
           </p>
         </header>
 
@@ -49,7 +50,8 @@ export default function CommunityPage() {
                     Admin Chat
                   </h2>
                   <p className="text-sm text-white/65">
-                    Direct line to the team. Get help, share wins, and stay aligned.
+                    Direct line to the team. Get help, share wins, and stay
+                    aligned.
                   </p>
                 </div>
                 <span className="btn-primary w-fit px-6">Open</span>

@@ -1,14 +1,16 @@
 const assert = require("assert");
 const { loadTsModule } = require("./test-helpers/load-ts");
 
-const {
-  shouldDenySignIn,
-  resolveBlockedStatus,
-  isBlockedFlag,
-} = loadTsModule("lib/blocked-user-guard.ts");
+const { shouldDenySignIn, resolveBlockedStatus, isBlockedFlag } = loadTsModule(
+  "lib/blocked-user-guard.ts",
+);
 
 (function testShouldDenySignIn() {
-  assert.strictEqual(shouldDenySignIn(null), false, "missing record should pass");
+  assert.strictEqual(
+    shouldDenySignIn(null),
+    false,
+    "missing record should pass",
+  );
   assert.strictEqual(
     shouldDenySignIn({ is_blocked: true }),
     true,
@@ -52,4 +54,3 @@ const {
 
 console.log("blocked-user unit tests passed");
 process.exit(0);
-

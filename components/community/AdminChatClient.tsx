@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -19,28 +18,39 @@ import remarkGfm from "remark-gfm";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { supabaseBrowser } from "@/lib/supabaseClient";
-import { hasSubscription, subscribePush, unsubscribePush } from "@/lib/pushClient";
+import {
+  hasSubscription,
+  subscribePush,
+  unsubscribePush,
+} from "@/lib/pushClient";
 import { csrfFetch } from "@/lib/csrf-client";
 import { buildPlainSnippet, ensureSafeHtml } from "@/lib/highlight";
 import GlowPanel from "@/components/GlowPanel";
 import Image from "next/image";
 import TextareaAutosize from "react-textarea-autosize";
-import { Bell, ChevronLeft, Mic, Paperclip, Search, Send, Smile } from "lucide-react";
+import {
+  Bell,
+  ChevronLeft,
+  Mic,
+  Paperclip,
+  Search,
+  Send,
+  Smile,
+} from "lucide-react";
 import "@emoji-mart/css/emoji-mart.css";
 
 const EmojiPicker = dynamic(
   () =>
-    Promise.all([
-      import("@emoji-mart/react"),
-      import("@emoji-mart/data"),
-    ]).then(([mod, data]) => {
-      const Picker = mod.default;
-      const EmojiPickerComponent = (props: any) => (
-        <Picker data={data.default} {...props} />
-      );
-      EmojiPickerComponent.displayName = "EmojiPickerComponent";
-      return EmojiPickerComponent;
-    }),
+    Promise.all([import("@emoji-mart/react"), import("@emoji-mart/data")]).then(
+      ([mod, data]) => {
+        const Picker = mod.default;
+        const EmojiPickerComponent = (props: any) => (
+          <Picker data={data.default} {...props} />
+        );
+        EmojiPickerComponent.displayName = "EmojiPickerComponent";
+        return EmojiPickerComponent;
+      },
+    ),
   { ssr: false },
 );
 
@@ -77,7 +87,8 @@ async function compressWallpaper(file: File): Promise<string> {
   });
   const { width, height } = image;
   const maxSide = Math.max(width, height);
-  const scale = maxSide > WALLPAPER_MAX_DIMENSION ? WALLPAPER_MAX_DIMENSION / maxSide : 1;
+  const scale =
+    maxSide > WALLPAPER_MAX_DIMENSION ? WALLPAPER_MAX_DIMENSION / maxSide : 1;
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(width * scale);
   canvas.height = Math.round(height * scale);
@@ -186,12 +197,7 @@ const formatter = new Intl.DateTimeFormat(undefined, {
 
 const sanitizeSchema = {
   ...defaultSchema,
-  tagNames: [
-    ...(defaultSchema.tagNames || []),
-    "mark",
-    "u",
-    "spoiler",
-  ],
+  tagNames: [...(defaultSchema.tagNames || []), "mark", "u", "spoiler"],
   attributes: {
     ...(defaultSchema.attributes || {}),
     spoiler: ["className"],
@@ -215,8 +221,7 @@ function clampWords(input: string, limit: number) {
 
 function sortMessagesByCreatedAt(list: Message[]) {
   return [...list].sort(
-    (a, b) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
 }
 
@@ -235,9 +240,7 @@ function isSeedMessage(message: Message) {
   if (message.kind === "system") return true;
   const text = (message.text ?? "").trim().toLowerCase();
   if (!text) return false;
-  return (
-    text.startsWith("hello realtime") || text.startsWith("hello from sql")
-  );
+  return text.startsWith("hello realtime") || text.startsWith("hello from sql");
 }
 
 const ACTION_LIMIT = 10;
@@ -431,9 +434,8 @@ export default function AdminChatClient({
 
   const handleRateLimitNotice = useCallback(
     (message?: string) => {
-      const copy = message && message.trim().length
-        ? message
-        : RATE_LIMIT_FALLBACK;
+      const copy =
+        message && message.trim().length ? message : RATE_LIMIT_FALLBACK;
       setRateLimitActive(true);
       showError(copy);
       if (rateLimitTimerRef.current) {
@@ -548,7 +550,10 @@ export default function AdminChatClient({
           return {
             ...prev,
             avatarUrl:
-              data.thread.avatarUrl ?? prev.targetUser?.avatarUrl ?? prev.avatarUrl ?? null,
+              data.thread.avatarUrl ??
+              prev.targetUser?.avatarUrl ??
+              prev.avatarUrl ??
+              null,
           };
         });
       }
@@ -612,16 +617,24 @@ export default function AdminChatClient({
     } catch (err) {
       console.error(err);
       const message =
-        err instanceof Error ? err.message : "Failed to update push notifications.";
-        if (message.toLowerCase().includes("denied")) {
-          showError("Notifications are blocked in your browser settings.");
-        } else {
-          showError("Unable to update push notifications right now.");
-        }
+        err instanceof Error
+          ? err.message
+          : "Failed to update push notifications.";
+      if (message.toLowerCase().includes("denied")) {
+        showError("Notifications are blocked in your browser settings.");
+      } else {
+        showError("Unable to update push notifications right now.");
+      }
     } finally {
       setPushLoading(false);
     }
-  }, [pushSupported, pushLoading, pushSubscribed, refreshAuditIfOpen, showError]);
+  }, [
+    pushSupported,
+    pushLoading,
+    pushSubscribed,
+    refreshAuditIfOpen,
+    showError,
+  ]);
 
   useEffect(() => {
     if (memoizedThreadId) {
@@ -761,7 +774,9 @@ export default function AdminChatClient({
         (payload) => {
           const hidden = payload.new as any;
           if (!hidden.hidden) return;
-          setMessages((prev) => prev.filter((msg) => msg.id !== hidden.message_id));
+          setMessages((prev) =>
+            prev.filter((msg) => msg.id !== hidden.message_id),
+          );
           if (hidden.user_id !== user.id) {
             refreshAuditIfOpen();
           }
@@ -773,7 +788,13 @@ export default function AdminChatClient({
       channel.unsubscribe();
       channelRef.current = null;
     };
-  }, [memoizedThreadId, refreshAuditIfOpen, scrollToBottom, sendReceipt, user.id]);
+  }, [
+    memoizedThreadId,
+    refreshAuditIfOpen,
+    scrollToBottom,
+    sendReceipt,
+    user.id,
+  ]);
 
   useEffect(() => {
     if (!memoizedThreadId) return;
@@ -843,7 +864,11 @@ export default function AdminChatClient({
 
       const wrap = (before: string, after: string) => {
         nextValue =
-          composer.slice(0, start) + before + selected + after + composer.slice(end);
+          composer.slice(0, start) +
+          before +
+          selected +
+          after +
+          composer.slice(end);
         nextStart = start + before.length;
         nextEnd = nextStart + selected.length;
       };
@@ -871,7 +896,8 @@ export default function AdminChatClient({
               return `> ${line}`;
             })
             .join("\n");
-          nextValue = composer.slice(0, start) + formatted + composer.slice(end);
+          nextValue =
+            composer.slice(0, start) + formatted + composer.slice(end);
           nextStart = start;
           nextEnd = start + formatted.length;
           break;
@@ -894,8 +920,7 @@ export default function AdminChatClient({
       if (!textarea || !native) return;
       const start = textarea.selectionStart ?? composer.length;
       const end = textarea.selectionEnd ?? composer.length;
-      const nextValue =
-        composer.slice(0, start) + native + composer.slice(end);
+      const nextValue = composer.slice(0, start) + native + composer.slice(end);
       setComposer(nextValue);
       requestAnimationFrame(() => {
         const pos = start + native.length;
@@ -932,29 +957,26 @@ export default function AdminChatClient({
     [],
   );
 
-  const resolveFileUrl = useCallback(
-    async (path: string) => {
-      const cached = fileUrlCache.current.get(path);
-      if (cached && cached.expires > Date.now() + 10_000) {
-        return cached.url;
-      }
+  const resolveFileUrl = useCallback(async (path: string) => {
+    const cached = fileUrlCache.current.get(path);
+    if (cached && cached.expires > Date.now() + 10_000) {
+      return cached.url;
+    }
 
-      const res = await csrfFetch("/api/community/adminchat/file-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path, ttl: 3600 }),
-      });
-      if (!res.ok) {
-        fileUrlCache.current.delete(path);
-        throw new Error("Failed to sign file");
-      }
-      const data = await res.json();
-      const expires = Date.now() + (data.expiresIn ?? 3600) * 1000;
-      fileUrlCache.current.set(path, { url: data.url, expires });
-      return data.url as string;
-    },
-    [],
-  );
+    const res = await csrfFetch("/api/community/adminchat/file-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, ttl: 3600 }),
+    });
+    if (!res.ok) {
+      fileUrlCache.current.delete(path);
+      throw new Error("Failed to sign file");
+    }
+    const data = await res.json();
+    const expires = Date.now() + (data.expiresIn ?? 3600) * 1000;
+    fileUrlCache.current.set(path, { url: data.url, expires });
+    return data.url as string;
+  }, []);
 
   const handleSend = useCallback(async () => {
     if (sending) return;
@@ -1031,11 +1053,14 @@ export default function AdminChatClient({
     }
     if (!registerAction()) return;
     try {
-      const res = await csrfFetch(`/api/community/adminchat/message/${editingId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: trimmed }),
-      });
+      const res = await csrfFetch(
+        `/api/community/adminchat/message/${editingId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: trimmed }),
+        },
+      );
       if (res.status === 429) {
         let data: any = null;
         try {
@@ -1071,56 +1096,65 @@ export default function AdminChatClient({
     showError,
   ]);
 
-  const handleHide = useCallback(async (messageId: string) => {
-    if (!registerAction()) return;
-    try {
-      const res = await csrfFetch(
-        `/api/community/adminchat/message/${messageId}/hide`,
-        { method: "POST" },
-      );
-      if (res.status === 429) {
-        let data: any = null;
-        try {
-          data = await res.json();
-        } catch {
-          // ignore
+  const handleHide = useCallback(
+    async (messageId: string) => {
+      if (!registerAction()) return;
+      try {
+        const res = await csrfFetch(
+          `/api/community/adminchat/message/${messageId}/hide`,
+          { method: "POST" },
+        );
+        if (res.status === 429) {
+          let data: any = null;
+          try {
+            data = await res.json();
+          } catch {
+            // ignore
+          }
+          handleRateLimitNotice(data?.error);
+          return;
         }
-        handleRateLimitNotice(data?.error);
-        return;
+        if (!res.ok) throw new Error("Failed");
+        setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+        refreshAuditIfOpen();
+      } catch (err) {
+        console.error(err);
+        showError("Failed to delete message.");
       }
-      if (!res.ok) throw new Error("Failed");
-      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-      refreshAuditIfOpen();
-    } catch (err) {
-      console.error(err);
-      showError("Failed to delete message.");
-    }
-  }, [handleRateLimitNotice, refreshAuditIfOpen, registerAction, showError]);
+    },
+    [handleRateLimitNotice, refreshAuditIfOpen, registerAction, showError],
+  );
 
-  const handleHardDelete = useCallback(async (messageId: string) => {
-    if (!registerAction()) return;
-    try {
-      const res = await csrfFetch(`/api/community/adminchat/message/${messageId}`, {
-        method: "DELETE",
-      });
-      if (res.status === 429) {
-        let data: any = null;
-        try {
-          data = await res.json();
-        } catch {
-          // ignore
+  const handleHardDelete = useCallback(
+    async (messageId: string) => {
+      if (!registerAction()) return;
+      try {
+        const res = await csrfFetch(
+          `/api/community/adminchat/message/${messageId}`,
+          {
+            method: "DELETE",
+          },
+        );
+        if (res.status === 429) {
+          let data: any = null;
+          try {
+            data = await res.json();
+          } catch {
+            // ignore
+          }
+          handleRateLimitNotice(data?.error);
+          return;
         }
-        handleRateLimitNotice(data?.error);
-        return;
+        if (!res.ok) throw new Error("Failed");
+        setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+        refreshAuditIfOpen();
+      } catch (err) {
+        console.error(err);
+        showError("Failed to hard delete message.");
       }
-      if (!res.ok) throw new Error("Failed");
-      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-      refreshAuditIfOpen();
-    } catch (err) {
-      console.error(err);
-      showError("Failed to hard delete message.");
-    }
-  }, [handleRateLimitNotice, refreshAuditIfOpen, registerAction, showError]);
+    },
+    [handleRateLimitNotice, refreshAuditIfOpen, registerAction, showError],
+  );
 
   const compressImage = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) return file;
@@ -1144,11 +1178,7 @@ export default function AdminChatClient({
     ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
     URL.revokeObjectURL(objectUrl);
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(
-        (b) => resolve(b),
-        file.type,
-        0.9,
-      ),
+      canvas.toBlob((b) => resolve(b), file.type, 0.9),
     );
     if (!blob) return file;
     return new File([blob], file.name, { type: file.type });
@@ -1170,8 +1200,7 @@ export default function AdminChatClient({
         const preparedFile =
           kind === "image" ? await compressImage(file) : file;
         const signed = await signUpload(threadId, kind, preparedFile);
-        const { error: uploadError } = await supabaseBrowser
-          .storage
+        const { error: uploadError } = await supabaseBrowser.storage
           .from("dm-uploads")
           .uploadToSignedUrl(signed.path, signed.token, preparedFile);
         if (uploadError) throw uploadError;
@@ -1211,7 +1240,9 @@ export default function AdminChatClient({
         showError(err?.message ?? "Upload failed");
         setUploadQueue((prev) =>
           prev.map((task) =>
-            task.id === taskId ? { ...task, error: err?.message ?? "failed" } : task,
+            task.id === taskId
+              ? { ...task, error: err?.message ?? "failed" }
+              : task,
           ),
         );
       } finally {
@@ -1231,7 +1262,10 @@ export default function AdminChatClient({
   );
 
   const handleFileInput = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>, kind: "image" | "video" | "audio" | "file") => {
+    async (
+      event: React.ChangeEvent<HTMLInputElement>,
+      kind: "image" | "video" | "audio" | "file",
+    ) => {
       const files = event.target.files;
       if (!files || files.length === 0) return;
       const file = files[0];
@@ -1254,12 +1288,12 @@ export default function AdminChatClient({
       };
       recorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
-        const blob = new Blob(recordedChunksRef.current, { type: "audio/webm" });
-        const file = new File(
-          [blob],
-          `voice-${Date.now()}.webm`,
-          { type: "audio/webm" },
-        );
+        const blob = new Blob(recordedChunksRef.current, {
+          type: "audio/webm",
+        });
+        const file = new File([blob], `voice-${Date.now()}.webm`, {
+          type: "audio/webm",
+        });
         await uploadAndSend(file, "audio");
         setRecording(false);
         setRecordingSeconds(0);
@@ -1311,7 +1345,8 @@ export default function AdminChatClient({
     const timeout = setTimeout(async () => {
       try {
         const params = new URLSearchParams({ q: searchQuery.trim() });
-        if (isDmAdmin && memoizedThreadId) params.set("threadId", memoizedThreadId);
+        if (isDmAdmin && memoizedThreadId)
+          params.set("threadId", memoizedThreadId);
         const res = await fetch(
           `/api/community/adminchat/messages?${params.toString()}`,
           {
@@ -1463,7 +1498,10 @@ export default function AdminChatClient({
     () => ({
       spoiler: Spoiler,
       mark: (props: any) => (
-        <mark className="rounded px-1 py-0.5 bg-white/10 text-white" {...props} />
+        <mark
+          className="rounded px-1 py-0.5 bg-white/10 text-white"
+          {...props}
+        />
       ),
       u: (props: any) => <u className="underline-offset-2" {...props} />,
       a: (props: any) => (
@@ -1542,16 +1580,25 @@ export default function AdminChatClient({
                   type="button"
                   className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 md:hidden"
                   aria-label={inboxOpen ? "Hide inbox" : "Show inbox"}
-                  onClick={() => (inboxOpen ? onCloseInbox?.() : onToggleInbox())}
+                  onClick={() =>
+                    inboxOpen ? onCloseInbox?.() : onToggleInbox()
+                  }
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
               )}
               <div className="relative h-12 w-12 overflow-hidden rounded-full border border-white/15 bg-white/10">
                 {headerAvatar ? (
-                  <Image src={headerAvatar} alt="" fill className="object-cover" />
+                  <Image
+                    src={headerAvatar}
+                    alt=""
+                    fill
+                    className="object-cover"
+                  />
                 ) : (
-                  <div className="grid h-full w-full place-items-center text-lg">💬</div>
+                  <div className="grid h-full w-full place-items-center text-lg">
+                    💬
+                  </div>
                 )}
               </div>
               <div className="min-w-0">
@@ -1561,10 +1608,14 @@ export default function AdminChatClient({
                   </h1>
                 </div>
                 {headerSubtitle && (
-                  <div className="truncate text-xs text-white/60">{headerSubtitle}</div>
+                  <div className="truncate text-xs text-white/60">
+                    {headerSubtitle}
+                  </div>
                 )}
                 {thread?.description && (
-                  <div className="truncate text-xs text-white/45">{thread.description}</div>
+                  <div className="truncate text-xs text-white/45">
+                    {thread.description}
+                  </div>
                 )}
               </div>
             </div>
@@ -1578,7 +1629,10 @@ export default function AdminChatClient({
                 aria-label="Notifications"
                 title="Notifications"
               >
-                <Bell className="h-5 w-5" fill={pushSubscribed ? "currentColor" : "none"} />
+                <Bell
+                  className="h-5 w-5"
+                  fill={pushSubscribed ? "currentColor" : "none"}
+                />
               </button>
               <button
                 type="button"
@@ -1621,582 +1675,625 @@ export default function AdminChatClient({
           )}
         </header>
 
-      {!thread ? (
-        <GlowPanel subtle className="flex flex-col items-center gap-6 p-10 text-center">
-          <div className="space-y-2">
-            <h2 className="text-3xl font-semibold tracking-tight text-white">
-              Start a chat with the admin team
-            </h2>
-            <p className="text-sm text-white/65">
-              Ask questions, share progress, or get feedback. Your conversation stays
-              private with the Focus Squad admins.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="btn-primary px-10"
-            onClick={async () => {
-              try {
-                const res = await csrfFetch("/api/community/adminchat/start", {
-                  method: "POST",
-                });
-                if (!res.ok) throw new Error("Failed to start chat");
-                const data = await res.json();
-                setThread(data.thread);
-                await refreshThread();
-              } catch (err) {
-                console.error(err);
-                showError("Unable to start chat right now.");
-              }
-            }}
+        {!thread ? (
+          <GlowPanel
+            subtle
+            className="flex flex-col items-center gap-6 p-10 text-center"
           >
-            Start chat
-          </button>
-        </GlowPanel>
-      ) : (
-        <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-[#0d0d16]/80 shadow-[0_25px_80px_-28px_rgba(119,88,247,0.55)]">
-          <div
-            ref={listRef}
-            className="flex max-h-[60vh] flex-col overflow-y-auto overscroll-contain px-4 pt-6 pb-32 md:px-6 md:pt-8 hide-scrollbar"
-          >
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                position: "relative",
+            <div className="space-y-2">
+              <h2 className="text-3xl font-semibold tracking-tight text-white">
+                Start a chat with the admin team
+              </h2>
+              <p className="text-sm text-white/65">
+                Ask questions, share progress, or get feedback. Your
+                conversation stays private with the Focus Squad admins.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn-primary px-10"
+              onClick={async () => {
+                try {
+                  const res = await csrfFetch(
+                    "/api/community/adminchat/start",
+                    {
+                      method: "POST",
+                    },
+                  );
+                  if (!res.ok) throw new Error("Failed to start chat");
+                  const data = await res.json();
+                  setThread(data.thread);
+                  await refreshThread();
+                } catch (err) {
+                  console.error(err);
+                  showError("Unable to start chat right now.");
+                }
               }}
             >
-              {virtualItems.map((virtualRow) => {
-                const message = messages[virtualRow.index];
-                if (!message) return null;
-                return (
-                  <div
-                    key={virtualRow.key}
-                    data-index={virtualRow.index}
-                    data-message-id={message.id}
-                    ref={(node) => measureRow(node, message.id)}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translate3d(0, ${virtualRow.start}px, 0)`,
-                      paddingBottom: "16px",
-                    }}
-                  >
-                    <MessageBubble
-                      message={message}
-                      currentUserId={user.id}
-                      active={activeHighlight === message.id}
-                      otherAvatar={headerAvatar}
-                      onEdit={(msg) => {
-                        setEditingId(msg.id);
-                        setEditingText(msg.text ?? "");
-                      }}
-                      onDelete={handleHide}
-                      onHardDelete={handleHardDelete}
-                      canHardDelete={isDmAdmin}
-                      menuOpenId={menuOpenId}
-                      setMenuOpenId={setMenuOpenId}
-                      setEditingId={setEditingId}
-                      editingId={editingId}
-                      editingText={editingText}
-                      setEditingText={setEditingText}
-                      onEditSubmit={handleEditSubmit}
-                      resolveFileUrl={resolveFileUrl}
-                      markdownComponents={markdownComponents}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-
-            <div ref={bottomRef} />
-          </div>
-          {uploadQueue.length > 0 && (
-            <div className="px-4 md:px-6">
-              <div className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
-                {uploadQueue.map((task) => (
-                  <div
-                    key={task.id}
-                    className="flex items-center justify-between rounded-xl bg-black/20 px-3 py-2"
-                  >
-                    <span>
-                      {task.filename} · {task.kind.toUpperCase()}
-                    </span>
-                    <span>{task.error ? "Failed" : "Uploading…"}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="sticky bottom-0 rounded-3xl border-t border-white/10 bg-[#0d0d16]/90 p-4 md:border md:px-6 md:pb-6 md:pt-4">
-            {uploadQueue.length > 0 && (
-              <div
-                className="mb-4 space-y-2 rounded-2xl border border-white/10 bg-white/10 p-3 text-xs text-white/80 shadow-[0_16px_40px_rgba(10,10,24,0.45)]"
-                role="status"
-                aria-live="polite"
-              >
-                {uploadQueue.map((task) => (
-                  <div
-                    key={task.id}
-                    className="flex items-center justify-between gap-4 rounded-xl bg-black/30 px-3 py-2"
-                  >
-                    <span className="max-w-[70%] truncate" title={task.filename}>
-                      {task.filename} · {task.kind.toUpperCase()}
-                    </span>
-                    <span className={task.error ? "text-rose-300" : "text-white/60"}>
-                      {task.error ? task.error : "Uploading…"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {rateLimitActive && (
-              <div className="mb-3 rounded-2xl border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-xs text-amber-100">
-                You’re moving fast—try again in a few seconds.
-              </div>
-            )}
-
-            <div className="flex flex-col gap-3">
-              <div className="flex items-end gap-3 rounded-[28px] border border-white/10 bg-[#0b0b15]/95 px-2.5 py-2 shadow-[0_18px_48px_rgba(9,9,20,0.55)]">
-                <div className="relative flex items-center">
-                  <button
-                    type="button"
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-40"
-                    aria-label="Attach a file"
-                    aria-expanded={attachMenuOpen}
-                    aria-controls={attachMenuId}
-                    disabled={composerDisabled}
-                    onClick={() => {
-                      if (!composerDisabled) {
-                        setAttachMenuOpen((value) => !value);
-                      }
-                    }}
-                  >
-                    <Paperclip className="h-5 w-5" />
-                  </button>
-                  <AnimatePresence>
-                    {attachMenuOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 8 }}
-                        id={attachMenuId}
-                        className="absolute left-0 top-12 z-50 min-w-[200px] rounded-2xl border border-white/10 bg-[#10101c] p-3 text-xs text-white/70 shadow-xl"
-                      >
-                        <div className="flex flex-col gap-2">
-                          <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
-                            Image · ≤5MB
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(event) => handleFileInput(event, "image")}
-                            />
-                          </label>
-                          <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
-                            Video · ≤50MB
-                            <input
-                              type="file"
-                              accept="video/*"
-                              className="hidden"
-                              onChange={(event) => handleFileInput(event, "video")}
-                            />
-                          </label>
-                          <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
-                            Audio · ≤10MB
-                            <input
-                              type="file"
-                              accept="audio/*"
-                              className="hidden"
-                              onChange={(event) => handleFileInput(event, "audio")}
-                            />
-                          </label>
-                          <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
-                            File · ≤20MB
-                            <input
-                              type="file"
-                              className="hidden"
-                              onChange={(event) => handleFileInput(event, "file")}
-                            />
-                          </label>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                <TextareaAutosize
-                  ref={composerRef}
-                  value={composer}
-                  onChange={(event) => setComposer(event.target.value)}
-                  onKeyDown={handleComposerKey}
-                  disabled={composerDisabled}
-                  minRows={1}
-                  maxRows={5}
-                  placeholder="Write a message…"
-                  className="chat-input max-h-40 flex-1 resize-none bg-transparent px-1 text-sm text-white placeholder:text-white/40 focus:outline-none disabled:opacity-60"
-                />
-
-                <div className="flex items-end gap-1.5">
-                  <button
-                    type="button"
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-40"
-                    aria-label="Insert emoji"
-                    aria-expanded={emojiOpen}
-                    aria-controls={emojiMenuId}
-                    disabled={composerDisabled}
-                    onClick={() => {
-                      if (!composerDisabled) {
-                        setEmojiOpen((value) => !value);
-                      }
-                    }}
-                  >
-                    <Smile className="h-5 w-5" />
-                  </button>
-                  <button
-                    type="button"
-                    className={`flex h-10 w-10 items-center justify-center rounded-full border p-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
-                      recording
-                        ? "border-rose-300/60 bg-rose-500/20 text-rose-100"
-                        : "border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:text-white"
-                    }`}
-                    aria-label={recording ? "Stop recording voice note" : "Record voice note"}
-                    aria-pressed={recording}
-                    disabled={!recording && composerDisabled}
-                    onClick={() => {
-                      if (recording) {
-                        stopRecording();
-                      } else {
-                        startRecording();
-                      }
-                    }}
-                  >
-                    {recording ? (
-                      <span className="flex items-center gap-1 text-xs font-semibold">
-                        <Mic className="h-4 w-4" />
-                        {recordingSeconds}s
-                      </span>
-                    ) : (
-                      <Mic className="h-5 w-5" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[var(--swf-glow-end,#8b5cf6)]/80 text-white transition hover:bg-[var(--swf-glow-end,#8b5cf6)] focus:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={handleSend}
-                    disabled={!canSend}
-                    aria-label="Send message"
-                    title="Send"
-                  >
-                    <Send className={`h-5 w-5 ${sending ? "animate-pulse" : ""}`} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      <AnimatePresence>
-        {emojiOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            id={emojiMenuId}
-            className="fixed bottom-24 right-4 z-50 shadow-2xl md:right-10"
-          >
-            <GlowPanel subtle className="p-2">
-              <EmojiPicker
-                theme="dark"
-                onEmojiSelect={(emoji: any) => {
-                  handleInsertEmoji(emoji);
-                }}
-                onClickOutside={() => setEmojiOpen(false)}
-              />
-            </GlowPanel>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {auditOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur"
-            onClick={() => setAuditOpen(false)}
-          >
-            <motion.div
-              initial={{ x: 320 }}
-              animate={{ x: 0 }}
-              exit={{ x: 320 }}
-              transition={{ type: "spring", stiffness: 260, damping: 28 }}
-              className="h-full w-full max-w-md overflow-y-auto border-l border-white/10 bg-[#090912]/95 px-6 py-6 text-white shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
+              Start chat
+            </button>
+          </GlowPanel>
+        ) : (
+          <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-[#0d0d16]/80 shadow-[0_25px_80px_-28px_rgba(119,88,247,0.55)]">
+            <div
+              ref={listRef}
+              className="flex max-h-[60vh] flex-col overflow-y-auto overscroll-contain px-4 pt-6 pb-32 md:px-6 md:pt-8 hide-scrollbar"
             >
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold">Recent actions</h3>
-                  <p className="text-xs text-white/50">
-                    Logged events for this thread.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="text-sm text-white/60 transition hover:text-white"
-                  onClick={() => setAuditOpen(false)}
-                >
-                  Close
-                </button>
+              <div
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  position: "relative",
+                }}
+              >
+                {virtualItems.map((virtualRow) => {
+                  const message = messages[virtualRow.index];
+                  if (!message) return null;
+                  return (
+                    <div
+                      key={virtualRow.key}
+                      data-index={virtualRow.index}
+                      data-message-id={message.id}
+                      ref={(node) => measureRow(node, message.id)}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translate3d(0, ${virtualRow.start}px, 0)`,
+                        paddingBottom: "16px",
+                      }}
+                    >
+                      <MessageBubble
+                        message={message}
+                        currentUserId={user.id}
+                        active={activeHighlight === message.id}
+                        otherAvatar={headerAvatar}
+                        onEdit={(msg) => {
+                          setEditingId(msg.id);
+                          setEditingText(msg.text ?? "");
+                        }}
+                        onDelete={handleHide}
+                        onHardDelete={handleHardDelete}
+                        canHardDelete={isDmAdmin}
+                        menuOpenId={menuOpenId}
+                        setMenuOpenId={setMenuOpenId}
+                        setEditingId={setEditingId}
+                        editingId={editingId}
+                        editingText={editingText}
+                        setEditingText={setEditingText}
+                        onEditSubmit={handleEditSubmit}
+                        resolveFileUrl={resolveFileUrl}
+                        markdownComponents={markdownComponents}
+                      />
+                    </div>
+                  );
+                })}
               </div>
-              {auditError && (
-                <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
-                  {auditError}
+
+              <div ref={bottomRef} />
+            </div>
+            {uploadQueue.length > 0 && (
+              <div className="px-4 md:px-6">
+                <div className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-white/70">
+                  {uploadQueue.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-center justify-between rounded-xl bg-black/20 px-3 py-2"
+                    >
+                      <span>
+                        {task.filename} · {task.kind.toUpperCase()}
+                      </span>
+                      <span>{task.error ? "Failed" : "Uploading…"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="sticky bottom-0 rounded-3xl border-t border-white/10 bg-[#0d0d16]/90 p-4 md:border md:px-6 md:pb-6 md:pt-4">
+              {uploadQueue.length > 0 && (
+                <div
+                  className="mb-4 space-y-2 rounded-2xl border border-white/10 bg-white/10 p-3 text-xs text-white/80 shadow-[0_16px_40px_rgba(10,10,24,0.45)]"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {uploadQueue.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-center justify-between gap-4 rounded-xl bg-black/30 px-3 py-2"
+                    >
+                      <span
+                        className="max-w-[70%] truncate"
+                        title={task.filename}
+                      >
+                        {task.filename} · {task.kind.toUpperCase()}
+                      </span>
+                      <span
+                        className={
+                          task.error ? "text-rose-300" : "text-white/60"
+                        }
+                      >
+                        {task.error ? task.error : "Uploading…"}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
-              <div className="mt-4 space-y-3">
-                {auditEntries.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80"
+              {rateLimitActive && (
+                <div className="mb-3 rounded-2xl border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-xs text-amber-100">
+                  You’re moving fast—try again in a few seconds.
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3">
+                <div className="flex items-end gap-3 rounded-[28px] border border-white/10 bg-[#0b0b15]/95 px-2.5 py-2 shadow-[0_18px_48px_rgba(9,9,20,0.55)]">
+                  <div className="relative flex items-center">
+                    <button
+                      type="button"
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Attach a file"
+                      aria-expanded={attachMenuOpen}
+                      aria-controls={attachMenuId}
+                      disabled={composerDisabled}
+                      onClick={() => {
+                        if (!composerDisabled) {
+                          setAttachMenuOpen((value) => !value);
+                        }
+                      }}
+                    >
+                      <Paperclip className="h-5 w-5" />
+                    </button>
+                    <AnimatePresence>
+                      {attachMenuOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 8 }}
+                          id={attachMenuId}
+                          className="absolute left-0 top-12 z-50 min-w-[200px] rounded-2xl border border-white/10 bg-[#10101c] p-3 text-xs text-white/70 shadow-xl"
+                        >
+                          <div className="flex flex-col gap-2">
+                            <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
+                              Image · ≤5MB
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(event) =>
+                                  handleFileInput(event, "image")
+                                }
+                              />
+                            </label>
+                            <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
+                              Video · ≤50MB
+                              <input
+                                type="file"
+                                accept="video/*"
+                                className="hidden"
+                                onChange={(event) =>
+                                  handleFileInput(event, "video")
+                                }
+                              />
+                            </label>
+                            <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
+                              Audio · ≤10MB
+                              <input
+                                type="file"
+                                accept="audio/*"
+                                className="hidden"
+                                onChange={(event) =>
+                                  handleFileInput(event, "audio")
+                                }
+                              />
+                            </label>
+                            <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 transition hover:border-white/30 hover:text-white">
+                              File · ≤20MB
+                              <input
+                                type="file"
+                                className="hidden"
+                                onChange={(event) =>
+                                  handleFileInput(event, "file")
+                                }
+                              />
+                            </label>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  <TextareaAutosize
+                    ref={composerRef}
+                    value={composer}
+                    onChange={(event) => setComposer(event.target.value)}
+                    onKeyDown={handleComposerKey}
+                    disabled={composerDisabled}
+                    minRows={1}
+                    maxRows={5}
+                    placeholder="Write a message…"
+                    className="chat-input max-h-40 flex-1 resize-none bg-transparent px-1 text-sm text-white placeholder:text-white/40 focus:outline-none disabled:opacity-60"
+                  />
+
+                  <div className="flex items-end gap-1.5">
+                    <button
+                      type="button"
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:border-white/30 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Insert emoji"
+                      aria-expanded={emojiOpen}
+                      aria-controls={emojiMenuId}
+                      disabled={composerDisabled}
+                      onClick={() => {
+                        if (!composerDisabled) {
+                          setEmojiOpen((value) => !value);
+                        }
+                      }}
+                    >
+                      <Smile className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      className={`flex h-10 w-10 items-center justify-center rounded-full border p-2 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
+                        recording
+                          ? "border-rose-300/60 bg-rose-500/20 text-rose-100"
+                          : "border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:text-white"
+                      }`}
+                      aria-label={
+                        recording
+                          ? "Stop recording voice note"
+                          : "Record voice note"
+                      }
+                      aria-pressed={recording}
+                      disabled={!recording && composerDisabled}
+                      onClick={() => {
+                        if (recording) {
+                          stopRecording();
+                        } else {
+                          startRecording();
+                        }
+                      }}
+                    >
+                      {recording ? (
+                        <span className="flex items-center gap-1 text-xs font-semibold">
+                          <Mic className="h-4 w-4" />
+                          {recordingSeconds}s
+                        </span>
+                      ) : (
+                        <Mic className="h-5 w-5" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-[var(--swf-glow-end,#8b5cf6)]/80 text-white transition hover:bg-[var(--swf-glow-end,#8b5cf6)] focus:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={handleSend}
+                      disabled={!canSend}
+                      aria-label="Send message"
+                      title="Send"
+                    >
+                      <Send
+                        className={`h-5 w-5 ${sending ? "animate-pulse" : ""}`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <AnimatePresence>
+          {emojiOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              id={emojiMenuId}
+              className="fixed bottom-24 right-4 z-50 shadow-2xl md:right-10"
+            >
+              <GlowPanel subtle className="p-2">
+                <EmojiPicker
+                  theme="dark"
+                  onEmojiSelect={(emoji: any) => {
+                    handleInsertEmoji(emoji);
+                  }}
+                  onClickOutside={() => setEmojiOpen(false)}
+                />
+              </GlowPanel>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {auditOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur"
+              onClick={() => setAuditOpen(false)}
+            >
+              <motion.div
+                initial={{ x: 320 }}
+                animate={{ x: 0 }}
+                exit={{ x: 320 }}
+                transition={{ type: "spring", stiffness: 260, damping: 28 }}
+                className="h-full w-full max-w-md overflow-y-auto border-l border-white/10 bg-[#090912]/95 px-6 py-6 text-white shadow-2xl"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold">Recent actions</h3>
+                    <p className="text-xs text-white/50">
+                      Logged events for this thread.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-sm text-white/60 transition hover:text-white"
+                    onClick={() => setAuditOpen(false)}
                   >
-                    <div>{entry.text}</div>
-                    <div className="mt-2 text-[11px] uppercase tracking-wide text-white/35">
-                      {new Date(entry.createdAt).toLocaleString()}
+                    Close
+                  </button>
+                </div>
+                {auditError && (
+                  <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
+                    {auditError}
+                  </div>
+                )}
+                <div className="mt-4 space-y-3">
+                  {auditEntries.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80"
+                    >
+                      <div>{entry.text}</div>
+                      <div className="mt-2 text-[11px] uppercase tracking-wide text-white/35">
+                        {new Date(entry.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                  {!auditEntries.length && !auditLoading && !auditError && (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-center text-xs text-white/50">
+                      No activity recorded yet.
+                    </div>
+                  )}
+                  {auditLoading && auditEntries.length === 0 && (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center text-xs text-white/60">
+                      Loading…
+                    </div>
+                  )}
+                </div>
+                {auditHasMore && (
+                  <button
+                    type="button"
+                    className="mt-6 w-full rounded-2xl border border-white/15 bg-transparent px-4 py-2 text-xs font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={handleLoadMoreAudit}
+                    disabled={auditLoading}
+                  >
+                    {auditLoading ? "Loading…" : "Load more"}
+                  </button>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {searchOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-10"
+            >
+              <GlowPanel subtle className="w-full max-w-xl p-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-white">
+                    Search messages
+                  </h3>
+                  <button
+                    type="button"
+                    className="text-sm text-white/60 hover:text-white"
+                    onClick={() => setSearchOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Type to search…"
+                  className="mt-4 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+                />
+                <div className="mt-4 max-h-[320px] space-y-3 overflow-y-auto">
+                  {searchLoading && (
+                    <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/60">
+                      Searching…
+                    </div>
+                  )}
+                  {searchError && (
+                    <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-sm text-rose-100">
+                      {searchError}
+                    </div>
+                  )}
+                  {!searchLoading && searchResults.length === 0 && (
+                    <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/60">
+                      No results yet.
+                    </div>
+                  )}
+                  {searchResults.map((result) => (
+                    <button
+                      key={result.id}
+                      type="button"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white/70 transition hover:border-white/30 hover:text-white"
+                      onClick={() => scrollToMessage(result.id)}
+                    >
+                      <div
+                        className="prose prose-invert max-w-none text-xs"
+                        dangerouslySetInnerHTML={{
+                          __html: ensureSafeHtml(buildSearchSnippet(result)),
+                        }}
+                      />
+                      <div className="mt-2 text-[11px] text-white/40">
+                        {new Date(result.createdAt).toLocaleString()}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </GlowPanel>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {customizeOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-10"
+            >
+              <GlowPanel subtle className="w-full max-w-xl space-y-4 p-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-white">
+                    Thread appearance
+                  </h3>
+                  <button
+                    type="button"
+                    className="text-sm text-white/60 hover:text-white"
+                    onClick={() => setCustomizeOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+                <input
+                  ref={wallpaperInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleWallpaperFileChange}
+                />
+                <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        Wallpaper
+                      </p>
+                      <p className="text-xs text-white/50">
+                        Stored locally for admins on this device.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-40"
+                        onClick={handleWallpaperReset}
+                        disabled={!wallpaperDataUrl}
+                      >
+                        Reset
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold text-white/75 transition hover:border-white/30 hover:bg-white/20 hover:text-white disabled:opacity-50"
+                        onClick={openWallpaperPicker}
+                        disabled={wallpaperSaving}
+                      >
+                        Change wallpaper
+                      </button>
                     </div>
                   </div>
-                ))}
-                {!auditEntries.length && !auditLoading && !auditError && (
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-center text-xs text-white/50">
-                    No activity recorded yet.
-                  </div>
-                )}
-                {auditLoading && auditEntries.length === 0 && (
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center text-xs text-white/60">
-                    Loading…
-                  </div>
-                )}
-              </div>
-              {auditHasMore && (
-                <button
-                  type="button"
-                  className="mt-6 w-full rounded-2xl border border-white/15 bg-transparent px-4 py-2 text-xs font-semibold text-white/70 transition hover:border-white/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-                  onClick={handleLoadMoreAudit}
-                  disabled={auditLoading}
-                >
-                  {auditLoading ? "Loading…" : "Load more"}
-                </button>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {searchOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-10"
-          >
-            <GlowPanel subtle className="w-full max-w-xl p-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white">Search messages</h3>
-                <button
-                  type="button"
-                  className="text-sm text-white/60 hover:text-white"
-                  onClick={() => setSearchOpen(false)}
-                >
-                  Close
-                </button>
-              </div>
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Type to search…"
-                className="mt-4 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
-              />
-              <div className="mt-4 max-h-[320px] space-y-3 overflow-y-auto">
-                {searchLoading && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/60">
-                    Searching…
-                  </div>
-                )}
-                {searchError && (
-                  <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-sm text-rose-100">
-                    {searchError}
-                  </div>
-                )}
-                {!searchLoading && searchResults.length === 0 && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/60">
-                    No results yet.
-                  </div>
-                )}
-                {searchResults.map((result) => (
-                  <button
-                    key={result.id}
-                    type="button"
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white/70 transition hover:border-white/30 hover:text-white"
-                    onClick={() => scrollToMessage(result.id)}
-                  >
+                  <div className="overflow-hidden rounded-2xl border border-white/10">
                     <div
-                      className="prose prose-invert max-w-none text-xs"
-                      dangerouslySetInnerHTML={{
-                        __html: ensureSafeHtml(buildSearchSnippet(result)),
+                      className="h-32 w-full"
+                      style={{
+                        backgroundImage: wallpaperDataUrl
+                          ? `linear-gradient(rgba(7,7,11,0.45), rgba(7,7,11,0.55)), url(${wallpaperDataUrl})`
+                          : wallpaperImage
+                            ? `linear-gradient(rgba(7,7,11,0.45), rgba(7,7,11,0.55)), url(${wallpaperImage})`
+                            : "radial-gradient(circle at top, rgba(138,92,246,0.25), transparent 60%)",
+                        backgroundPosition: "center",
+                        backgroundSize: "cover",
+                        filter: "blur(0px)",
                       }}
                     />
-                    <div className="mt-2 text-[11px] text-white/40">
-                      {new Date(result.createdAt).toLocaleString()}
+                  </div>
+                  {wallpaperSaving && (
+                    <div className="text-xs text-white/60">
+                      Processing wallpaper…
                     </div>
-                  </button>
-                ))}
-              </div>
-            </GlowPanel>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {customizeOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-10"
-          >
-            <GlowPanel subtle className="w-full max-w-xl space-y-4 p-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white">Thread appearance</h3>
-                <button
-                  type="button"
-                  className="text-sm text-white/60 hover:text-white"
-                  onClick={() => setCustomizeOpen(false)}
-                >
-                  Close
-                </button>
-              </div>
-              <input
-                ref={wallpaperInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleWallpaperFileChange}
-              />
-              <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-white">Wallpaper</p>
-                    <p className="text-xs text-white/50">Stored locally for admins on this device.</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-40"
-                      onClick={handleWallpaperReset}
-                      disabled={!wallpaperDataUrl}
-                    >
-                      Reset
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-semibold text-white/75 transition hover:border-white/30 hover:bg-white/20 hover:text-white disabled:opacity-50"
-                      onClick={openWallpaperPicker}
-                      disabled={wallpaperSaving}
-                    >
-                      Change wallpaper
-                    </button>
-                  </div>
+                  )}
+                  {wallpaperMessage && (
+                    <div className="text-xs text-emerald-300">
+                      {wallpaperMessage}
+                    </div>
+                  )}
+                  {wallpaperError && (
+                    <div className="text-xs text-rose-300">
+                      {wallpaperError}
+                    </div>
+                  )}
                 </div>
-                <div className="overflow-hidden rounded-2xl border border-white/10">
-                  <div
-                    className="h-32 w-full"
-                    style={{
-                      backgroundImage: wallpaperDataUrl
-                        ? `linear-gradient(rgba(7,7,11,0.45), rgba(7,7,11,0.55)), url(${wallpaperDataUrl})`
-                        : wallpaperImage
-                        ? `linear-gradient(rgba(7,7,11,0.45), rgba(7,7,11,0.55)), url(${wallpaperImage})`
-                        : "radial-gradient(circle at top, rgba(138,92,246,0.25), transparent 60%)",
-                      backgroundPosition: "center",
-                      backgroundSize: "cover",
-                      filter: "blur(0px)",
-                    }}
+                <label className="block space-y-2 text-sm text-white/70">
+                  Avatar URL
+                  <input
+                    value={metaForm.avatarUrl}
+                    onChange={(event) =>
+                      setMetaForm((prev) => ({
+                        ...prev,
+                        avatarUrl: event.target.value,
+                      }))
+                    }
+                    placeholder="https://…"
+                    className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
                   />
+                </label>
+                <label className="block space-y-2 text-sm text-white/70">
+                  Wallpaper URL
+                  <input
+                    value={metaForm.wallpaperUrl}
+                    onChange={(event) =>
+                      setMetaForm((prev) => ({
+                        ...prev,
+                        wallpaperUrl: event.target.value,
+                      }))
+                    }
+                    placeholder="https://…"
+                    className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+                  />
+                </label>
+                <label className="block space-y-2 text-sm text-white/70">
+                  Description (≤ 40 words)
+                  <textarea
+                    value={metaForm.description}
+                    onChange={(event) =>
+                      setMetaForm((prev) => ({
+                        ...prev,
+                        description: event.target.value,
+                      }))
+                    }
+                    rows={3}
+                    className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
+                  />
+                </label>
+                <div className="flex items-center justify-between text-xs text-white/40">
+                  <span>
+                    {metaForm.description.trim()
+                      ? metaForm.description.trim().split(/\s+/).length
+                      : 0}{" "}
+                    words
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-primary h-10 px-6"
+                    onClick={handleMetaSave}
+                  >
+                    Save changes
+                  </button>
                 </div>
-                {wallpaperSaving && (
-                  <div className="text-xs text-white/60">Processing wallpaper…</div>
-                )}
-                {wallpaperMessage && (
-                  <div className="text-xs text-emerald-300">{wallpaperMessage}</div>
-                )}
-                {wallpaperError && (
-                  <div className="text-xs text-rose-300">{wallpaperError}</div>
-                )}
-              </div>
-              <label className="block space-y-2 text-sm text-white/70">
-                Avatar URL
-                <input
-                  value={metaForm.avatarUrl}
-                  onChange={(event) =>
-                    setMetaForm((prev) => ({ ...prev, avatarUrl: event.target.value }))
-                  }
-                  placeholder="https://…"
-                  className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
-                />
-              </label>
-              <label className="block space-y-2 text-sm text-white/70">
-                Wallpaper URL
-                <input
-                  value={metaForm.wallpaperUrl}
-                  onChange={(event) =>
-                    setMetaForm((prev) => ({
-                      ...prev,
-                      wallpaperUrl: event.target.value,
-                    }))
-                  }
-                  placeholder="https://…"
-                  className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
-                />
-              </label>
-              <label className="block space-y-2 text-sm text-white/70">
-                Description (≤ 40 words)
-                <textarea
-                  value={metaForm.description}
-                  onChange={(event) =>
-                    setMetaForm((prev) => ({
-                      ...prev,
-                      description: event.target.value,
-                    }))
-                  }
-                  rows={3}
-                  className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white focus:border-white/30 focus:outline-none"
-                />
-              </label>
-              <div className="flex items-center justify-between text-xs text-white/40">
-                <span>
-                  {metaForm.description.trim()
-                    ? metaForm.description.trim().split(/\s+/).length
-                    : 0}{" "}
-                  words
-                </span>
-                <button
-                  type="button"
-                  className="btn-primary h-10 px-6"
-                  onClick={handleMetaSave}
-                >
-                  Save changes
-                </button>
-              </div>
-            </GlowPanel>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              </GlowPanel>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
-
-  </div>
   );
 }
 
@@ -2242,17 +2339,29 @@ const MessageBubble = memo(function MessageBubble({
   const mine = message.authorId === currentUserId;
   const isEditing = editingId === message.id;
   return (
-    <div className={`group flex ${mine ? "justify-end" : "justify-start"} gap-2`}>
+    <div
+      className={`group flex ${mine ? "justify-end" : "justify-start"} gap-2`}
+    >
       {!mine && (
         <div className="mt-auto h-6 w-6 overflow-hidden rounded-full border border-white/15 bg-white/10">
           {otherAvatar ? (
-            <Image src={otherAvatar} alt="" width={24} height={24} className="h-full w-full object-cover" />
+            <Image
+              src={otherAvatar}
+              alt=""
+              width={24}
+              height={24}
+              className="h-full w-full object-cover"
+            />
           ) : (
-            <div className="grid h-full w-full place-items-center text-[11px] text-white/60">👤</div>
+            <div className="grid h-full w-full place-items-center text-[11px] text-white/60">
+              👤
+            </div>
           )}
         </div>
       )}
-      <div className={`flex max-w-[75%] flex-col ${mine ? "items-end" : "items-start"}`}>
+      <div
+        className={`flex max-w-[75%] flex-col ${mine ? "items-end" : "items-start"}`}
+      >
         <div
           className={`relative w-full rounded-3xl border px-4 py-3 text-sm leading-relaxed shadow-[0_15px_45px_rgba(9,9,20,0.4)] ${
             mine
@@ -2385,7 +2494,10 @@ type MessageMarkdownProps = {
   components: Record<string, any>;
 };
 
-const MessageMarkdown = memo(function MessageMarkdown({ text, components }: MessageMarkdownProps) {
+const MessageMarkdown = memo(function MessageMarkdown({
+  text,
+  components,
+}: MessageMarkdownProps) {
   const transformed = useMemo(() => {
     let next = text;
     next = next.replace(
@@ -2412,7 +2524,10 @@ type MessageMediaProps = {
   resolveFileUrl: (path: string) => Promise<string>;
 };
 
-const MessageMedia = memo(function MessageMedia({ message, resolveFileUrl }: MessageMediaProps) {
+const MessageMedia = memo(function MessageMedia({
+  message,
+  resolveFileUrl,
+}: MessageMediaProps) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -2482,7 +2597,8 @@ const MessageMedia = memo(function MessageMedia({ message, resolveFileUrl }: Mes
       rel="noreferrer"
       className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/80 hover:border-white/30 hover:text-white"
     >
-      📎 {message.fileMime ?? "file"} · {message.fileBytes ? formatBytes(message.fileBytes) : "download"}
+      📎 {message.fileMime ?? "file"} ·{" "}
+      {message.fileBytes ? formatBytes(message.fileBytes) : "download"}
     </a>
   );
 });

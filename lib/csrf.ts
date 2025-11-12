@@ -9,11 +9,14 @@ const textEncoder =
   typeof TextEncoder !== "undefined" ? new TextEncoder() : null;
 
 function fillRandomBytes(target: Uint8Array): Uint8Array {
-  const globalCrypto = typeof globalThis !== "undefined" ? globalThis.crypto : null;
+  const globalCrypto =
+    typeof globalThis !== "undefined" ? globalThis.crypto : null;
   if (globalCrypto && typeof globalCrypto.getRandomValues === "function") {
     return globalCrypto.getRandomValues(target);
   }
-  throw new Error("Secure randomness source unavailable for CSRF token generation");
+  throw new Error(
+    "Secure randomness source unavailable for CSRF token generation",
+  );
 }
 
 function bytesToHex(bytes: Uint8Array): string {

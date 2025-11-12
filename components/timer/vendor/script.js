@@ -107,10 +107,14 @@ function formatTime(totalSeconds) {
 
 function updateDigits(root, remaining) {
   const { minuteDigits, secondDigits } = formatTime(remaining);
-  root.querySelector('[data-unit="minutes-tens"]').textContent = minuteDigits[0];
-  root.querySelector('[data-unit="minutes-ones"]').textContent = minuteDigits[1];
-  root.querySelector('[data-unit="seconds-tens"]').textContent = secondDigits[0];
-  root.querySelector('[data-unit="seconds-ones"]').textContent = secondDigits[1];
+  root.querySelector('[data-unit="minutes-tens"]').textContent =
+    minuteDigits[0];
+  root.querySelector('[data-unit="minutes-ones"]').textContent =
+    minuteDigits[1];
+  root.querySelector('[data-unit="seconds-tens"]').textContent =
+    secondDigits[0];
+  root.querySelector('[data-unit="seconds-ones"]').textContent =
+    secondDigits[1];
 }
 
 function updateProgressCircle(circle, progress) {
@@ -171,7 +175,7 @@ function createState(root, win) {
   const progressCircle = root.querySelector(".progress-ring__progress");
   const audio = root.querySelector(".timer-audio");
   const toggleButton = root.querySelector('[data-action="toggle"]');
-  const chipButtons = Array.from(root.querySelectorAll('[data-mode]'));
+  const chipButtons = Array.from(root.querySelectorAll("[data-mode]"));
   const chipHandlers = new Map();
 
   if (!progressCircle || !audio || !toggleButton) {
@@ -208,11 +212,20 @@ function createState(root, win) {
 
     chipButtons.forEach((chip) => {
       chip.classList.toggle("is-active", chip.dataset.mode === nextMode);
-      chip.setAttribute("aria-selected", chip.dataset.mode === nextMode ? "true" : "false");
+      chip.setAttribute(
+        "aria-selected",
+        chip.dataset.mode === nextMode ? "true" : "false",
+      );
     });
 
-    root.querySelector(".timer-app").classList.remove(...Object.values(MODE_CONFIG).map((mode) => mode.className));
-    root.querySelector(".timer-app").classList.add(MODE_CONFIG[nextMode].className);
+    root
+      .querySelector(".timer-app")
+      .classList.remove(
+        ...Object.values(MODE_CONFIG).map((mode) => mode.className),
+      );
+    root
+      .querySelector(".timer-app")
+      .classList.add(MODE_CONFIG[nextMode].className);
 
     updateDigits(root, state.remaining);
     updateProgressCircle(progressCircle, 0);
@@ -299,7 +312,9 @@ function createState(root, win) {
     destroy() {
       stop();
       toggleButton.removeEventListener("click", toggle);
-      root.querySelector('[data-action="reset"]').removeEventListener("click", reset);
+      root
+        .querySelector('[data-action="reset"]')
+        .removeEventListener("click", reset);
       chipButtons.forEach((chip) => {
         const handler = chipHandlers.get(chip);
         if (handler) {
@@ -385,7 +400,10 @@ export function mountTimer(root) {
   const doc = root.ownerDocument ?? document;
   const win = doc.defaultView ?? window;
 
-  root.style.setProperty("--timer-bg-url", `url(${ASSET_BASE}backgrounds/background_3.jpg)`);
+  root.style.setProperty(
+    "--timer-bg-url",
+    `url(${ASSET_BASE}backgrounds/background_3.jpg)`,
+  );
 
   const appRoot = root.querySelector(".timer-app");
   if (!appRoot) {

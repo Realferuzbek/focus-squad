@@ -15,7 +15,12 @@ export default async function Home() {
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#07070b] px-6 text-white">
       <div className="w-full max-w-md text-center">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10">
-          <Image src="/logo.svg" alt="Studywithferuzbek" width={40} height={40} />
+          <Image
+            src="/logo.svg"
+            alt="Studywithferuzbek"
+            width={40}
+            height={40}
+          />
         </div>
         <h1 className="mt-6 text-3xl font-semibold">Studywithferuzbek</h1>
         <p className="mt-2 text-sm font-medium uppercase tracking-[0.3em] text-fuchsia-300/70">
@@ -30,11 +35,17 @@ export default async function Home() {
             Go to dashboard
           </Link>
           <div className="flex justify-center gap-4 text-sm text-zinc-400">
-            <Link href="/signin?switch=1" className="transition hover:text-white">
+            <Link
+              href="/signin?switch=1"
+              className="transition hover:text-white"
+            >
               Switch account
             </Link>
             <span className="text-zinc-600">•</span>
-            <Link href="/api/auth/signout?callbackUrl=/signin" className="transition hover:text-white">
+            <Link
+              href="/api/auth/signout?callbackUrl=/signin"
+              className="transition hover:text-white"
+            >
               Sign out
             </Link>
           </div>

@@ -20,9 +20,6 @@ export async function POST() {
     });
   } catch (err) {
     console.error(err);
-    return NextResponse.json(
-      { error: "Unexpected error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }

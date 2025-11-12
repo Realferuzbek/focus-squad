@@ -176,11 +176,11 @@ export async function updateState(
   const trimmedName =
     typeof payload.groupName === "string"
       ? payload.groupName.trim()
-      : payload.groupName ?? undefined;
+      : (payload.groupName ?? undefined);
   const normalizedDescription =
     typeof payload.groupDescription === "string"
       ? payload.groupDescription.trim()
-      : payload.groupDescription ?? undefined;
+      : (payload.groupDescription ?? undefined);
 
   if (trimmedName !== undefined && !trimmedName.length) {
     throw new LiveAdminError("Group name cannot be empty", 400);
@@ -380,9 +380,7 @@ export async function listMembers(
     const { data: matches, error: searchError } = await client
       .from("users")
       .select("id,display_name,email,avatar_url")
-      .or(
-        `display_name.ilike.${pattern},email.ilike.${pattern}`,
-      )
+      .or(`display_name.ilike.${pattern},email.ilike.${pattern}`)
       .limit(200);
 
     if (searchError) throw searchError;
@@ -440,7 +438,7 @@ export async function listMembers(
 
   const nextCursor =
     hasMore && sliced.length
-      ? sliced[sliced.length - 1]?.joined_at ?? null
+      ? (sliced[sliced.length - 1]?.joined_at ?? null)
       : null;
 
   return { items, nextCursor, hasMore };
@@ -464,9 +462,7 @@ export async function listRemoved(
     const { data: matches, error: searchError } = await client
       .from("users")
       .select("id,display_name,email,avatar_url")
-      .or(
-        `display_name.ilike.${pattern},email.ilike.${pattern}`,
-      )
+      .or(`display_name.ilike.${pattern},email.ilike.${pattern}`)
       .limit(200);
 
     if (searchError) throw searchError;
@@ -523,16 +519,13 @@ export async function listRemoved(
 
   const nextCursor =
     hasMore && sliced.length
-      ? sliced[sliced.length - 1]?.removed_at ?? null
+      ? (sliced[sliced.length - 1]?.removed_at ?? null)
       : null;
 
   return { items, nextCursor, hasMore };
 }
 
-export async function removeMember(
-  context: LiveAdminContext,
-  userId: string,
-) {
+export async function removeMember(context: LiveAdminContext, userId: string) {
   const { client } = context;
 
   const now = new Date().toISOString();
@@ -541,7 +534,10 @@ export async function removeMember(
     await Promise.all([
       client
         .from("live_stream_removed")
-        .upsert({ user_id: userId, removed_at: now }, { onConflict: "user_id" }),
+        .upsert(
+          { user_id: userId, removed_at: now },
+          { onConflict: "user_id" },
+        ),
       client
         .from("live_stream_members")
         .update({ left_at: now })
@@ -554,10 +550,7 @@ export async function removeMember(
   await safeBroadcast("Member removed", "Live chat roster updated");
 }
 
-export async function restoreMember(
-  context: LiveAdminContext,
-  userId: string,
-) {
+export async function restoreMember(context: LiveAdminContext, userId: string) {
   const { client } = context;
 
   const { error } = await client
@@ -570,10 +563,7 @@ export async function restoreMember(
   await safeBroadcast("Member restored", "Live chat roster updated");
 }
 
-export async function addAdmin(
-  context: LiveAdminContext,
-  userId: string,
-) {
+export async function addAdmin(context: LiveAdminContext, userId: string) {
   const { client } = context;
   const { data: membership, error: membershipError } = await client
     .from("live_stream_members")
@@ -584,7 +574,10 @@ export async function addAdmin(
 
   if (membershipError) throw membershipError;
   if (!membership) {
-    throw new LiveAdminError("Only active members can be promoted to admin", 400);
+    throw new LiveAdminError(
+      "Only active members can be promoted to admin",
+      400,
+    );
   }
 
   const { error } = await client
@@ -594,10 +587,7 @@ export async function addAdmin(
   if (error) throw error;
 }
 
-export async function removeAdmin(
-  context: LiveAdminContext,
-  userId: string,
-) {
+export async function removeAdmin(context: LiveAdminContext, userId: string) {
   const { client, userId: actor } = context;
 
   const { data: admins, error: adminError } = await client
@@ -680,18 +670,20 @@ export async function searchAdminCandidates(
   const ids = users.map((row) => row.id).filter(Boolean);
   if (!ids.length) return [];
 
-  const [{ data: subscriberRows, error: subscriberError }, { data: adminRows, error: adminRowsError }] =
-    await Promise.all([
-      client
-        .from("live_stream_members")
-        .select("user_id")
-        .in("user_id", ids)
-        .is("left_at", null),
-      client
-        .from("live_stream_admins")
-        .select("user_id,added_at")
-        .in("user_id", ids),
-    ]);
+  const [
+    { data: subscriberRows, error: subscriberError },
+    { data: adminRows, error: adminRowsError },
+  ] = await Promise.all([
+    client
+      .from("live_stream_members")
+      .select("user_id")
+      .in("user_id", ids)
+      .is("left_at", null),
+    client
+      .from("live_stream_admins")
+      .select("user_id,added_at")
+      .in("user_id", ids),
+  ]);
 
   if (subscriberError) throw subscriberError;
   if (adminRowsError) throw adminRowsError;

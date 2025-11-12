@@ -38,7 +38,10 @@ export async function POST() {
         .update({ last_seen_at: nowIso })
         .eq("id", recent.id);
       if (updateError) {
-        return NextResponse.json({ error: updateError.message }, { status: 500 });
+        return NextResponse.json(
+          { error: updateError.message },
+          { status: 500 },
+        );
       }
       return NextResponse.json({ ok: true });
     }

@@ -104,7 +104,9 @@ export default function AdminChatAdminView({
 
   useEffect(() => {
     if (!subscriptionDescriptor) return;
-    const channel = supabaseBrowser.channel(`admin_inbox_${subscriptionDescriptor.key}`);
+    const channel = supabaseBrowser.channel(
+      `admin_inbox_${subscriptionDescriptor.key}`,
+    );
     const handleInsert = (payload: { new: any }) => {
       const row = payload?.new;
       if (!row?.thread_id) return;
@@ -126,7 +128,9 @@ export default function AdminChatAdminView({
           unread:
             threadId === activeThreadIdState
               ? false
-              : authorId ? authorId !== user.id : prev[index].unread,
+              : authorId
+                ? authorId !== user.id
+                : prev[index].unread,
         };
         const next = [...prev];
         next.splice(index, 1);
@@ -150,7 +154,13 @@ export default function AdminChatAdminView({
     return () => {
       channel.unsubscribe();
     };
-  }, [activeThreadIdState, buildPreview, refreshInbox, subscriptionDescriptor, user.id]);
+  }, [
+    activeThreadIdState,
+    buildPreview,
+    refreshInbox,
+    subscriptionDescriptor,
+    user.id,
+  ]);
 
   const handleCollapse = useCallback(() => {
     setCollapsed(true);

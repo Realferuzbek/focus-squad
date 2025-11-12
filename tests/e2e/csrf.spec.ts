@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
 // Template e2e test for staging (manual run after installing Playwright)
 // Steps:
@@ -7,10 +7,10 @@ import { test, expect } from '@playwright/test';
 // 3) Use fetch within the page context to POST with X-CSRF-Token header matching cookie.
 // 4) Assert 200 on valid request and 403 on invalid/missing token.
 
-const STAGING_URL = process.env.STAGING_URL || 'https://staging.example.com';
+const STAGING_URL = process.env.STAGING_URL || "https://staging.example.com";
 
-test('CSRF double-submit smoke (manual staging only)', async ({ page }) => {
-  test.skip(!process.env.STAGING_URL, 'set STAGING_URL to run staging e2e');
+test("CSRF double-submit smoke (manual staging only)", async ({ page }) => {
+  test.skip(!process.env.STAGING_URL, "set STAGING_URL to run staging e2e");
 
   await page.goto(STAGING_URL);
 
@@ -19,20 +19,30 @@ test('CSRF double-submit smoke (manual staging only)', async ({ page }) => {
 
   // Verify CSRF cookie present
   const cookies = await page.context().cookies();
-  const csrf = cookies.find(c => c.name === 'csrf-token');
+  const csrf = cookies.find((c) => c.name === "csrf-token");
   expect(csrf).toBeTruthy();
 
   // Valid POST via page eval (reads cookie and sends header)
   const result = await page.evaluate(async () => {
-    const csrf = document.cookie.split('; ').find(c => c.startsWith('csrf-token='))?.split('=')[1];
-    const res = await fetch('/api/some-state-change', { method: 'POST', headers: { 'x-csrf-token': csrf }, body: JSON.stringify({ test: true }) });
+    const csrf = document.cookie
+      .split("; ")
+      .find((c) => c.startsWith("csrf-token="))
+      ?.split("=")[1];
+    const res = await fetch("/api/some-state-change", {
+      method: "POST",
+      headers: { "x-csrf-token": csrf },
+      body: JSON.stringify({ test: true }),
+    });
     return { status: res.status, text: await res.text() };
   });
   expect(result.status).toBe(200);
 
   // Invalid POST without header
   const bad = await page.evaluate(async () => {
-    const res = await fetch('/api/some-state-change', { method: 'POST', body: JSON.stringify({ test: true }) });
+    const res = await fetch("/api/some-state-change", {
+      method: "POST",
+      body: JSON.stringify({ test: true }),
+    });
     return res.status;
   });
   expect(bad).toBe(403);

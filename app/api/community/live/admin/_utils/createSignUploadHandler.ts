@@ -31,11 +31,15 @@ export function createSignUploadHandler(kind: "avatar" | "wallpaper") {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const filename = typeof body.filename === "string" && body.filename.trim().length
-      ? body.filename.trim()
-      : `${kind}.webp`;
+    const filename =
+      typeof body.filename === "string" && body.filename.trim().length
+        ? body.filename.trim()
+        : `${kind}.webp`;
     const mime = typeof body.mime === "string" ? body.mime : "";
-    const bytes = typeof body.bytes === "number" && Number.isFinite(body.bytes) ? body.bytes : 0;
+    const bytes =
+      typeof body.bytes === "number" && Number.isFinite(body.bytes)
+        ? body.bytes
+        : 0;
 
     if (!ACCEPTED_IMAGE_TYPES.has(mime)) {
       return NextResponse.json(
@@ -45,7 +49,10 @@ export function createSignUploadHandler(kind: "avatar" | "wallpaper") {
     }
 
     if (bytes <= 0) {
-      return NextResponse.json({ error: "Invalid file size." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid file size." },
+        { status: 400 },
+      );
     }
 
     if (bytes > MAX_IMAGE_BYTES) {
@@ -68,9 +75,7 @@ export function createSignUploadHandler(kind: "avatar" | "wallpaper") {
       );
     }
 
-    const publicUrl = storage
-      .from("live_assets")
-      .getPublicUrl(path)
+    const publicUrl = storage.from("live_assets").getPublicUrl(path)
       .data?.publicUrl;
 
     return NextResponse.json({

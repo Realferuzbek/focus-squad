@@ -33,16 +33,14 @@ export async function POST() {
     );
   }
 
-  const { error } = await sb
-    .from("live_stream_members")
-    .upsert(
-      {
-        user_id: userId,
-        joined_at: new Date().toISOString(),
-        left_at: null,
-      },
-      { onConflict: "user_id" },
-    );
+  const { error } = await sb.from("live_stream_members").upsert(
+    {
+      user_id: userId,
+      joined_at: new Date().toISOString(),
+      left_at: null,
+    },
+    { onConflict: "user_id" },
+  );
 
   if (error) {
     console.error(error);

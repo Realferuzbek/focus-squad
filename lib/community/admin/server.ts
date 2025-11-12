@@ -1,5 +1,9 @@
 import { supabaseAdmin } from "@/lib/supabaseServer";
-import { buildMessagePreview, mapThread, type ThreadRow } from "@/lib/adminchat/server";
+import {
+  buildMessagePreview,
+  mapThread,
+  type ThreadRow,
+} from "@/lib/adminchat/server";
 
 export type AdminInboxThread = {
   id: string;
@@ -39,7 +43,9 @@ function pickDisplayName(user: any): string | null {
   );
 }
 
-export async function listAdminThreads(adminId: string): Promise<AdminInboxThread[]> {
+export async function listAdminThreads(
+  adminId: string,
+): Promise<AdminInboxThread[]> {
   const sb = supabaseAdmin();
 
   const { data: participantRows, error: participantsError } = await sb
@@ -53,7 +59,9 @@ export async function listAdminThreads(adminId: string): Promise<AdminInboxThrea
   }
 
   const threadIds = Array.from(
-    new Set((participantRows ?? []).map((row) => row.thread_id).filter(Boolean)),
+    new Set(
+      (participantRows ?? []).map((row) => row.thread_id).filter(Boolean),
+    ),
   ) as string[];
 
   if (!threadIds.length) {
@@ -62,9 +70,7 @@ export async function listAdminThreads(adminId: string): Promise<AdminInboxThrea
 
   const { data: threadRows, error: threadsError } = await sb
     .from("dm_threads")
-    .select(
-      "id,user_id,status,last_message_at,avatar_url,description",
-    )
+    .select("id,user_id,status,last_message_at,avatar_url,description")
     .in("id", threadIds)
     .limit(50);
 
@@ -76,11 +82,17 @@ export async function listAdminThreads(adminId: string): Promise<AdminInboxThrea
     return [];
   }
 
-  const orderedThreads = [...threadRows].sort((a, b) => {
-    const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-    const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-    return bTime - aTime;
-  }).slice(0, 50);
+  const orderedThreads = [...threadRows]
+    .sort((a, b) => {
+      const aTime = a.last_message_at
+        ? new Date(a.last_message_at).getTime()
+        : 0;
+      const bTime = b.last_message_at
+        ? new Date(b.last_message_at).getTime()
+        : 0;
+      return bTime - aTime;
+    })
+    .slice(0, 50);
 
   const userIds = Array.from(
     new Set(orderedThreads.map((row) => row.user_id).filter(Boolean)),
@@ -100,7 +112,10 @@ export async function listAdminThreads(adminId: string): Promise<AdminInboxThrea
     .from("dm_receipts")
     .select("thread_id,last_read_at")
     .eq("user_id", adminId)
-    .in("thread_id", orderedThreads.map((row) => row.id));
+    .in(
+      "thread_id",
+      orderedThreads.map((row) => row.id),
+    );
 
   const usersPromise = userIds.length
     ? sb
@@ -109,8 +124,10 @@ export async function listAdminThreads(adminId: string): Promise<AdminInboxThrea
         .in("id", userIds)
     : Promise.resolve({ data: [] as any[], error: null });
 
-  const [{ data: receiptRows, error: receiptsError }, { data: userRows, error: usersError }] =
-    await Promise.all([receiptsPromise, usersPromise]);
+  const [
+    { data: receiptRows, error: receiptsError },
+    { data: userRows, error: usersError },
+  ] = await Promise.all([receiptsPromise, usersPromise]);
 
   if (receiptsError) throw receiptsError;
   if (usersError) throw usersError;
@@ -147,7 +164,12 @@ export async function listAdminThreads(adminId: string): Promise<AdminInboxThrea
 
   function buildPreview(row: LastMessageRow | undefined): string | null {
     if (!row) return null;
-    return buildMessagePreview(row.kind, row.text, row.file_mime, row.file_bytes);
+    return buildMessagePreview(
+      row.kind,
+      row.text,
+      row.file_mime,
+      row.file_bytes,
+    );
   }
 
   return orderedThreads.map((row) => {
@@ -156,14 +178,15 @@ export async function listAdminThreads(adminId: string): Promise<AdminInboxThrea
     const lastReadAt = receiptMap.get(row.id) ?? null;
     const unread =
       !!lastMessageAt &&
-      (!lastReadAt || new Date(lastReadAt).getTime() < new Date(lastMessageAt).getTime());
+      (!lastReadAt ||
+        new Date(lastReadAt).getTime() < new Date(lastMessageAt).getTime());
 
     return {
       id: row.id,
       status: row.status,
       lastMessageAt,
-       lastMessagePreview: buildPreview(lastMessageMap.get(row.id)),
-      avatarUrl: row.avatar_url ?? (user?.avatar_url ?? null),
+      lastMessagePreview: buildPreview(lastMessageMap.get(row.id)),
+      avatarUrl: row.avatar_url ?? user?.avatar_url ?? null,
       targetUser: user
         ? {
             id: user.id,
@@ -184,7 +207,9 @@ export async function getThreadDisplayMeta(
 
   const { data: threadRow, error } = await sb
     .from("dm_threads")
-    .select("id,user_id,status,last_message_at,avatar_url,wallpaper_url,description")
+    .select(
+      "id,user_id,status,last_message_at,avatar_url,wallpaper_url,description",
+    )
     .eq("id", threadId)
     .maybeSingle();
 
@@ -212,10 +237,7 @@ export async function getThreadDisplayMeta(
   }
 
   const avatarUrl = threadRow.avatar_url ?? targetUser?.avatarUrl ?? null;
-  const title =
-    targetUser?.name ??
-    targetUser?.email ??
-    "Admin Chat";
+  const title = targetUser?.name ?? targetUser?.email ?? "Admin Chat";
 
   return {
     avatarUrl,

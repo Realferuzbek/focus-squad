@@ -1,15 +1,19 @@
 ﻿// app/api/telegram/webhook/route.ts
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
-const TG_API = (method: string, token: string) => `https://api.telegram.org/bot${token}/${method}`;
-const TG_FILE = (path: string, token: string) => `https://api.telegram.org/file/bot${token}/${path}`;
+const TG_API = (method: string, token: string) =>
+  `https://api.telegram.org/bot${token}/${method}`;
+const TG_FILE = (path: string, token: string) =>
+  `https://api.telegram.org/file/bot${token}/${path}`;
 
 const baseAppUrl =
   process.env.NEXTAUTH_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  (process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000");
 
 async function fetchAvatar(telegramUserId: number) {
   const token = process.env.TELEGRAM_BOT_TOKEN!;
@@ -45,7 +49,9 @@ async function fetchAvatar(telegramUserId: number) {
 
     if (error) return null;
 
-    const { data: pub } = (sb as any).storage.from("avatars").getPublicUrl(data.path);
+    const { data: pub } = (sb as any).storage
+      .from("avatars")
+      .getPublicUrl(data.path);
     return pub?.publicUrl ?? null;
   } catch {
     return null;
@@ -71,7 +77,9 @@ async function consumeLinkToken(token: string) {
 
   if (!data) return null;
 
-  const expired = data.expires_at ? Date.parse(data.expires_at) < Date.now() : false;
+  const expired = data.expires_at
+    ? Date.parse(data.expires_at) < Date.now()
+    : false;
   if (expired) {
     await sb.from("link_tokens").delete().eq("token", token);
     return null;
@@ -91,7 +99,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ ok: true });
 
-  const message = body.message || body.edited_message || body.channel_post || {};
+  const message =
+    body.message || body.edited_message || body.channel_post || {};
   const text: string = message.text || "";
   const from = message.from || {};
   const chatId = message.chat?.id;
@@ -100,7 +109,9 @@ export async function POST(req: NextRequest) {
   const videoChatEnded = message.video_chat_ended;
   const targetGroupId = process.env.TELEGRAM_GROUP_ID;
   const isTargetGroup =
-    targetGroupId && chatId !== undefined && String(chatId) === String(targetGroupId);
+    targetGroupId &&
+    chatId !== undefined &&
+    String(chatId) === String(targetGroupId);
 
   if (isTargetGroup && (videoChatStarted || videoChatEnded)) {
     const sb = supabaseAdmin();
@@ -127,7 +138,7 @@ export async function POST(req: NextRequest) {
       if (!claim) {
         await sendMessage(
           chatId,
-          "Link expired or invalid. Please tap the Link Telegram button inside the website again."
+          "Link expired or invalid. Please tap the Link Telegram button inside the website again.",
         );
         return NextResponse.json({ ok: true });
       }
@@ -148,7 +159,7 @@ export async function POST(req: NextRequest) {
       if (existing && existing.email?.toLowerCase() !== email) {
         await sendMessage(
           chatId,
-          "This Telegram account is already linked to another Studywithferuzbek profile. Tap Link Telegram from the site with the correct Google account."
+          "This Telegram account is already linked to another Studywithferuzbek profile. Tap Link Telegram from the site with the correct Google account.",
         );
         return NextResponse.json({ ok: true });
       }
@@ -162,7 +173,7 @@ export async function POST(req: NextRequest) {
       if (!targetUser) {
         await sendMessage(
           chatId,
-          "We couldn’t locate your Studywithferuzbek profile. Please sign in with Google first, then tap Link Telegram again."
+          "We couldn’t locate your Studywithferuzbek profile. Please sign in with Google first, then tap Link Telegram again.",
         );
         return NextResponse.json({ ok: true });
       }
@@ -181,14 +192,14 @@ export async function POST(req: NextRequest) {
       const dashUrl = `${baseAppUrl.replace(/\/$/, "")}/dashboard`;
       await sendMessage(
         chatId,
-        `✅ Telegram linked! You’re all set.\nDashboard: ${dashUrl}\nIf the page still shows “Link Telegram”, keep it open—a refresh will move you automatically.`
+        `✅ Telegram linked! You’re all set.\nDashboard: ${dashUrl}\nIf the page still shows “Link Telegram”, keep it open—a refresh will move you automatically.`,
       );
       return NextResponse.json({ ok: true });
     }
 
     await sendMessage(
       chatId,
-      "Hi! Please tap the Link Telegram button from https://studywithferuzbek.vercel.app to get a secure code."
+      "Hi! Please tap the Link Telegram button from https://studywithferuzbek.vercel.app to get a secure code.",
     );
     return NextResponse.json({ ok: true });
   }

@@ -3,7 +3,11 @@
 
 import { useEffect, useState } from "react";
 
-type LiveResp = { state: "none" | "scheduled" | "live"; scheduledAt?: string; joinUrl: string };
+type LiveResp = {
+  state: "none" | "scheduled" | "live";
+  scheduledAt?: string;
+  joinUrl: string;
+};
 
 export default function LivePill() {
   const [d, setD] = useState<LiveResp | null>(null);
@@ -19,7 +23,8 @@ export default function LivePill() {
 
   let label = "No live session";
   if (d.state === "live") label = "LIVE now";
-  else if (d.state === "scheduled" && d.scheduledAt) label = `Scheduled at ${new Date(d.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  else if (d.state === "scheduled" && d.scheduledAt)
+    label = `Scheduled at ${new Date(d.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 
   return (
     <a

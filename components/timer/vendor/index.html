@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -11,19 +11,46 @@
       <div class="timer-app__background" aria-hidden="true"></div>
       <main class="timer-app__container">
         <header class="timer-header">
-          <div class="timer-header__chips" role="tablist" aria-label="Timer modes">
-            <button class="chip is-active" type="button" role="tab" aria-selected="true" data-mode="pomodoro">
+          <div
+            class="timer-header__chips"
+            role="tablist"
+            aria-label="Timer modes"
+          >
+            <button
+              class="chip is-active"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              data-mode="pomodoro"
+            >
               Pomodoro
             </button>
-            <button class="chip" type="button" role="tab" aria-selected="false" data-mode="short">
+            <button
+              class="chip"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-mode="short"
+            >
               Short Break
             </button>
-            <button class="chip" type="button" role="tab" aria-selected="false" data-mode="long">
+            <button
+              class="chip"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              data-mode="long"
+            >
               Long Break
             </button>
           </div>
           <div class="timer-header__actions">
-            <button class="icon-button" type="button" aria-label="Timer settings" data-action="settings">
+            <button
+              class="icon-button"
+              type="button"
+              aria-label="Timer settings"
+              data-action="settings"
+            >
               <svg
                 class="timer__icon timer__icon--gear"
                 viewBox="0 0 24 24"
@@ -37,7 +64,12 @@
                 />
               </svg>
             </button>
-            <button class="icon-button" type="button" aria-label="Reset timer" data-action="reset">
+            <button
+              class="icon-button"
+              type="button"
+              aria-label="Reset timer"
+              data-action="reset"
+            >
               <svg
                 class="timer__icon timer__icon--reset"
                 viewBox="0 0 24 24"
@@ -49,7 +81,12 @@
                 <path d="M12 5V1L7 6l5 5V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z" />
               </svg>
             </button>
-            <button class="icon-button" type="button" aria-label="Toggle fullscreen" data-action="fullscreen">
+            <button
+              class="icon-button"
+              type="button"
+              aria-label="Toggle fullscreen"
+              data-action="fullscreen"
+            >
               <svg
                 class="timer__icon timer__icon--fullscreen"
                 viewBox="0 0 24 24"
@@ -58,7 +95,9 @@
                 fill="currentColor"
                 aria-hidden="true"
               >
-                <path d="M7 14H5v5h5v-2H7v-3zm12 5h-5v-2h3v-3h2v5zM7 5h3V3H5v5h2V5zm12 5V3h-5v2h3v3h2z" />
+                <path
+                  d="M7 14H5v5h5v-2H7v-3zm12 5h-5v-2h3v-3h2v5zM7 5h3V3H5v5h2V5zm12 5V3h-5v2h3v3h2z"
+                />
               </svg>
             </button>
           </div>
@@ -73,11 +112,23 @@
           </div>
           <div class="timer-progress" role="presentation">
             <svg viewBox="0 0 120 120" class="progress-ring">
-              <circle class="progress-ring__background" cx="60" cy="60" r="54"></circle>
-              <circle class="progress-ring__progress" cx="60" cy="60" r="54"></circle>
+              <circle
+                class="progress-ring__background"
+                cx="60"
+                cy="60"
+                r="54"
+              ></circle>
+              <circle
+                class="progress-ring__progress"
+                cx="60"
+                cy="60"
+                r="54"
+              ></circle>
             </svg>
           </div>
-          <button class="timer-toggle" type="button" data-action="toggle">Start</button>
+          <button class="timer-toggle" type="button" data-action="toggle">
+            Start
+          </button>
         </section>
         <footer class="timer-footer">
           <span class="timer-footer__chip">Moon Phase</span>
@@ -90,24 +141,55 @@
           <div class="timer-settings__grid">
             <label class="timer-settings__field">
               <span>Pomodoro</span>
-              <input type="number" name="pomodoro" min="1" max="180" step="1" value="50" />
+              <input
+                type="number"
+                name="pomodoro"
+                min="1"
+                max="180"
+                step="1"
+                value="50"
+              />
             </label>
             <label class="timer-settings__field">
               <span>Short Break</span>
-              <input type="number" name="short" min="1" max="60" step="1" value="5" />
+              <input
+                type="number"
+                name="short"
+                min="1"
+                max="60"
+                step="1"
+                value="5"
+              />
             </label>
             <label class="timer-settings__field">
               <span>Long Break</span>
-              <input type="number" name="long" min="1" max="90" step="1" value="15" />
+              <input
+                type="number"
+                name="long"
+                min="1"
+                max="90"
+                step="1"
+                value="15"
+              />
             </label>
           </div>
           <div class="timer-settings__actions">
-            <button type="button" data-action="settings-cancel" class="ghost-button">Cancel</button>
+            <button
+              type="button"
+              data-action="settings-cancel"
+              class="ghost-button"
+            >
+              Cancel
+            </button>
             <button type="submit" class="primary-button">Save</button>
           </div>
         </form>
       </dialog>
-      <audio class="timer-audio" src="/api/timer-assets/assets/alarm.mp3" preload="auto"></audio>
+      <audio
+        class="timer-audio"
+        src="/api/timer-assets/assets/alarm.mp3"
+        preload="auto"
+      ></audio>
     </div>
     <script type="module" src="./script.js"></script>
   </body>

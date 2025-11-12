@@ -37,13 +37,16 @@ function describeAction(row: AuditRow, actorName: string) {
   const meta = row.meta ?? {};
   const actor = actorName || "Someone";
   const preview = typeof meta.preview === "string" ? meta.preview : null;
-  const targetName = typeof meta.targetName === "string" ? meta.targetName : null;
+  const targetName =
+    typeof meta.targetName === "string" ? meta.targetName : null;
 
   switch (row.action) {
     case "message_create":
       return preview ? `${actor} sent: ${preview}` : `${actor} sent a message`;
     case "message_edit":
-      return preview ? `${actor} edited a message: ${preview}` : `${actor} edited a message`;
+      return preview
+        ? `${actor} edited a message: ${preview}`
+        : `${actor} edited a message`;
     case "message_delete_soft":
       return `${actor} hid a message${meta.scope === "self" ? " for themselves" : ""}`;
     case "message_delete_hard":
@@ -115,7 +118,9 @@ export async function GET(req: NextRequest) {
     const hasMore = rows.length > limit;
     const sliced = rows.slice(0, limit);
     const nextCursor =
-      hasMore && sliced.length > 0 ? sliced[sliced.length - 1].created_at : null;
+      hasMore && sliced.length > 0
+        ? sliced[sliced.length - 1].created_at
+        : null;
 
     const actorIds = Array.from(
       new Set(
@@ -134,20 +139,15 @@ export async function GET(req: NextRequest) {
       if (actorError) {
         console.error(actorError);
       } else {
-        const typedActors =
-          (actors ??
-            []) as Array<{
-            id: string;
-            display_name: string | null;
-            name: string | null;
-            email: string | null;
-          }>;
+        const typedActors = (actors ?? []) as Array<{
+          id: string;
+          display_name: string | null;
+          name: string | null;
+          email: string | null;
+        }>;
         typedActors.forEach((actor) => {
           const name =
-            actor.display_name ??
-            actor.name ??
-            actor.email ??
-            "Unknown user";
+            actor.display_name ?? actor.name ?? actor.email ?? "Unknown user";
           actorNames.set(actor.id, name);
         });
       }
@@ -157,7 +157,7 @@ export async function GET(req: NextRequest) {
       const actorName =
         row.actor_id === null
           ? "System"
-          : actorNames.get(row.actor_id) ?? "Unknown user";
+          : (actorNames.get(row.actor_id) ?? "Unknown user");
       return {
         id: row.id,
         threadId: row.thread_id,
@@ -177,9 +177,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error(err);
-    return NextResponse.json(
-      { error: "Unexpected error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }

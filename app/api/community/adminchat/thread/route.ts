@@ -26,7 +26,10 @@ export async function GET(req: NextRequest) {
     if (admin && threadIdParam) {
       thread = await fetchThreadById(threadIdParam);
       if (!thread) {
-        return NextResponse.json({ error: "Thread not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Thread not found" },
+          { status: 404 },
+        );
       }
     } else {
       thread = await fetchThreadByUserId(userId);
@@ -42,10 +45,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ thread: mapThread(thread) });
   } catch (err) {
     console.error(err);
-    return NextResponse.json(
-      { error: "Unexpected error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }
 
@@ -114,18 +114,12 @@ export async function PATCH(req: NextRequest) {
 
     if (error || !data) {
       console.error(error);
-      return NextResponse.json(
-        { error: "Update failed" },
-        { status: 500 },
-      );
+      return NextResponse.json({ error: "Update failed" }, { status: 500 });
     }
 
     return NextResponse.json({ thread: mapThread(data) });
   } catch (err) {
     console.error(err);
-    return NextResponse.json(
-      { error: "Unexpected error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }

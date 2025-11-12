@@ -25,7 +25,13 @@ export default function AvatarMenu({
         aria-label="Account menu"
       >
         {avatarUrl ? (
-          <Image src={avatarUrl} alt="avatar" fill sizes="36px" className="object-cover" />
+          <Image
+            src={avatarUrl}
+            alt="avatar"
+            fill
+            sizes="36px"
+            className="object-cover"
+          />
         ) : (
           <div className="grid h-full w-full place-items-center bg-neutral-800">
             <span className="text-xs">🙂</span>
@@ -54,4 +60,3 @@ export default function AvatarMenu({
     </div>
   );
 }
-

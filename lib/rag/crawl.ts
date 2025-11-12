@@ -104,7 +104,7 @@ export async function reindexSite(): Promise<IndexStats> {
         } catch {
           // ignore fetch/index failures for individual pages
         }
-      })
+      }),
     );
 
     depth += 1;
@@ -138,7 +138,7 @@ async function getSitemapUrls(base: string): Promise<string[]> {
         matches.map(async (url) => {
           const entries = await extractSitemapUrls(url!, seenSitemaps);
           entries.forEach((entry) => candidates.add(entry));
-        })
+        }),
       );
     }
   }
@@ -150,7 +150,7 @@ async function getSitemapUrls(base: string): Promise<string[]> {
 
 async function extractSitemapUrls(
   url: string,
-  visited: Set<string>
+  visited: Set<string>,
 ): Promise<string[]> {
   if (!url || visited.has(url)) return [];
   visited.add(url);
@@ -164,7 +164,7 @@ async function extractSitemapUrls(
       .get()
       .filter(Boolean);
     const results = await Promise.all(
-      nested.map((child) => extractSitemapUrls(child, visited))
+      nested.map((child) => extractSitemapUrls(child, visited)),
     );
     return results.flat();
   }
@@ -204,14 +204,12 @@ function extractTextAndTitle(html: string) {
 function chunk(text: string): string[] {
   if (!text) return [];
 
-  const segments = text
-    .split(/\n{2,}/)
-    .flatMap((block) =>
-      block
-        .split(/(?<=[.!?])\s+/)
-        .map((s) => s.replace(/\s+/g, " ").trim())
-        .filter(Boolean)
-    );
+  const segments = text.split(/\n{2,}/).flatMap((block) =>
+    block
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.replace(/\s+/g, " ").trim())
+      .filter(Boolean),
+  );
 
   const chunks: string[] = [];
   let current = "";
@@ -249,7 +247,8 @@ function chunk(text: string): string[] {
       merged[merged.length - 1].length < MIN_CHARS_PER_CHUNK &&
       merged[merged.length - 1].length + entry.length <= MAX_CHARS_PER_CHUNK
     ) {
-      merged[merged.length - 1] = `${merged[merged.length - 1]} ${entry}`.trim();
+      merged[merged.length - 1] =
+        `${merged[merged.length - 1]} ${entry}`.trim();
     } else {
       merged.push(entry);
     }

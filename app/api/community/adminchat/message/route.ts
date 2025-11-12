@@ -30,11 +30,7 @@ const fileSchema = baseSchema.extend({
   filePath: z.string().min(1),
   fileMime: z.string().min(1),
   fileBytes: z.number().int().positive(),
-  text: z
-    .string()
-    .trim()
-    .max(4000, "Message too long")
-    .optional(),
+  text: z.string().trim().max(4000, "Message too long").optional(),
 });
 
 type TextPayload = z.infer<typeof textSchema>;
@@ -55,7 +51,9 @@ const RATE_LIMIT_ERROR =
 
 const messageRateBuckets = new Map<string, RateBucket>();
 
-function isFilePayload(payload: TextPayload | FilePayload): payload is FilePayload {
+function isFilePayload(
+  payload: TextPayload | FilePayload,
+): payload is FilePayload {
   return "kind" in payload;
 }
 
@@ -124,7 +122,10 @@ export async function POST(req: NextRequest) {
       }
       const thread = await fetchThreadById(payload.threadId);
       if (!thread) {
-        return NextResponse.json({ error: "Thread not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Thread not found" },
+          { status: 404 },
+        );
       }
       threadId = thread.id;
       await ensureAdminParticipants(threadId, sb);
@@ -132,7 +133,10 @@ export async function POST(req: NextRequest) {
       if (payload.threadId) {
         const thread = await fetchThreadById(payload.threadId);
         if (!thread) {
-          return NextResponse.json({ error: "Thread not found" }, { status: 404 });
+          return NextResponse.json(
+            { error: "Thread not found" },
+            { status: 404 },
+          );
         }
         if (thread.user_id !== userId) {
           return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -151,7 +155,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: RATE_LIMIT_ERROR }, { status: 429 });
     }
 
-    await ensureParticipant(threadId, userId, admin ? "dm_admin" : "member", sb);
+    await ensureParticipant(
+      threadId,
+      userId,
+      admin ? "dm_admin" : "member",
+      sb,
+    );
 
     let insertPayload: Record<string, any>;
 
@@ -204,7 +213,12 @@ export async function POST(req: NextRequest) {
 
     await sb
       .from("dm_receipts")
-      .upsert({ thread_id: threadId, user_id: userId, last_read_at: nowIso, typing: false });
+      .upsert({
+        thread_id: threadId,
+        user_id: userId,
+        last_read_at: nowIso,
+        typing: false,
+      });
 
     const preview = buildMessagePreview(
       data.kind,
@@ -234,9 +248,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: mapMessage(data) });
   } catch (err) {
     console.error(err);
-    return NextResponse.json(
-      { error: "Unexpected error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }

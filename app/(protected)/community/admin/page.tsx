@@ -38,12 +38,15 @@ export default async function AdminChatPage({ searchParams }: PageProps) {
 
   const threadParam = searchParams?.thread;
   const requestedThreadId =
-    typeof threadParam === "string" ? threadParam : Array.isArray(threadParam) ? threadParam[0] : null;
+    typeof threadParam === "string"
+      ? threadParam
+      : Array.isArray(threadParam)
+        ? threadParam[0]
+        : null;
 
   if (user.isDmAdmin) {
     const inboxThreads = await listAdminThreads(user.id);
-    const activeThreadId =
-      requestedThreadId ?? inboxThreads[0]?.id ?? null;
+    const activeThreadId = requestedThreadId ?? inboxThreads[0]?.id ?? null;
 
     const threadPromise: Promise<ThreadMeta | null> = activeThreadId
       ? loadThreadForAdmin(activeThreadId)
@@ -51,7 +54,10 @@ export default async function AdminChatPage({ searchParams }: PageProps) {
     const metaPromise: Promise<ThreadDisplayMeta | null> = activeThreadId
       ? getThreadDisplayMeta(activeThreadId)
       : Promise.resolve(null);
-    const [initialThread, threadMeta] = await Promise.all([threadPromise, metaPromise]);
+    const [initialThread, threadMeta] = await Promise.all([
+      threadPromise,
+      metaPromise,
+    ]);
 
     return (
       <AdminChatAdminView
@@ -87,4 +93,3 @@ export default async function AdminChatPage({ searchParams }: PageProps) {
     </div>
   );
 }
-

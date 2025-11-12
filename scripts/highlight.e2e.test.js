@@ -1,11 +1,8 @@
 const assert = require("assert");
 const { loadTsModule } = require("./test-helpers/load-ts");
 
-const {
-  buildHighlightSnippet,
-  buildPlainSnippet,
-  ensureSafeHtml,
-} = loadTsModule("lib/highlight.ts");
+const { buildHighlightSnippet, buildPlainSnippet, ensureSafeHtml } =
+  loadTsModule("lib/highlight.ts");
 
 (function simulateServerClientHighlightFlow() {
   const serverHighlight = buildHighlightSnippet(
@@ -14,9 +11,13 @@ const {
     { maxLength: 200 },
   );
   const renderedHtml = ensureSafeHtml(
-    serverHighlight ?? buildPlainSnippet("fallback content", { maxLength: 160 }) ?? "",
+    serverHighlight ??
+      buildPlainSnippet("fallback content", { maxLength: 160 }) ??
+      "",
   );
-  assert(renderedHtml.includes("<mark>&lt;img src=x onerror=alert(1)&gt;</mark>"));
+  assert(
+    renderedHtml.includes("<mark>&lt;img src=x onerror=alert(1)&gt;</mark>"),
+  );
   assert(
     !renderedHtml.includes("<img"),
     "escaped highlight must never emit <img> tags to the client",
@@ -32,4 +33,3 @@ const {
 
 console.log("highlight e2e tests passed");
 process.exit(0);
-

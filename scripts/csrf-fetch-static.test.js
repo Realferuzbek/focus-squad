@@ -52,4 +52,3 @@ if (violations.length > 0) {
 }
 
 console.log("csrf fetch static checks passed");
-

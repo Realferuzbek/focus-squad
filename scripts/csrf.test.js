@@ -8,12 +8,8 @@ function loadCsrf() {
   return require(MODULE_PATH);
 }
 
-const {
-  generateCsrfToken,
-  safeEqual,
-  CSRF_COOKIE_NAME,
-  CSRF_HEADER,
-} = loadCsrf();
+const { generateCsrfToken, safeEqual, CSRF_COOKIE_NAME, CSRF_HEADER } =
+  loadCsrf();
 
 // Constants
 assert.strictEqual(

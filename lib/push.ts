@@ -82,7 +82,10 @@ async function collectThreadIds(client: SupabaseClient, userId: string) {
   }
 
   if (participant.error) {
-    console.error("[push] failed to load participant threads", participant.error);
+    console.error(
+      "[push] failed to load participant threads",
+      participant.error,
+    );
   } else {
     participant.data?.forEach((row: any) => {
       if (row?.thread_id) threadIds.add(row.thread_id);
@@ -327,7 +330,11 @@ export async function notifyThreadNewMessage(
 
   const [participants, threadOwner] = await Promise.all([
     client.from("dm_participants").select("user_id").eq("thread_id", threadId),
-    client.from("dm_threads").select("user_id").eq("id", threadId).maybeSingle(),
+    client
+      .from("dm_threads")
+      .select("user_id")
+      .eq("id", threadId)
+      .maybeSingle(),
   ]);
 
   if (participants.error) {

@@ -11,7 +11,10 @@ import {
 
 function handleError(error: unknown) {
   if (error instanceof LiveAdminError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: error.message },
+      { status: error.status },
+    );
   }
   console.error("[live_admin_state]", error);
   return NextResponse.json({ error: "Internal error" }, { status: 500 });
@@ -50,13 +53,19 @@ export async function POST(req: NextRequest) {
 
   if (Object.prototype.hasOwnProperty.call(body, "groupName")) {
     if (body.groupName !== null && typeof body.groupName !== "string") {
-      return NextResponse.json({ error: "groupName must be a string" }, { status: 400 });
+      return NextResponse.json(
+        { error: "groupName must be a string" },
+        { status: 400 },
+      );
     }
     updateInput.groupName = body.groupName;
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "groupDescription")) {
-    if (body.groupDescription !== null && typeof body.groupDescription !== "string") {
+    if (
+      body.groupDescription !== null &&
+      typeof body.groupDescription !== "string"
+    ) {
       return NextResponse.json(
         { error: "groupDescription must be a string" },
         { status: 400 },
@@ -66,7 +75,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "groupAvatarUrl")) {
-    if (body.groupAvatarUrl !== null && typeof body.groupAvatarUrl !== "string") {
+    if (
+      body.groupAvatarUrl !== null &&
+      typeof body.groupAvatarUrl !== "string"
+    ) {
       return NextResponse.json(
         { error: "groupAvatarUrl must be a string" },
         { status: 400 },

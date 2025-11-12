@@ -12,7 +12,10 @@ import {
 
 function handleError(error: unknown) {
   if (error instanceof LiveAdminError) {
-    return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: error.message },
+      { status: error.status },
+    );
   }
   console.error("[live_admin_admins]", error);
   return NextResponse.json({ error: "Internal error" }, { status: 500 });
@@ -74,12 +77,18 @@ export async function POST(req: NextRequest) {
 
   if (addId) {
     if (typeof addId !== "string") {
-      return NextResponse.json({ error: "add must be a string" }, { status: 400 });
+      return NextResponse.json(
+        { error: "add must be a string" },
+        { status: 400 },
+      );
     }
 
     try {
       await addAdmin(context, addId);
-      await appendAudit(context, { action: "settings.admin.add", targetUser: addId });
+      await appendAudit(context, {
+        action: "settings.admin.add",
+        targetUser: addId,
+      });
       return NextResponse.json({ ok: true });
     } catch (error) {
       return handleError(error);
@@ -87,12 +96,18 @@ export async function POST(req: NextRequest) {
   }
 
   if (typeof removeId !== "string") {
-    return NextResponse.json({ error: "remove must be a string" }, { status: 400 });
+    return NextResponse.json(
+      { error: "remove must be a string" },
+      { status: 400 },
+    );
   }
 
   try {
     await removeAdmin(context, removeId);
-    await appendAudit(context, { action: "settings.admin.remove", targetUser: removeId });
+    await appendAudit(context, {
+      action: "settings.admin.remove",
+      targetUser: removeId,
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return handleError(error);

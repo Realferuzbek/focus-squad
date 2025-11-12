@@ -1,14 +1,17 @@
 # Fix Installation Issues
 
 ## Problem
+
 TypeScript cannot find type definitions for 'jsonwebtoken', 'next', and 'node'.
 
 ## Root Cause
+
 1. Corrupted node_modules (Next.js installation is invalid)
 2. Missing type definition packages
 3. Restrictive `types` array in tsconfig.json (FIXED)
 
 ## Fixes Applied
+
 ✅ Removed restrictive `types` array from tsconfig.json
 ✅ Moved @types packages to devDependencies
 ✅ Updated Next.js config to disable Turbopack
@@ -59,5 +62,3 @@ Remove-Item -Force package-lock.json
 # Fresh install
 npm install --legacy-peer-deps
 ```
-
-

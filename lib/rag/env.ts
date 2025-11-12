@@ -43,7 +43,7 @@ const toPositiveInt = (value?: string) => {
   const parsedValue = Number(value);
   if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
     console.warn(
-      "[env] Invalid UPSTASH_VECTOR_DIM value provided. Falling back to 1536."
+      "[env] Invalid UPSTASH_VECTOR_DIM value provided. Falling back to 1536.",
     );
     return 1536;
   }

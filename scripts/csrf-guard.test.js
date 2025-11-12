@@ -90,4 +90,3 @@ const {
 
 console.log("csrf-guard tests passed");
 process.exit(0);
-

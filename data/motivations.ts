@@ -364,7 +364,7 @@ export const MOTIVATION_QUOTES = [
   "Hold yourself to honest effort, not perfect results; Keep it repeatable. \ud83d\udcc8\u23f3",
   "Chop tasks until they fit a timer. Let compounding work. \ud83c\udfaf\ud83c\udfc1",
   "Keep a \u201cwhen stuck\u201d list within reach \u2014 Clarity first. \ud83d\udee0\ufe0f\u2699\ufe0f",
-  "Protect the peak, not the valley; Honor the timer. \ud83d\udd2c\ud83d\udcdd"
+  "Protect the peak, not the valley; Honor the timer. \ud83d\udd2c\ud83d\udcdd",
 ] as const;
 
 export const MOTIVATION_COUNT = MOTIVATION_QUOTES.length;
