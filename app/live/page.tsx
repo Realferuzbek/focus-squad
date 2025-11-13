@@ -3,12 +3,12 @@
 import React from "react";
 import type { HMSMessage, HMSPeer } from "@100mslive/react-sdk";
 import {
+  selectBroadcastMessages,
   selectCameraStreamByPeerID,
   selectIsConnectedToRoom,
   selectIsLocalAudioEnabled,
   selectIsLocalScreenShared,
   selectIsLocalVideoEnabled,
-  selectMessages,
   selectPeers,
   selectPermissions,
   useHMSActions,
@@ -43,7 +43,7 @@ export default function Live() {
   const isMicOn = useHMSStore(selectIsLocalAudioEnabled);
   const isCamOn = useHMSStore(selectIsLocalVideoEnabled);
   const isShareOn = useHMSStore(selectIsLocalScreenShared);
-  const messages = useHMSStore(selectMessages);
+  const messages = useHMSStore(selectBroadcastMessages);
 
   const [name, setName] = React.useState("");
   const [role, setRole] = React.useState<Role>("viewer");
