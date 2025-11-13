@@ -19,6 +19,8 @@
     "sitemap": "next-sitemap"
   },
   "dependencies": {
+    "@100mslive/react-icons": "^0.10.39",
+    "@100mslive/react-sdk": "^0.10.39",
     "@emoji-mart/css": "file:vendor/emoji-mart-css",
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",

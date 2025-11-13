@@ -8,6 +8,7 @@ import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 // EFFECT: Defers the AI chat widget until idle so above-the-fold paint stays fast.
 import DeferredChatWidget from "@/components/DeferredChatWidget";
 import { inter } from "@/app/fonts";
+import Providers from "./providers";
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://studywithferuzbek.vercel.app";
@@ -100,12 +101,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <meta name="theme-color" content="#07070b" />
       </head>
       <body className="font-sans bg-[#07070b] text-white">
-        <NextTopLoader showSpinner={false} />
-        <ServiceWorkerRegister />
-        {children}
-        <Analytics />
-        <SpeedInsights />
-        <DeferredChatWidget />
+        <Providers>
+          <NextTopLoader showSpinner={false} />
+          <ServiceWorkerRegister />
+          {children}
+          <Analytics />
+          <SpeedInsights />
+          <DeferredChatWidget />
+        </Providers>
       </body>
     </html>
   );
