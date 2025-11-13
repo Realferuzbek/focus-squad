@@ -109,7 +109,7 @@ export default function AvatarMenu({
           email={email}
           size={40}
           alt="Account avatar"
-          className="shadow-[0_15px_35px_rgba(10,10,30,0.6)]"
+          className="shadow-[0_15px_35px_rgba(10,10,30,0.6)] translate-y-[1px]"
         />
       </button>
 
