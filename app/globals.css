@@ -13,6 +13,17 @@
   --flag-bg-hover: rgba(255, 255, 255, 0.05);
   --flag-bg-pressed: rgba(255, 255, 255, 0.07);
   --flag-bg-disabled: rgba(255, 255, 255, 0.015);
+  --ai-bg-surface: #050712;
+  --ai-bg-glass: rgba(5, 7, 18, 0.88);
+  --ai-bg-glass-strong: rgba(11, 16, 35, 0.96);
+  --ai-gradient-primary: linear-gradient(135deg, #7c3aed 0%, #4f46e5 55%, #22d3ee 100%);
+  --ai-gradient-muted: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(34, 211, 238, 0.2));
+  --ai-text-primary: #ffffff;
+  --ai-text-muted: rgba(255, 255, 255, 0.7);
+  --ai-border-subtle: rgba(255, 255, 255, 0.08);
+  --ai-status-online: #22c55e;
+  --ai-status-disabled: #fbbf24;
+  --ai-status-error: #f87171;
 }
 
 /* ---- Chat: hide native scroll chrome (no floating widgets), keep wheel/touch scrolling ---- */
@@ -29,7 +40,7 @@
 .chat-input {
   resize: none;
   overflow-y: auto;
-  max-height: 40vh;
+  max-height: 6rem;
   scrollbar-width: none;
 }
 .chat-input::-webkit-scrollbar {
@@ -189,6 +200,177 @@
 
 .avatar-ring {
   isolation: isolate;
+}
+
+.ask-ai-launcher {
+  background-image: var(--ai-gradient-primary);
+  background-size: 220% 220%;
+  box-shadow: 0 18px 55px rgba(34, 211, 238, 0.35);
+  transition:
+    transform 180ms ease,
+    box-shadow 220ms ease,
+    background-position 320ms ease;
+}
+.ask-ai-launcher:hover {
+  transform: scale(1.03);
+  background-position: 80% 20%;
+  box-shadow: 0 24px 70px rgba(15, 76, 129, 0.55);
+}
+.ask-ai-launcher:active {
+  transform: scale(0.98);
+}
+
+[data-ai-scroll] {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+[data-ai-scroll]::-webkit-scrollbar {
+  width: 4px;
+}
+[data-ai-scroll]::-webkit-scrollbar-track {
+  background: transparent;
+}
+[data-ai-scroll]::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+[data-ai-scroll]::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.ai-chip {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: ai-chip-pop 360ms ease forwards;
+}
+
+.ai-typing-dots {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 8px;
+}
+.ai-typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background-image: var(--ai-gradient-primary);
+  background-size: 140% 140%;
+  animation: ai-typing-dot 1s ease-in-out infinite;
+}
+.ai-typing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ai-typing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.ai-thinking-bar {
+  position: relative;
+  height: 2px;
+  width: 56px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(124, 58, 237, 0.2);
+}
+.ai-thinking-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--ai-gradient-primary);
+  filter: blur(0.5px);
+  animation: ai-thinking-bar 1.8s ease-in-out infinite;
+}
+
+.ai-system-banner {
+  animation: ai-banner-slide 280ms ease forwards;
+}
+
+.ai-spark {
+  animation: ai-spark-breathe 2.4s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes ai-panel-in {
+  from {
+    transform: translateY(60px) scale(0.96);
+    opacity: 0;
+    filter: blur(8px);
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes ai-chip-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ai-typing-dot {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@keyframes ai-thinking-bar {
+  0% {
+    transform: translateX(-95%);
+  }
+  100% {
+    transform: translateX(95%);
+  }
+}
+
+@keyframes ai-banner-slide {
+  from {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes ai-spark-breathe {
+  0%,
+  100% {
+    opacity: 0.8;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ask-ai-launcher,
+  .ai-chip,
+  .ai-system-banner {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transform: none !important;
+  }
+  .ai-spark {
+    animation: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
