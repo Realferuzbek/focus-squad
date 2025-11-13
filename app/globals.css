@@ -186,3 +186,19 @@
 .flag[disabled] .flag-shell::after {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
+
+.avatar-ring {
+  isolation: isolate;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .avatar-ring:hover {
+    animation: avatar-ring-swirl 2.5s linear infinite;
+  }
+
+  @keyframes avatar-ring-swirl {
+    to {
+      filter: hue-rotate(12deg);
+    }
+  }
+}

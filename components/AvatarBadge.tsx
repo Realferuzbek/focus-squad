@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { CSSProperties } from "react";
 import { getAvatarVisuals } from "@/lib/avatar-colors";
 
 type AvatarBadgeProps = {
@@ -15,6 +16,8 @@ function cx(...classes: Array<string | undefined | false>) {
   return classes.filter(Boolean).join(" ");
 }
 
+type CSSVarStyle = CSSProperties & Record<`--${string}`, string | number>;
+
 export default function AvatarBadge({
   avatarUrl,
   name,
@@ -24,69 +27,95 @@ export default function AvatarBadge({
   priority = false,
   alt = "User avatar",
 }: AvatarBadgeProps) {
-  const { initial } = getAvatarVisuals({ name, email });
+  const { initial, ring } = getAvatarVisuals({ name, email });
+  const { h1, h2, s, l1, l2 } = ring;
 
   const fontSize = Math.max(16, Math.round(size * 0.45));
-  const ringStroke = Math.max(2, Math.round(size * 0.05));
-  const haloStroke = Math.max(2, Math.round(size * 0.04));
-  // Fixed palette per reviewer avatar spec: cyan bottom-left → emerald top-right.
-  const ringGradient =
-    "conic-gradient(from 220deg, #42ADD4 0deg, #10874E 150deg, #0CB080 260deg, #0CBF62 330deg, #42ADD4 360deg)";
-  const innerGradient = "linear-gradient(130deg, #42ADD4 0%, #10874E 85%)";
+  const candidate = Math.round(size * 0.08);
+  const maxRing = Math.max(2, Math.floor(size / 2) - 3);
+  const ringStroke = Math.max(3, Math.min(candidate, maxRing));
+  const highlightInset = Math.max(1, ringStroke - 1);
+
+  const styleVars: CSSVarStyle = {
+    width: size,
+    height: size,
+    padding: ringStroke,
+    backgroundImage: "var(--ring-grad)",
+    backgroundClip: "padding-box",
+    "--h1": `${h1}`,
+    "--h2": `${h2}`,
+    "--s": `${s}%`,
+    "--l1": `${l1}%`,
+    "--l2": `${l2}%`,
+    "--ring-grad": `conic-gradient(
+      from 210deg,
+      hsl(var(--h1) var(--s) var(--l1)) 0%,
+      hsl(var(--h2) var(--s) var(--l2)) 100%
+    )`,
+    "--ring-glow1": `hsl(${h2} ${s}% ${Math.min(l2 + 2, 62)}% / 0.45)`,
+    "--ring-glow2": `hsl(${h1} ${s}% ${Math.min(l1 + 7, 62)}% / 0.35)`,
+  };
+
+  const avatarSurface: CSSProperties = {
+    backgroundColor: "rgba(3, 3, 12, 0.9)",
+    backgroundImage:
+      "radial-gradient(circle at 32% 22%, rgba(255,255,255,0.35), rgba(255,255,255,0) 48%)",
+    boxShadow: "inset 0 10px 26px rgba(2, 3, 12, 0.7)",
+  };
+
+  const highlightMask =
+    "radial-gradient(circle, transparent calc(100% - 2px), #000 calc(100% - 1px))";
 
   return (
     <div
       className={cx(
-        "relative rounded-full shadow-[0_18px_38px_rgba(10,10,35,0.55)]",
+        "avatar-ring relative inline-flex items-center justify-center rounded-full isolate shadow-[0_20px_38px_rgba(5,5,25,0.55)]",
         className,
       )}
-      style={{
-        width: size,
-        height: size,
-        padding: ringStroke,
-        backgroundImage: ringGradient,
-      }}
+      style={styleVars}
     >
-      <div
-        className="relative h-full w-full rounded-full"
-        style={{
-          padding: haloStroke,
-          backgroundColor: "rgba(4,4,15,0.85)",
-          backgroundImage:
-            "radial-gradient(circle at 30% 20%, rgba(255,255,255,0.55), rgba(255,255,255,0) 45%)",
-          boxShadow: "inset 0 6px 18px rgba(0,0,0,0.45)",
-        }}
-      >
-        <div
-          className="relative h-full w-full overflow-hidden rounded-full"
-          style={{
-            backgroundImage: innerGradient,
-          }}
-        >
-          {avatarUrl ? (
-            <Image
-              src={avatarUrl}
-              alt={alt}
-              fill
-              sizes={`${size}px`}
-              priority={priority}
-              className="object-cover"
-            />
-          ) : (
-            <div
-              className="flex h-full w-full items-center justify-center text-white"
-              style={{ fontSize }}
-            >
-              <span className="font-semibold tracking-tight">{initial}</span>
-            </div>
-          )}
-        </div>
-      </div>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-[-6%] rounded-full opacity-70 blur-[8px]"
-        style={{ backgroundImage: ringGradient }}
+        className="pointer-events-none absolute -inset-[2px] -z-10 rounded-full"
+        style={{
+          boxShadow:
+            "0 0 12px var(--ring-glow1), 0 0 24px var(--ring-glow2), 0 0 44px rgba(3,4,18,0.4)",
+        }}
       />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute rounded-full"
+        style={{
+          inset: `${highlightInset}px`,
+          background:
+            "linear-gradient(to bottom, rgba(255,255,255,0.18), rgba(255,255,255,0))",
+          WebkitMask: highlightMask,
+          mask: highlightMask,
+          zIndex: 1,
+        }}
+      />
+      <div
+        className="relative z-[2] h-full w-full overflow-hidden rounded-full"
+        style={avatarSurface}
+      >
+        {avatarUrl ? (
+          <Image
+            src={avatarUrl}
+            alt={alt}
+            fill
+            sizes={`${size}px`}
+            priority={priority}
+            className="object-cover"
+          />
+        ) : (
+          <div
+            className="flex h-full w-full items-center justify-center text-white"
+            style={{ fontSize }}
+          >
+            <span className="font-semibold tracking-tight">{initial}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
