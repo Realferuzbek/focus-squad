@@ -28,90 +28,42 @@ export default function AvatarBadge({
   const { initial } = getAvatarVisuals({ name, email });
 
   const fontSize = Math.max(16, Math.round(size * 0.45));
-  const outerRim = 2;
-  const innerRim = Math.max(4, Math.round(size * 0.1));
-  const innerHighlightInset = Math.max(1, innerRim - 1);
-
-  const outerRingStyle: CSSProperties = {
+  const containerStyle: CSSProperties = {
     width: size,
     height: size,
-    padding: outerRim,
-    backgroundColor: "transparent",
-    backgroundClip: "padding-box",
   };
 
-  const innerRingStyle: CSSProperties = {
-    padding: innerRim,
-    backgroundColor: "transparent",
-    backgroundClip: "padding-box",
-    boxSizing: "border-box",
-  };
-
-  const avatarSurface: CSSProperties = {
-    backgroundColor: "rgba(3, 3, 12, 0.9)",
+  const fallbackSurface: CSSProperties = {
+    backgroundColor: "rgba(10, 10, 18, 0.85)",
     backgroundImage:
       "radial-gradient(circle at 32% 22%, rgba(255,255,255,0.35), rgba(255,255,255,0) 48%)",
-    boxShadow: "inset 0 10px 26px rgba(2, 3, 12, 0.7)",
   };
-
-  const highlightMask =
-    "radial-gradient(circle, transparent calc(100% - 2px), #000 calc(100% - 1px))";
 
   return (
     <div
       className={cx(
-        "avatar-ring relative inline-flex items-center justify-center rounded-full isolate shadow-[0_20px_38px_rgba(5,5,25,0.55)]",
+        "relative inline-flex overflow-hidden rounded-full shadow-[0_12px_24px_rgba(0,0,0,0.45)]",
         className,
       )}
-      style={outerRingStyle}
+      style={containerStyle}
     >
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute -inset-[2px] -z-10 rounded-full"
-        style={{
-          boxShadow:
-            "0 0 16px rgba(255,255,255,0.3), 0 0 32px rgba(255,255,255,0.15), 0 0 52px rgba(3,4,18,0.55)",
-        }}
-      />
-      <div
-        className="relative z-[2] flex h-full w-full items-center justify-center rounded-full"
-        style={innerRingStyle}
-      >
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute rounded-full"
-          style={{
-            inset: `${innerHighlightInset}px`,
-            background:
-              "linear-gradient(to bottom, rgba(255,255,255,0.22), rgba(255,255,255,0))",
-            WebkitMask: highlightMask,
-            mask: highlightMask,
-            zIndex: 1,
-          }}
+      {avatarUrl ? (
+        <Image
+          src={avatarUrl}
+          alt={alt}
+          fill
+          sizes={`${size}px`}
+          priority={priority}
+          className="object-cover"
         />
+      ) : (
         <div
-          className="relative z-[2] h-full w-full overflow-hidden rounded-full"
-          style={avatarSurface}
+          className="flex h-full w-full items-center justify-center text-white"
+          style={{ fontSize, ...fallbackSurface }}
         >
-          {avatarUrl ? (
-            <Image
-              src={avatarUrl}
-              alt={alt}
-              fill
-              sizes={`${size}px`}
-              priority={priority}
-              className="object-cover"
-            />
-          ) : (
-            <div
-              className="flex h-full w-full items-center justify-center text-white"
-              style={{ fontSize }}
-            >
-              <span className="font-semibold tracking-tight">{initial}</span>
-            </div>
-          )}
+          <span className="font-semibold tracking-tight">{initial}</span>
         </div>
-      </div>
+      )}
     </div>
   );
 }
