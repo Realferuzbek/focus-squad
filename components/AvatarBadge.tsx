@@ -16,12 +16,6 @@ function cx(...classes: Array<string | undefined | false>) {
   return classes.filter(Boolean).join(" ");
 }
 
-const OUTER_LIME = "#0CBF62";
-const OUTER_TEAL = "#0CB080";
-const INNER_CYAN = "#42ADD4";
-const INNER_TEAL = "#10874E";
-const GRADIENT_START_DEG = 225;
-
 export default function AvatarBadge({
   avatarUrl,
   name,
@@ -42,13 +36,13 @@ export default function AvatarBadge({
     width: size,
     height: size,
     padding: outerRim,
-    backgroundImage: `conic-gradient(from ${GRADIENT_START_DEG}deg, ${OUTER_TEAL} 0deg, ${OUTER_LIME} 140deg, ${OUTER_TEAL} 360deg)`,
+    backgroundColor: "transparent",
     backgroundClip: "padding-box",
   };
 
   const innerRingStyle: CSSProperties = {
     padding: innerRim,
-    backgroundImage: `conic-gradient(from ${GRADIENT_START_DEG}deg, ${INNER_CYAN} 0deg, ${INNER_TEAL} 150deg, ${INNER_CYAN} 360deg)`,
+    backgroundColor: "transparent",
     backgroundClip: "padding-box",
     boxSizing: "border-box",
   };
@@ -76,7 +70,7 @@ export default function AvatarBadge({
         className="pointer-events-none absolute -inset-[2px] -z-10 rounded-full"
         style={{
           boxShadow:
-            "0 0 16px rgba(12,191,98,0.45), 0 0 32px rgba(66,173,212,0.4), 0 0 52px rgba(3,4,18,0.55)",
+            "0 0 16px rgba(255,255,255,0.3), 0 0 32px rgba(255,255,255,0.15), 0 0 52px rgba(3,4,18,0.55)",
         }}
       />
       <div
