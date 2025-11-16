@@ -3,10 +3,14 @@ export const dynamic = "force-dynamic";
 
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import SignInInteractive from "@/components/SignInInteractive";
 import { getCachedSession } from "@/lib/server-session";
-import { SWITCH_ACCOUNT_DISABLED_NOTICE } from "@/lib/signin-messages";
+import {
+  sanitizeCallbackPath,
+  SWITCH_ACCOUNT_DISABLED_NOTICE,
+} from "@/lib/signin-messages";
 
 type SignInPageProps = {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -23,11 +27,18 @@ function isSwitchRequested(
   return raw === "1";
 }
 
+
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const hintId = "signin-hint";
   const session = await getCachedSession();
   const isSignedIn = !!session?.user;
   const switchRequested = isSwitchRequested(searchParams);
+  const callbackUrl =
+    sanitizeCallbackPath(searchParams?.callbackUrl) ?? "/dashboard";
+
+  if (isSignedIn && !switchRequested) {
+    redirect(callbackUrl);
+  }
 
   return (
     <div className="min-h-screen grid place-items-center bg-neutral-950 text-white">
@@ -62,7 +73,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         {isSignedIn ? (
           <div className="space-y-3 text-center">
             <Link
-              href="/dashboard"
+              href={callbackUrl}
               className="inline-flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-[#8b5cf6] via-[#a855f7] to-[#ec4899] px-6 py-3 text-base font-semibold shadow-[0_18px_35px_rgba(138,92,246,0.35)] transition hover:shadow-[0_25px_50px_rgba(138,92,246,0.45)]"
             >
               Go to dashboard
