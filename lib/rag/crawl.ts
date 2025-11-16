@@ -5,6 +5,8 @@ import { SnippetMeta, vector } from "./vector";
 
 const MAX_CHARS_PER_CHUNK = 1200;
 const MIN_CHARS_PER_CHUNK = 400;
+const CHUNK_OVERLAP = 150;
+const BASE_CHARS_PER_CHUNK = MAX_CHARS_PER_CHUNK - CHUNK_OVERLAP;
 
 const allowedPaths = sanitizePaths(arrays.ALLOWED);
 const blockedPaths = sanitizePaths(arrays.BLOCKED);
@@ -204,48 +206,66 @@ function extractTextAndTitle(html: string) {
 function chunk(text: string): string[] {
   if (!text) return [];
 
-  const segments = text.split(/\n{2,}/).flatMap((block) =>
-    block
-      .split(/(?<=[.!?])\s+/)
-      .map((s) => s.replace(/\s+/g, " ").trim())
-      .filter(Boolean),
-  );
+  const normalized = text.replace(/\s+/g, " ").replace(/\u00a0/g, " ").trim();
+  if (!normalized) return [];
 
-  const chunks: string[] = [];
+  const sentences = normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  const baseChunks: string[] = [];
   let current = "";
 
-  const flush = () => {
-    if (current.trim().length) {
-      chunks.push(current.trim());
+  const pushCurrent = () => {
+    const trimmed = current.trim();
+    if (trimmed.length) {
+      baseChunks.push(trimmed);
     }
     current = "";
   };
 
-  for (const segment of segments) {
-    const parts =
-      segment.length > MAX_CHARS_PER_CHUNK
-        ? splitByLength(segment, MAX_CHARS_PER_CHUNK)
-        : [segment];
-
-    for (const part of parts) {
-      const candidate = current ? `${current} ${part}` : part;
-      if (candidate.length <= MAX_CHARS_PER_CHUNK) {
-        current = candidate;
-      } else {
-        flush();
-        current = part;
-      }
+  for (const sentence of sentences) {
+    if (!sentence) continue;
+    const candidate = current ? `${current} ${sentence}` : sentence;
+    if (candidate.length <= BASE_CHARS_PER_CHUNK) {
+      current = candidate;
+      continue;
     }
+
+    if (current.length >= MIN_CHARS_PER_CHUNK) {
+      pushCurrent();
+      current = sentence;
+      continue;
+    }
+
+    if (sentence.length > BASE_CHARS_PER_CHUNK) {
+      const pieces = splitByLength(sentence, BASE_CHARS_PER_CHUNK);
+      for (const piece of pieces) {
+        const withCurrent = current ? `${current} ${piece}` : piece;
+        if (withCurrent.length <= BASE_CHARS_PER_CHUNK) {
+          current = withCurrent;
+        } else {
+          if (current) pushCurrent();
+          current = piece;
+          pushCurrent();
+          current = "";
+        }
+      }
+      continue;
+    }
+
+    current = candidate;
   }
 
-  flush();
+  pushCurrent();
 
   const merged: string[] = [];
-  for (const entry of chunks) {
+  for (const entry of baseChunks) {
     if (
       merged.length &&
       merged[merged.length - 1].length < MIN_CHARS_PER_CHUNK &&
-      merged[merged.length - 1].length + entry.length <= MAX_CHARS_PER_CHUNK
+      merged[merged.length - 1].length + entry.length <= BASE_CHARS_PER_CHUNK
     ) {
       merged[merged.length - 1] =
         `${merged[merged.length - 1]} ${entry}`.trim();
@@ -254,7 +274,27 @@ function chunk(text: string): string[] {
     }
   }
 
-  return merged;
+  if (!merged.length) return [];
+
+  const overlapped: string[] = [];
+  merged.forEach((entry, index) => {
+    if (index === 0) {
+      overlapped.push(entry.slice(0, MAX_CHARS_PER_CHUNK));
+      return;
+    }
+    const previous = overlapped[index - 1] ?? "";
+    const tail = previous.slice(-CHUNK_OVERLAP);
+    const maxBody = Math.max(MAX_CHARS_PER_CHUNK - tail.length - 1, 0);
+    const trimmedBody =
+      entry.length > maxBody ? entry.slice(0, maxBody) : entry;
+    const candidate =
+      tail.trim().length && trimmedBody
+        ? `${tail} ${trimmedBody}`.trim()
+        : (tail + trimmedBody).trim();
+    overlapped.push(candidate.slice(0, MAX_CHARS_PER_CHUNK));
+  });
+
+  return overlapped;
 }
 
 function splitByLength(input: string, size: number) {

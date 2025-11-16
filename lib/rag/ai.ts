@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { createHash } from "crypto";
+import type { SupportedLanguage } from "@/lib/ai-chat/language";
 import { env } from "./env";
+import type { SnippetMeta } from "./vector";
 
 const useMockAi =
   process.env.USE_MOCK_AI === "1" ||
@@ -40,8 +42,6 @@ export async function embedBatch(inputs: string[]) {
       ensureVectorDimensions(embeddings);
       return embeddings;
     } catch (err: unknown) {
-      // Log and fall back to mock embeddings to keep the app responsive.
-      // Avoid logging secrets; safely extract message/stack from unknown.
       const msg =
         err && typeof err === "object" && "message" in err
           ? (err as any).message
@@ -57,16 +57,49 @@ export async function embedBatch(inputs: string[]) {
   return inputs.map((text) => mockEmbed(text));
 }
 
-export async function generateAnswer(prompt: string) {
-  // Check if prompt has sources - if not, return early with helpful message
-  const hasSources = /Source\s+\d+:/i.test(prompt);
-  if (!hasSources) {
-    return "I couldn't find any relevant sources to answer your question. The knowledge base might be empty or your question doesn't match any indexed content. Try reindexing the site or rephrasing your question.";
+export interface GenerateAnswerOptions {
+  question: string;
+  language: SupportedLanguage;
+  contexts: SnippetMeta[];
+  memory?: string[];
+}
+
+const LANGUAGE_LABELS: Record<
+  SupportedLanguage,
+  { label: string; fallback: string }
+> = {
+  en: {
+    label: "English",
+    fallback:
+      "I couldn't find enough indexed material to answer that yet. Ask me something about the site's features or pages!",
+  },
+  uz: {
+    label: "Uzbek",
+    fallback:
+      "Bu savol bo‘yicha mos ma’lumot topa olmadim. Iltimos, sayt funksiyalari yoki sahifalari haqida so‘rang!",
+  },
+  ru: {
+    label: "Russian",
+    fallback:
+      "Я не нашёл подходящего контента по этому вопросу. Спроси о функциях или страницах этого сайта!",
+  },
+};
+
+const SYSTEM_TONE =
+  "You are the Focus Squad site assistant. Answer ONLY with information found in the provided context snippets. Never guess, never cite outside knowledge, and keep responses concise, motivating, and playful. Encourage the user to keep studying and gently remind them that you only cover this website. Do not mention internal tools or the retrieval pipeline. Avoid citations and source lists.";
+
+export async function generateAnswer(
+  options: GenerateAnswerOptions,
+): Promise<string> {
+  const { contexts, language } = options;
+  if (!contexts.length) {
+    return LANGUAGE_LABELS[language].fallback;
   }
 
+  const systemMessage = `${SYSTEM_TONE} Always reply in ${LANGUAGE_LABELS[language].label}.`;
+  const userPrompt = buildUserPrompt(options);
+
   if (!useMockAi && openai) {
-    const systemMessage =
-      "You are a helpful assistant for the studywithferuzbek website. Answer questions accurately using ONLY the provided sources. If the sources don't contain enough information to answer confidently, clearly state that you're not sure. Be concise and helpful.";
     try {
       if (shouldUseResponsesApi(env.OPENAI_GEN_MODEL)) {
         const response = await openai.responses.create({
@@ -74,7 +107,7 @@ export async function generateAnswer(prompt: string) {
           temperature: 0.2,
           input: [
             { role: "system", content: systemMessage },
-            { role: "user", content: prompt },
+            { role: "user", content: userPrompt },
           ],
         });
         const text = extractResponseText(response);
@@ -85,7 +118,7 @@ export async function generateAnswer(prompt: string) {
           temperature: 0.2,
           messages: [
             { role: "system", content: systemMessage },
-            { role: "user", content: prompt },
+            { role: "user", content: userPrompt },
           ],
         });
         const text = completion.choices[0]?.message?.content?.trim();
@@ -101,12 +134,42 @@ export async function generateAnswer(prompt: string) {
           ? String((err as any).stack).split("\n")[0]
           : undefined;
       console.error("[rag/ai] generation call failed:", msg, stackFirst);
-      // Return a helpful error message instead of falling back to mock
-      return "I encountered an error while generating a response. Please try again in a moment.";
+      return LANGUAGE_LABELS[language].fallback;
     }
   }
-  // Only use mock answer if we're in mock mode
-  return mockAnswerFromPrompt(prompt);
+
+  return mockAnswerFromContext(options);
+}
+
+function buildUserPrompt({
+  question,
+  contexts,
+  memory,
+  language,
+}: GenerateAnswerOptions) {
+  const snippets = contexts
+    .map((meta, index) => {
+      const title = meta.title || "Untitled section";
+      const cleanedChunk = meta.chunk.replace(/\s+/g, " ").trim();
+      return `Snippet ${index + 1} (${title} | ${meta.url}): ${cleanedChunk}`;
+    })
+    .join("\n\n");
+
+  const memoryBlock =
+    memory && memory.length
+      ? `User background notes:\n- ${memory.map((m) => m.trim()).join("\n- ")}`
+      : null;
+
+  return [
+    `Language: ${LANGUAGE_LABELS[language].label}`,
+    memoryBlock,
+    "Use these context snippets from the site:",
+    snippets,
+    `Question: ${question}`,
+    "Answer using only the snippets. Keep the tone motivating and playful, cheer the user on, and never add citations or URLs.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function extractResponseText(response: any): string {
@@ -142,6 +205,18 @@ function extractResponseText(response: any): string {
   return "";
 }
 
+function mockAnswerFromContext(options: GenerateAnswerOptions) {
+  const { contexts, question, language, memory } = options;
+  if (!contexts.length) return LANGUAGE_LABELS[language].fallback;
+  const [first] = contexts;
+  const preview = first.chunk.replace(/\s+/g, " ").slice(0, 280);
+  const memoryBlurb =
+    memory && memory.length
+      ? `\n\nI also remember: ${memory.map((value) => value.trim()).join(" ")}`
+      : "";
+  return `Here's what the site says about "${question}": ${preview}…${memoryBlurb}`;
+}
+
 function mockEmbed(text: string): number[] {
   const cleaned =
     text
@@ -164,55 +239,6 @@ function mockEmbed(text: string): number[] {
   }
   magnitude = Math.sqrt(magnitude) || 1;
   return Array.from(vec, (value) => Number(value / magnitude));
-}
-
-function mockAnswerFromPrompt(prompt: string): string {
-  const sourceRegex =
-    /Source\s+\d+:\s*([^\n]+)\nURL:\s*([^\s]+)\s*\n\n([\s\S]*?)(?=\n\n---|\n\nUser question:|$)/g;
-  const matches: Array<{ title: string; url: string; chunk: string }> = [];
-  let match: RegExpExecArray | null;
-  while ((match = sourceRegex.exec(prompt)) !== null) {
-    matches.push({
-      title: match[1]?.trim() || "Untitled",
-      url: match[2]?.trim() || env.SITE_BASE_URL,
-      chunk: match[3]?.trim() || "",
-    });
-  }
-
-  const question = prompt
-    .split("User question:")
-    .slice(1)
-    .join("User question:")
-    .trim();
-
-  const summary = matches
-    .slice(0, 2)
-    .map((entry) => {
-      const preview = entry.chunk.slice(0, 320).replace(/\s+/g, " ");
-      return `${entry.title}: ${preview}`;
-    })
-    .join(" ");
-
-  const sources =
-    matches
-      .map((entry) => entry.url)
-      .filter(Boolean)
-      .slice(0, 4) ?? [];
-
-  const intro = question
-    ? `Based on the indexed site content, here is what we know about \"${question}\".`
-    : "Based on the indexed site content, here is what we know.";
-
-  const body =
-    summary ||
-    "I could not find a confident match in the indexed snippets. Try rephrasing your question or reindexing.";
-
-  const sourcesBlock =
-    sources.length > 0
-      ? sources.map((src) => `- ${src}`).join("\n")
-      : `- ${env.SITE_BASE_URL}`;
-
-  return `${intro}\n\n${body}\n\nSources:\n${sourcesBlock}`;
 }
 
 function ensureVectorDimensions(vectors: number[][]) {

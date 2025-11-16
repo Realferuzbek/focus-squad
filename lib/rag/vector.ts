@@ -56,6 +56,7 @@ function cosineSimilarity(a: number[], b: number[]) {
 const upstashVector = new Index({
   url: env.UPSTASH_VECTOR_REST_URL,
   token: env.UPSTASH_VECTOR_REST_TOKEN,
+  indexName: env.UPSTASH_INDEX_NAME,
 });
 
 function getMemoryVector() {

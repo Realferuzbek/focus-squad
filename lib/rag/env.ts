@@ -2,12 +2,12 @@ import { z } from "zod";
 
 const EnvSchema = z.object({
   OPENAI_API_KEY: z.string().min(1),
-  OPENAI_GEN_MODEL: z.string().default("gpt-4.1"),
-  OPENAI_EMBED_MODEL: z.string().default("text-embedding-3-large"),
+  OPENAI_GEN_MODEL: z.string().default("gpt-5-mini"),
+  OPENAI_EMBED_MODEL: z.string().default("text-embedding-3-small"),
 
   UPSTASH_VECTOR_REST_URL: z.string().url(),
   UPSTASH_VECTOR_REST_TOKEN: z.string().min(1),
-  UPSTASH_INDEX_NAME: z.string().default("study-with-feruzbek-site"),
+  UPSTASH_INDEX_NAME: z.string().default("focus-squad-site"),
   UPSTASH_VECTOR_DIM: z.string().optional(),
 
   SITE_BASE_URL: z.string().url(),
@@ -16,7 +16,9 @@ const EnvSchema = z.object({
   CRAWL_MAX_PAGES: z.string().default("400"),
   CRAWL_MAX_DEPTH: z.string().default("3"),
   CRAWL_ALLOWED_PATHS: z.string().default("/"),
-  CRAWL_BLOCKED_PATHS: z.string().default("/api,/_next,/static,/assets"),
+  CRAWL_BLOCKED_PATHS: z
+    .string()
+    .default("/admin,/dashboard,/link-telegram,/signin,/api,/_next,/static,/assets,/community/admin"),
 });
 
 const parsed = EnvSchema.parse({

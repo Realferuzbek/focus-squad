@@ -1,132 +1,328 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { performance } from "perf_hooks";
+import { detectLanguage } from "@/lib/ai-chat/language";
+import type { SupportedLanguage } from "@/lib/ai-chat/language";
+import { detectGreeting, getGreetingReply } from "@/lib/ai-chat/greetings";
+import {
+  getErrorResponse,
+  getModerationResponse,
+  getOffTopicResponse,
+} from "@/lib/ai-chat/messages";
+import { moderateInput } from "@/lib/ai-chat/moderation";
+import {
+  extractMemoryEntries,
+  getMemoryPreference,
+  getUserMemories,
+  upsertUserMemories,
+} from "@/lib/ai-chat/memory";
+import type { MemoryEntry } from "@/lib/ai-chat/memory";
+import { saveChatLog } from "@/lib/ai-chat/logging";
+import { redactForStorage } from "@/lib/ai-chat/redaction";
+import type { RedactionStatus } from "@/lib/ai-chat/redaction";
 import { embedBatch, generateAnswer } from "@/lib/rag/ai";
-import { vector } from "@/lib/rag/vector";
-import { isAiChatEnabled } from "@/lib/featureFlags";
+import { vector, type SnippetMeta } from "@/lib/rag/vector";
 import { rateLimit } from "@/lib/rateLimit";
+import { isAiChatEnabled } from "@/lib/featureFlags";
+
+const SIMILARITY_THRESHOLD = 0.2;
+const TOP_K = 5;
+
+type ChatRequestBody = {
+  input?: unknown;
+  userId?: unknown;
+  sessionId?: unknown;
+};
 
 export async function POST(req: Request) {
+  const startedAt = performance.now();
   try {
-    const session = await auth();
-    const user = session?.user as any;
-    if (!user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const throttle = rateLimit(`ai-chat:${user.id}`, 10, 60_000);
-    if (!throttle.ok) {
+    const body = (await req.json().catch(() => ({}))) as ChatRequestBody;
+    const inputRaw =
+      typeof body.input === "string" ? body.input.trim() : undefined;
+    if (!inputRaw) {
       return NextResponse.json(
-        { error: "Too many requests, try again soon." },
-        { status: 429 },
+        { error: "Missing input" },
+        { status: 400, headers: noCache() },
       );
     }
+
+    const sessionIdRaw =
+      typeof body.sessionId === "string" ? body.sessionId : null;
+    const sessionId = sessionIdRaw && isUuid(sessionIdRaw) ? sessionIdRaw : null;
+    if (!sessionId) {
+      return NextResponse.json(
+        { error: "Invalid session" },
+        { status: 400, headers: noCache() },
+      );
+    }
+
+    const userIdRaw =
+      typeof body.userId === "string" && isUuid(body.userId)
+        ? body.userId
+        : null;
+
+    const forwardedFor =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    const rateKey = `ai-chat:${sessionId}:${forwardedFor ?? "anon"}`;
+    const throttle = rateLimit(rateKey, 12, 60_000);
+    if (!throttle.ok) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again in a minute." },
+        { status: 429, headers: noCache() },
+      );
+    }
+
+    const languageDetection = detectLanguage(inputRaw);
+    const language = languageDetection.code;
 
     const aiEnabled = await isAiChatEnabled(true);
     if (!aiEnabled) {
+      const reply =
+        language === "uz"
+          ? "AI hozirda dam olmoqda — administratorlar uni yaqinda qayta ishga tushiradilar ✨"
+          : language === "ru"
+            ? "Ассистент временно на паузе — админы скоро вернут его в строй ✨"
+            : "The assistant is taking a quick break while admins make updates. Check back soon ✨";
       return NextResponse.json(
-        { error: "AI assistant is currently disabled by admins." },
-        { status: 503 },
+        { text: reply, usedRag: false, language },
+        { status: 503, headers: noCache() },
       );
     }
 
-    const { query } = await req.json().catch(() => ({ query: "" }));
-    if (!query || typeof query !== "string") {
-      return NextResponse.json({ error: "Missing query" }, { status: 400 });
-    }
-
-    const [qvec] = await embedBatch([query]);
-    if (!qvec || !Array.isArray(qvec) || qvec.length === 0) {
-      console.error(
-        "[api/chat] Failed to embed query or got invalid embedding",
-      );
+    const greetingMatch = detectGreeting(inputRaw);
+    if (greetingMatch) {
+      const reply = getGreetingReply(greetingMatch ?? language);
+      await persistLog({
+        userId: userIdRaw,
+        sessionId,
+        language,
+        input: inputRaw,
+        reply,
+        usedRag: false,
+        metadata: { reason: "greeting" },
+      });
       return NextResponse.json(
-        { error: "Failed to embed query" },
-        { status: 500 },
+        { text: reply, usedRag: false, language },
+        { headers: noCache() },
       );
     }
 
-    let search: any;
+    const moderation = await moderateInput(inputRaw);
+    if (!moderation.ok) {
+      const reply = getModerationResponse(language);
+      await persistLog({
+        userId: userIdRaw,
+        sessionId,
+        language,
+        input: inputRaw,
+        reply,
+        usedRag: false,
+        metadata: { reason: "moderation", category: moderation.category },
+      });
+      return NextResponse.json(
+        { text: reply, usedRag: false, language },
+        { headers: noCache() },
+      );
+    }
+
+    const embedStart = performance.now();
+    const [embedding] = await embedBatch([inputRaw]);
+    const embedMs = performance.now() - embedStart;
+    if (!embedding || !embedding.length) {
+      return NextResponse.json(
+        { text: getErrorResponse(language), usedRag: false, language },
+        { status: 500, headers: noCache() },
+      );
+    }
+
+    const retrievalStart = performance.now();
+    let matches: Array<{ score?: number; metadata?: SnippetMeta }> = [];
     try {
-      search = await vector.query({
-        vector: qvec,
-        topK: 8,
+      const result: any = await vector.query({
+        vector: embedding,
+        topK: TOP_K,
         includeMetadata: true,
       });
-    } catch (vectorError: any) {
-      console.error(
-        "[api/chat] Vector query failed:",
-        vectorError?.message || vectorError,
-      );
+      matches = Array.isArray(result?.matches) ? result.matches : [];
+    } catch (error) {
+      console.error("[api/chat] vector query failed", error);
       return NextResponse.json(
-        {
-          error: "Unable to search the knowledge base. Please try again later.",
-          answer:
-            "I'm having trouble accessing the knowledge base right now. Please try again in a moment.",
-        },
-        { status: 500 },
+        { text: getErrorResponse(language), usedRag: false, language },
+        { status: 500, headers: noCache() },
       );
     }
+    const retrievalMs = performance.now() - retrievalStart;
 
-    const matches = (search as any)?.matches || [];
     const validMatches = matches.filter(
-      (m: any) => m?.metadata && (m?.metadata?.chunk || m?.metadata?.url),
+      (match) =>
+        match &&
+        typeof match.score === "number" &&
+        match.metadata?.chunk &&
+        match.metadata?.url,
     );
 
-    // If no valid matches found, return a helpful message
-    if (validMatches.length === 0) {
-      return NextResponse.json({
-        answer:
-          "I couldn't find any relevant information in the indexed content for your question. This might mean:\n\n1. The content hasn't been indexed yet - try reindexing the site\n2. Your question might need to be rephrased to match the available content\n3. The content you're asking about might not be in the knowledge base yet\n\nTry asking about features, functionality, or content that's already on the site, or rephrase your question.",
-        sources: [],
-      });
-    }
+    const bestScore = validMatches.length
+      ? (validMatches[0]?.score as number)
+      : 0;
 
     const contexts = validMatches
-      .map((m: any, i: number) => {
-        const md = m?.metadata ?? {};
-        return `Source ${i + 1}: ${md.title || "Untitled"}\nURL: ${
-          md.url || ""
-        }\n\n${md.chunk || ""}`;
-      })
-      .join("\n\n---\n\n");
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      .slice(0, TOP_K)
+      .map((match) => match.metadata as SnippetMeta);
 
-    const prompt = `You are a helpful assistant for the studywithferuzbek website. Use ONLY the sources provided below to answer the user's question. If the sources don't contain enough information to answer confidently, say so clearly.
+    const confident = contexts.length > 0 && bestScore >= SIMILARITY_THRESHOLD;
 
-Sources:
-${contexts}
-
-User question: ${query}
-
-Provide a clear, helpful answer based on the sources above. If you're not confident about the answer, say so.`;
-
-    let rawAnswer: string | null = null;
-    try {
-      rawAnswer = await generateAnswer(prompt);
-    } catch (genError: any) {
-      console.error(
-        "[api/chat] Answer generation failed:",
-        genError?.message || genError,
+    if (!confident) {
+      const reply = getOffTopicResponse(language);
+      await persistLog({
+        userId: userIdRaw,
+        sessionId,
+        language,
+        input: inputRaw,
+        reply,
+        usedRag: false,
+        metadata: {
+          reason: "off_topic",
+          matches: contexts.length,
+          bestScore,
+          embedMs,
+          retrievalMs,
+        },
+      });
+      return NextResponse.json(
+        { text: reply, usedRag: false, language },
+        { headers: noCache() },
       );
     }
 
-    const answer =
-      rawAnswer?.trim() ||
-      "I couldn't generate a confident answer based on the available sources. Try rephrasing your question or asking about different content.";
+    const memoryState = userIdRaw
+      ? await safeGetMemories(userIdRaw)
+      : { list: [], enabled: false };
+    const memories = memoryState.list;
 
-    const sources = validMatches
-      .map((m: any) => m?.metadata?.url)
-      .filter(
-        (url: any): url is string => Boolean(url) && typeof url === "string",
-      );
+    const generationStart = performance.now();
+    const answer = await generateAnswer({
+      question: inputRaw,
+      language,
+      contexts,
+      memory: memories,
+    });
+    const generationMs = performance.now() - generationStart;
 
-    return NextResponse.json({ answer, sources });
+    const logEntry = await persistLog({
+      userId: userIdRaw,
+      sessionId,
+      language,
+      input: inputRaw,
+      reply: answer,
+      usedRag: true,
+      metadata: {
+        matches: contexts.length,
+        bestScore,
+        embedMs,
+        retrievalMs,
+        generationMs,
+        languageConfidence: languageDetection.confidence,
+        memoryUsed: memories.length,
+      },
+    });
+
+    if (userIdRaw && memoryState.enabled) {
+      const memoryHints = extractMemoryEntries(inputRaw);
+      if (memoryHints.length) {
+        safeRemember(userIdRaw, memoryHints);
+      }
+    }
+
+    const totalMs = performance.now() - startedAt;
+    console.info("[api/chat] timings", {
+      embedMs: Number(embedMs.toFixed(1)),
+      retrievalMs: Number(retrievalMs.toFixed(1)),
+      generationMs: Number(generationMs.toFixed(1)),
+      totalMs: Number(totalMs.toFixed(1)),
+      usedRag: true,
+      language,
+      bestScore: Number(bestScore?.toFixed?.(3) ?? bestScore),
+    });
+
+    return NextResponse.json(
+      {
+        text: answer,
+        usedRag: true,
+        language,
+        chatId: logEntry?.id ?? null,
+      },
+      { headers: noCache() },
+    );
   } catch (error) {
     console.error("[api/chat] failure", error);
     return NextResponse.json(
-      { error: "AI assistant is temporarily unavailable." },
-      { status: 500 },
+      {
+        text: getErrorResponse("en"),
+        usedRag: false,
+        language: "en",
+      },
+      { status: 500, headers: noCache() },
     );
   }
+}
+
+async function safeGetMemories(userId: string) {
+  try {
+    const enabled = await getMemoryPreference(userId);
+    if (!enabled) {
+      return { list: [], enabled: false };
+    }
+    const list = await getUserMemories(userId);
+    return { list, enabled: true };
+  } catch {
+    return { list: [], enabled: true };
+  }
+}
+
+function safeRemember(userId: string, entries: MemoryEntry[]) {
+  upsertUserMemories(userId, entries).catch((error) =>
+    console.warn("[ai-chat] failed to store memories", error),
+  );
+}
+
+async function persistLog(params: {
+  userId: string | null;
+  sessionId: string;
+  language: SupportedLanguage;
+  input: string;
+  reply: string;
+  usedRag: boolean;
+  metadata?: Record<string, unknown>;
+}) {
+  const redactedInput = redactForStorage(params.input);
+  const redactedReply = redactForStorage(params.reply);
+  const status: RedactionStatus =
+    redactedInput.status === "failed" || redactedReply.status === "failed"
+      ? "failed"
+      : redactedInput.status === "redacted" || redactedReply.status === "redacted"
+        ? "redacted"
+        : "skipped";
+  return saveChatLog({
+    userId: params.userId,
+    sessionId: params.sessionId,
+    language: params.language,
+    input: redactedInput.value,
+    reply: redactedReply.value,
+    usedRag: params.usedRag,
+    metadata: params.metadata,
+    redactionStatus: status,
+  });
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
+function noCache() {
+  return { "Cache-Control": "no-store" };
 }

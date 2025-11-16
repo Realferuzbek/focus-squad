@@ -1,58 +1,42 @@
 "use client";
 
 import {
-  type KeyboardEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import {
-  AlarmClock,
   AlertTriangle,
-  HelpCircle,
-  Plus,
+  Loader2,
+  MessageCircle,
   Send,
   Settings,
   Sparkles,
-  Target,
-  Trophy,
+  ThumbsDown,
+  ThumbsUp,
   X,
 } from "lucide-react";
-import { csrfFetch } from "@/lib/csrf-client";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 
 type MessageRole = "user" | "assistant";
 
-type Message = {
+type ChatMessage = {
+  id: string;
   role: MessageRole;
   text: string;
   timestamp: number;
-  sources?: string[];
+  chatId?: string | null;
+  rating?: number | null;
 };
 
 type AiStatus = "loading" | "online" | "disabled" | "error";
 
 const suggestionPrompts = [
-  {
-    label: "Deep work sprint",
-    value: "Give me a 2 hour deep-work plan.",
-    Icon: AlarmClock,
-  },
-  {
-    label: "Leaderboard pulse",
-    value: "Summarize the latest leaderboard insights.",
-    Icon: Trophy,
-  },
-  {
-    label: "Focus accountability",
-    value: "How can I stay accountable this week?",
-    Icon: Target,
-  },
-  {
-    label: "Mindset boost",
-    value: "Share a mindset quote for today.",
-    Icon: Sparkles,
-  },
+  "What does the Focus Squad dashboard include?",
+  "How do I join a live study session?",
+  "What perks come with the premium plan?",
 ] as const;
 
 const statusTokens: Record<
@@ -67,31 +51,35 @@ const statusTokens: Record<
   },
   online: {
     text: "Live",
-    dot: "bg-[#22c55e]",
-    pillBg: "bg-emerald-500/10",
+    dot: "bg-emerald-400",
+    pillBg: "bg-emerald-400/10",
     pillText: "text-emerald-200",
   },
   disabled: {
-    text: "Disabled by admins",
-    dot: "bg-[#fbbf24]",
-    pillBg: "bg-amber-500/10",
+    text: "Paused by admins",
+    dot: "bg-amber-400",
+    pillBg: "bg-amber-400/10",
     pillText: "text-amber-200",
   },
   error: {
     text: "Status unavailable",
     dot: "bg-rose-400",
-    pillBg: "bg-rose-500/10",
+    pillBg: "bg-rose-400/10",
     pillText: "text-rose-200",
   },
 };
 
-const launcherTokens: Record<AiStatus, { dot: string; showAlert?: boolean }> =
-  {
-    loading: { dot: "bg-white/50" },
-    online: { dot: "bg-[#22c55e]" },
-    disabled: { dot: "bg-[#fbbf24]", showAlert: true },
-    error: { dot: "bg-rose-400", showAlert: true },
-  };
+const launcherTokens: Record<
+  AiStatus,
+  { dot: string; showAlert?: boolean }
+> = {
+  loading: { dot: "bg-white/40" },
+  online: { dot: "bg-emerald-400" },
+  disabled: { dot: "bg-amber-400", showAlert: true },
+  error: { dot: "bg-rose-400", showAlert: true },
+};
+
+const LOCAL_PREF_KEY = "focus-chat-memory-pref";
 
 function formatTimestamp(value: number) {
   return new Date(value).toLocaleTimeString([], {
@@ -100,16 +88,22 @@ function formatTimestamp(value: number) {
   });
 }
 
-export function ChatWidget() {
+export default function ChatWidget() {
   const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [aiStatus, setAiStatus] = useState<AiStatus>("loading");
   const [statusError, setStatusError] = useState<string | null>(null);
-  const [showAllSuggestions, setShowAllSuggestions] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [preferenceSupported, setPreferenceSupported] = useState(false);
+  const [memoryEnabled, setMemoryEnabled] = useState(true);
+  const [hasStoredData, setHasStoredData] = useState(false);
+  const [prefLoading, setPrefLoading] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [prefError, setPrefError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (listRef.current) {
@@ -117,392 +111,466 @@ export function ChatWidget() {
     }
   }, [messages, sending]);
 
-  const refreshStatus = useCallback(async () => {
+  useEffect(() => {
     try {
-      const res = await fetch("/api/chat/status", { cache: "no-store" });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(body?.error || "Unable to load status.");
+      const stored = window.localStorage.getItem("focus-chat-session");
+      if (stored && isUuid(stored)) {
+        setSessionId(stored);
+        return;
       }
+      const minted = crypto.randomUUID();
+      window.localStorage.setItem("focus-chat-session", minted);
+      setSessionId(minted);
+    } catch {
+      const fallback = crypto.randomUUID();
+      setSessionId(fallback);
+    }
+  }, []);
 
-      const enabled = Boolean(body?.enabled);
-      setAiStatus(enabled ? "online" : "disabled");
-      setStatusError(null);
+  const refreshStatus = useCallback(async () => {
+    setStatusError(null);
+    try {
+      const res = await fetch("/api/ai/health", { cache: "no-store" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body?.ok) throw new Error(body?.error || "unhealthy");
+      setAiStatus(body?.checks?.enabled === false ? "disabled" : "online");
     } catch (error) {
+      setAiStatus("error");
       setStatusError(
-        error instanceof Error
-          ? error.message
-          : "Unable to load assistant status.",
+        error instanceof Error ? error.message : "Unable to reach assistant.",
       );
-      setAiStatus((prev) => (prev === "disabled" ? prev : "error"));
     }
   }, []);
 
   useEffect(() => {
     refreshStatus();
-    const interval = window.setInterval(refreshStatus, 60_000);
-    return () => window.clearInterval(interval);
   }, [refreshStatus]);
 
-  const handleSuggestion = useCallback((value: string) => {
-    setInput(value);
-    if (typeof window !== "undefined") {
-      window.requestAnimationFrame(() => {
-        inputRef.current?.focus();
+  const loadPreferences = useCallback(async () => {
+    setPrefLoading(true);
+    setPrefError(null);
+    try {
+      const res = await fetch("/api/chat/preferences", {
+        cache: "no-store",
       });
-    } else {
-      inputRef.current?.focus();
+      if (res.status === 401) {
+        const localOptOut =
+          window.localStorage.getItem(LOCAL_PREF_KEY) === "0";
+        setMemoryEnabled(!localOptOut);
+        setPreferenceSupported(false);
+        setHasStoredData(false);
+        setUserId(null);
+        return;
+      }
+      if (!res.ok) {
+        throw new Error("Unable to load data settings");
+      }
+      const body = await res.json();
+      setUserId(body.userId ?? null);
+      setMemoryEnabled(body.memoryEnabled);
+      setHasStoredData(Boolean(body.hasData));
+      setPreferenceSupported(true);
+    } catch (error) {
+      setPreferenceSupported(false);
+      setPrefError(
+        error instanceof Error ? error.message : "Failed to load settings",
+      );
+    } finally {
+      setPrefLoading(false);
     }
   }, []);
 
-  const send = useCallback(async () => {
-    const question = input.trim();
-    if (!question || sending || aiStatus === "disabled") {
-      return;
+  useEffect(() => {
+    loadPreferences();
+  }, [loadPreferences]);
+
+  const composerDisabled =
+    sending || aiStatus !== "online" || !sessionId || aiStatus === "disabled";
+
+  const placeholder = useMemo(() => {
+    if (aiStatus === "disabled") {
+      return "Assistant is paused by admins";
     }
+    if (aiStatus === "error") {
+      return "Assistant unavailable";
+    }
+    return "Ask anything about this site…";
+  }, [aiStatus]);
 
+  const sendMessage = useCallback(async () => {
+    if (!input.trim() || !sessionId || composerDisabled) return;
+    const now = Date.now();
+    const userMessage: ChatMessage = {
+      id: `user-${now}`,
+      role: "user",
+      text: input.trim(),
+      timestamp: now,
+    };
+    setMessages((prev) => [...prev, userMessage]);
     setInput("");
-    setStatusError(null);
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", text: question, timestamp: Date.now() },
-    ]);
     setSending(true);
-
     try {
-      const res = await csrfFetch("/api/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: question }),
+        body: JSON.stringify({
+          input: userMessage.text,
+          sessionId,
+          userId: userId ?? undefined,
+        }),
       });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const message =
-          typeof data?.error === "string"
-            ? data.error
-            : "Unable to reach the assistant right now.";
-
-        if (res.status === 503) {
-          setAiStatus("disabled");
-          setStatusError(message);
-          return;
-        }
-
-        throw new Error(message);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body?.text) {
+        throw new Error(body?.error || "Assistant unavailable");
       }
-
-      setAiStatus("online");
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          text:
-            data?.answer ||
-            "I’m not sure how to answer that just yet, but I’m learning.",
-          sources: Array.isArray(data?.sources) ? data.sources : [],
-          timestamp: Date.now(),
-        },
-      ]);
+      const assistantMessage: ChatMessage = {
+        id: `assistant-${Date.now()}`,
+        role: "assistant",
+        text: body.text,
+        timestamp: Date.now(),
+        chatId: body.chatId ?? null,
+        rating: null,
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+      if (typeof body.language === "string" && body.language.length) {
+        window.sessionStorage.setItem("focus-chat-language", body.language);
+      }
     } catch (error) {
       setMessages((prev) => [
         ...prev,
         {
+          id: `assistant-${Date.now()}`,
           role: "assistant",
-          text:
-            error instanceof Error
-              ? error.message
-              : "Something went wrong. Please try again.",
+          text: formatError(
+            error instanceof Error ? error.message : String(error),
+          ),
           timestamp: Date.now(),
         },
       ]);
     } finally {
       setSending(false);
     }
-  }, [aiStatus, input, sending]);
+  }, [input, sessionId, composerDisabled, userId]);
 
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      send();
+      sendMessage();
     }
   };
 
-  const composerDisabled = sending || aiStatus === "disabled";
-  const composerPlaceholder =
-    aiStatus === "disabled" ? "AI is disabled right now." : "Ask about this site...";
-  const statusLabel = statusError || statusTokens[aiStatus].text;
-  const visibleSuggestions = showAllSuggestions
-    ? suggestionPrompts
-    : suggestionPrompts.slice(0, 3);
+  const selectSuggestion = (value: string) => {
+    setInput(value);
+    setOpen(true);
+  };
+
+  const updateRating = async (
+    messageId: string,
+    chatId: string | null | undefined,
+    rating: number,
+  ) => {
+    if (!chatId || !sessionId) return;
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId ? { ...msg, rating } : msg,
+      ),
+    );
+    try {
+      await fetch("/api/chat/rating", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId, sessionId, rating }),
+      });
+    } catch {
+      // Ignore rating errors
+    }
+  };
+
+  const toggleMemory = async () => {
+    if (prefLoading) return;
+    const nextValue = !memoryEnabled;
+    setMemoryEnabled(nextValue);
+    if (!preferenceSupported || !userId) {
+      window.localStorage.setItem(LOCAL_PREF_KEY, nextValue ? "1" : "0");
+      return;
+    }
+    try {
+      const res = await fetch("/api/chat/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memoryEnabled: nextValue }),
+      });
+      if (!res.ok) throw new Error("Failed to update preference");
+    } catch (error) {
+      setMemoryEnabled(!nextValue);
+      setPrefError(
+        error instanceof Error ? error.message : "Update failed",
+      );
+    }
+  };
+
+  const forgetData = async () => {
+    if (!preferenceSupported || !userId) return;
+    const confirmed = window.confirm(
+      "Delete your stored Focus Squad AI data? This removes chat logs and memories from the last 90 days.",
+    );
+    if (!confirmed) return;
+    try {
+      const res = await fetch("/api/chat/preferences", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error("Unable to delete data");
+      setHasStoredData(false);
+    } catch (error) {
+      setPrefError(
+        error instanceof Error ? error.message : "Deletion failed",
+      );
+    }
+  };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[999] flex flex-col items-end gap-3">
+    <div className="fixed bottom-6 right-6 z-40 text-white">
       <button
         type="button"
-        aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}
-        className="ask-ai-launcher relative flex h-11 w-[min(160px,40vw)] items-center gap-3 rounded-full px-4 text-left text-white focus:outline-none"
+        className="flex items-center gap-3 rounded-full bg-[linear-gradient(135deg,#7C3AED,#22D3EE)] px-5 py-3 text-left shadow-[0_18px_35px_rgba(34,211,238,0.35)] transition hover:scale-105 focus-visible:outline-none"
       >
-        <div className="relative">
-          <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.35),rgba(255,255,255,0.05))] text-white shadow-[0_0_22px_rgba(124,58,237,0.55)]">
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.25),transparent)] blur-lg"
-            />
-            <Sparkles className="ai-spark relative z-10 h-4 w-4" />
-          </div>
-          <span
-            className={`absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-[#050712] ${launcherTokens[aiStatus].dot} shadow-[0_0_12px_rgba(34,211,238,0.55)]`}
-          >
-            {launcherTokens[aiStatus].showAlert && (
-              <span className="text-[10px] font-semibold text-[#050712]">!</span>
-            )}
-          </span>
+        <div className={`h-2 w-2 rounded-full ${launcherTokens[aiStatus].dot}`} />
+        <div>
+          <p className="text-sm font-semibold leading-none">Ask AI</p>
+          <p className="text-xs text-white/80">Always-on focus buddy</p>
         </div>
-        <div className="flex flex-col leading-tight">
-          <span className="text-sm font-medium">Ask AI</span>
-          <span className="text-[11px] text-white/70">Always-on focus</span>
-        </div>
+        {launcherTokens[aiStatus].showAlert && (
+          <AlertTriangle className="h-4 w-4 text-amber-200" />
+        )}
       </button>
 
       {open && (
-        <div className="w-[min(500px,calc(100vw-2.5rem))] animate-[ai-panel-in_0.2s_ease-out]">
-          <div className="rounded-[24px] border border-white/10 bg-[rgba(5,7,18,0.9)] shadow-[0_24px_80px_rgba(0,0,0,0.75)] backdrop-blur-2xl">
-            <div
-              className="flex h-[620px] min-h-[520px] flex-col rounded-[22px] border border-white/5 bg-[rgba(5,7,18,0.88)]"
-              style={{ maxHeight: "calc(100vh - 3rem)" }}
-            >
-              <header className="flex items-center gap-4 px-6 py-5">
-                <div className="relative flex items-center gap-4">
-                  <div className="relative">
-                    <span
-                      aria-hidden="true"
-                      className={`pointer-events-none absolute inset-0 -z-10 -m-[3px] rounded-full ${
-                        aiStatus === "disabled"
-                          ? "border-2 border-white/10"
-                          : "bg-[conic-gradient(from_140deg_at_50%_50%,#7c3aed,#22d3ee)] blur-[0.5px]"
-                      } opacity-80`}
-                    />
-                    <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#7c3aed] via-[#4c1d95] to-[#22d3ee] text-white shadow-[0_12px_35px_rgba(124,58,237,0.45)]">
-                      <Sparkles className="ai-spark h-6 w-6" />
-                    </div>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-base font-semibold text-white">
-                      studywithferuzbek AI
-                    </span>
-                    <span className="text-sm text-white/70">
-                      Always-on focus companion
-                    </span>
-                    <span
-                      className={`mt-1 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-medium tracking-[0.05em] ${statusTokens[aiStatus].pillBg} ${statusTokens[aiStatus].pillText}`}
-                    >
-                      <span className={`h-1.5 w-1.5 rounded-full ${statusTokens[aiStatus].dot}`} />
-                      {statusLabel}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="ml-auto flex items-center gap-3">
-                  <span className="rounded-full border border-emerald-300/30 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-emerald-200">
-                    Beta
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowAllSuggestions(true)}
-                      className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 text-white/80 transition hover:border-white/30 hover:text-white"
-                      aria-label="What can this AI do?"
-                      title="What can this AI do?"
-                    >
-                      <HelpCircle className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStatusError((previous) => previous)}
-                      className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 text-white/70 transition hover:border-white/30 hover:text-white"
-                      aria-label="Assistant settings"
-                      title="Assistant settings"
-                    >
-                      <Settings className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOpen(false)}
-                      className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 text-white/80 transition hover:border-rose-400 hover:text-rose-200"
-                      aria-label="Close assistant"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </header>
-              <div className="h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent opacity-70" />
-
+        <div className="mt-4 w-[360px] rounded-3xl border border-white/10 bg-[#090a16]/95 backdrop-blur-xl shadow-[0_40px_120px_rgba(3,5,22,0.85)]">
+          <header className="flex items-center justify-between border-b border-white/5 px-5 py-4">
+            <div>
+              <p className="text-lg font-semibold">Focus Squad AI</p>
               <div
-                ref={listRef}
-                data-ai-scroll
-                className="flex-1 space-y-5 overflow-y-auto px-6 py-5 text-sm text-white/90"
+                className={`mt-1 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs ${statusTokens[aiStatus].pillBg} ${statusTokens[aiStatus].pillText}`}
               >
-                {messages.length === 0 && !sending && (
-                  <div className="rounded-2xl border border-white/5 bg-white/5 px-4 py-5 text-white/80">
-                    <p className="text-base font-semibold text-white">
-                      Get started in 1 tap
-                    </p>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {visibleSuggestions.map(({ label, value, Icon }, index) => (
-                        <button
-                          key={label}
-                          type="button"
-                          onClick={() => handleSuggestion(value)}
-                          style={{ animationDelay: `${index * 40}ms` }}
-                          className="ai-chip flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-left text-sm text-white/80 transition-all hover:-translate-y-0.5 hover:border-transparent hover:bg-[linear-gradient(135deg,rgba(124,58,237,0.18),rgba(34,211,238,0.18))]"
-                        >
-                          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white">
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          <span>{label}</span>
-                        </button>
-                      ))}
-                    </div>
-                    {suggestionPrompts.length > 3 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowAllSuggestions((previous) => !previous)
-                        }
-                        className="mt-3 text-sm font-medium text-sky-300 underline-offset-4 hover:underline"
-                      >
-                        {showAllSuggestions ? "Hide ideas" : "More ideas"}
-                      </button>
-                    )}
-                  </div>
-                )}
+                <span
+                  className={`h-2 w-2 rounded-full ${statusTokens[aiStatus].dot}`}
+                />
+                {statusTokens[aiStatus].text}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSettingsOpen((prev) => !prev)}
+                className="rounded-full bg-white/10 p-2 text-white/80 hover:bg-white/20"
+                aria-label="Data settings"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-full bg-white/10 p-2 text-white/80 hover:bg-white/20"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </header>
 
-                {aiStatus === "disabled" && (
-                  <div className="ai-system-banner mx-auto flex w-full max-w-[360px] items-start gap-3 rounded-2xl border border-amber-400/30 bg-[rgba(251,191,36,0.08)] px-4 py-3 text-white">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-400/20 text-amber-200">
-                      <AlertTriangle className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        AI is currently disabled
-                      </p>
-                      <p className="text-xs text-white/70">
-                        Admins turned this off. You can still browse the site
-                        normally.
-                      </p>
-                    </div>
-                  </div>
-                )}
+          {statusError && (
+            <div className="flex items-center gap-2 border-b border-white/5 bg-amber-500/10 px-5 py-2 text-xs text-amber-200">
+              <AlertTriangle className="h-4 w-4" />
+              {statusError}
+            </div>
+          )}
 
-                {messages.map((message, index) => {
-                  const isUser = message.role === "user";
-                  return (
+          <div className="max-h-[420px] min-h-[300px] overflow-y-auto px-5 py-4" ref={listRef}>
+            {!messages.length && aiStatus === "online" && (
+              <div className="mb-4 space-y-2">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/40">
+                  Try asking
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {suggestionPrompts.map((prompt) => (
+                    <button
+                      type="button"
+                      key={prompt}
+                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80 transition hover:bg-white/10"
+                      onClick={() => selectSuggestion(prompt)}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {messages.map((message) => {
+                const isUser = message.role === "user";
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex flex-col ${
+                      isUser ? "items-end text-right" : "items-start text-left"
+                    }`}
+                  >
+                    <span className="text-[11px] uppercase tracking-[0.2em] text-white/40">
+                      {isUser ? "You" : "Assistant"}
+                    </span>
                     <div
-                      key={`chat-message-${message.timestamp}-${index}`}
-                      className={`flex flex-col gap-2 ${
-                        isUser ? "items-end text-right" : "items-start text-left"
+                      className={`mt-1 rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                        isUser
+                          ? "bg-[linear-gradient(135deg,#7C3AED,#22D3EE)] text-white shadow-[0_18px_35px_rgba(34,211,238,0.35)]"
+                          : "border border-white/10 bg-white/5 text-white/90"
                       }`}
                     >
-                      <span className="text-[11px] font-medium uppercase tracking-[0.05em] text-white/60">
-                        {isUser ? "You" : "Assistant"}
-                      </span>
-                      <div
-                        className={`rounded-[18px] px-4 py-3 text-sm leading-relaxed shadow-[0_10px_30px_rgba(5,5,15,0.45)] ${
-                          isUser
-                            ? "max-w-[85%] bg-[linear-gradient(135deg,#7C3AED,#22D3EE)] text-white shadow-[0_18px_35px_rgba(34,211,238,0.35)]"
-                            : "max-w-[90%] border border-white/10 bg-white/5 text-white/90"
-                        } ${
-                          isUser
-                            ? "rounded-tr-[12px]"
-                            : "rounded-tl-[12px]"
-                        }`}
-                      >
-                        <p className="whitespace-pre-wrap">{message.text}</p>
-                        {message.sources && message.sources.length > 0 && (
-                          <div className="mt-3 flex flex-wrap gap-2 text-[12px]">
-                            {message.sources.map((source, sourceIndex) => (
-                              <a
-                                key={`${source}-${sourceIndex}`}
-                                href={source}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="rounded-full border border-white/10 px-3 py-1 text-white/80 underline-offset-2 hover:text-sky-300 hover:underline"
-                              >
-                                Source {sourceIndex + 1}
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <span className="text-[11px] text-white/60">
-                        {formatTimestamp(message.timestamp)}
-                      </span>
+                      <p className="whitespace-pre-wrap">{message.text}</p>
+                      {!isUser && message.chatId && (
+                        <div className="mt-3 flex items-center gap-2 text-xs text-white/60">
+                          <span>Was this helpful?</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateRating(message.id, message.chatId, 1)
+                            }
+                            disabled={typeof message.rating === "number"}
+                            className={`rounded-full border px-2 py-1 ${
+                              message.rating === 1
+                                ? "border-emerald-300 text-emerald-200"
+                                : "border-white/10 text-white/70 hover:border-white/30"
+                            }`}
+                          >
+                            <ThumbsUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateRating(message.id, message.chatId, -1)
+                            }
+                            disabled={typeof message.rating === "number"}
+                            className={`rounded-full border px-2 py-1 ${
+                              message.rating === -1
+                                ? "border-rose-300 text-rose-200"
+                                : "border-white/10 text-white/70 hover:border-white/30"
+                            }`}
+                          >
+                            <ThumbsDown className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
-
-                {sending && (
-                  <div className="flex items-center gap-3 text-[12px] text-white/75">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white">
-                      <Sparkles className="ai-spark h-4 w-4" />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <span className="flex items-center text-[12px] font-medium">
-                        Typing…
-                        <span className="ai-typing-dots">
-                          <span />
-                          <span />
-                          <span />
-                        </span>
-                      </span>
-                      <div className="ai-thinking-bar" />
-                    </div>
+                    <span className="mt-1 text-[11px] text-white/50">
+                      {formatTimestamp(message.timestamp)}
+                    </span>
                   </div>
-                )}
-              </div>
+                );
+              })}
 
-              <footer className="px-6 pb-5 pt-3">
-                <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-3">
-                  <button
-                    type="button"
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white/70"
-                    aria-label="Quick actions"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                  <textarea
-                    ref={inputRef}
-                    value={input}
-                    onChange={(event) => setInput(event.target.value)}
-                    onKeyDown={handleComposerKeyDown}
-                    placeholder={composerPlaceholder}
-                    rows={1}
-                    disabled={composerDisabled}
-                    className="chat-input flex-1 resize-none bg-transparent text-sm text-white placeholder:text-white/50 focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={send}
-                    disabled={!input.trim() || composerDisabled}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#22D3EE)] text-white shadow-[0_18px_35px_rgba(34,211,238,0.35)] transition hover:scale-105 disabled:opacity-40 disabled:shadow-none"
-                    aria-label="Send message"
-                  >
-                    <Send className="h-4 w-4 -rotate-[30deg]" />
-                  </button>
+              {sending && (
+                <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70">
+                  <Sparkles className="h-4 w-4 animate-pulse text-cyan-200" />
+                  Thinking…
                 </div>
-                <p className="mt-2 text-center text-[10px] text-white/50">
-                  AI replies may be imperfect—verify before acting.
-                </p>
-              </footer>
+              )}
             </div>
           </div>
+
+          {settingsOpen && (
+            <div className="border-t border-white/5 px-5 py-4 text-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-white">
+                    Use my messages to improve answers
+                  </p>
+                  <p className="text-xs text-white/60">
+                    {preferenceSupported
+                      ? "Keep personalized context so replies stay relevant."
+                      : "Sign in to manage AI data preferences."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={toggleMemory}
+                  disabled={prefLoading}
+                  className={`h-6 w-11 rounded-full transition ${
+                    memoryEnabled ? "bg-emerald-400/80" : "bg-white/20"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 translate-y-0.5 transform rounded-full bg-white transition ${
+                      memoryEnabled ? "translate-x-5" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+              {prefError && (
+                <p className="mt-2 text-xs text-rose-300">{prefError}</p>
+              )}
+              {preferenceSupported && (
+                <button
+                  type="button"
+                  onClick={forgetData}
+                  disabled={!hasStoredData}
+                  className="mt-3 inline-flex items-center gap-2 text-xs text-white/60 hover:text-white disabled:opacity-30"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Forget my data
+                </button>
+              )}
+            </div>
+          )}
+
+          <footer className="space-y-2 border-t border-white/5 px-5 py-4">
+            <div className="flex items-end gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+              <textarea
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={handleComposerKeyDown}
+                placeholder={placeholder}
+                rows={1}
+                className="flex-1 resize-none bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+                disabled={composerDisabled}
+              />
+              <button
+                type="button"
+                onClick={sendMessage}
+                disabled={composerDisabled || !input.trim()}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#22D3EE)] text-white shadow-[0_18px_35px_rgba(34,211,238,0.35)] transition hover:scale-105 disabled:opacity-40 disabled:shadow-none"
+                aria-label="Send message"
+              >
+                {sending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 -rotate-[30deg]" />
+                )}
+              </button>
+            </div>
+            <p className="text-center text-[10px] text-white/50">
+              Answers stay site-specific. Double-check important details.
+            </p>
+          </footer>
         </div>
       )}
     </div>
   );
 }
 
-export default ChatWidget;
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
+function formatError(message: string) {
+  if (/unauthorized/i.test(message)) {
+    return "I need a quick break—try again in a moment.";
+  }
+  if (/disabled/i.test(message)) {
+    return "The assistant is paused right now. Check back soon!";
+  }
+  return "I ran into a hiccup. Ask me again in a few seconds!";
+}

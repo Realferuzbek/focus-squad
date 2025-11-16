@@ -33,6 +33,17 @@ export default async function AdminPage() {
             Manage access, force resets, and review high-level usage.
           </p>
         </div>
+        <nav className="mt-4 flex gap-3 text-sm">
+          <span className="rounded-full border border-white px-4 py-2 text-white">
+            Control Center
+          </span>
+          <a
+            href="/admin/chats"
+            className="rounded-full border border-white/10 px-4 py-2 text-white/70 hover:text-white"
+          >
+            Chats
+          </a>
+        </nav>
 
         <div className="mt-10 space-y-8">
           <AdminAiToggle />

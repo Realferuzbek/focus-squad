@@ -2,6 +2,15 @@
 
 Next.js 14 app for the Focus Squad community. Features Google authentication via NextAuth, Supabase integration for task tracking, live session status powered by Telegram bot events, and real-time updates through Supabase Realtime.
 
+## AI Assistant
+
+- Floating “Ask AI” widget (bottom-right) answers site-specific questions with a motivating tone, supports multilingual replies, unique greetings, and off-topic redirection.
+- Intent detection, moderation, PII redaction, RAG retrieval (Upstash Vector + OpenAI Responses API), and latency logging happen per message; no general-purpose answers leak through.
+- Each conversation uses a privacy-safe session ID so anonymous visitors can rate answers; authenticated users automatically attach their Supabase user ID.
+- Per-user memory is **on by default** for signed-in users. They can toggle “Use my messages to improve answers” and trigger “Forget my data” to purge chat logs + memory. Guests can opt out locally.
+- Admins get a dedicated `/admin/chats` dashboard with filters (user/date/RAG usage), CSV/JSON exports, bulk deletion, and detail modals containing question/answer/rating info.
+- Chat logs retain 90 days of history (Supabase trigger enforced) and include redaction status so privacy reviews stay simple.
+
 ## Getting Started
 
 1. Install dependencies:
@@ -53,44 +62,45 @@ VAPID_SUBJECT=mailto:hello@example.com
 Set the following variables in `.env.local` to enable the AI-powered crawler and chat features (all values shown below are examples only—never commit real keys):
 
 - `OPENAI_API_KEY` – server-side API key used for both generation and embedding requests to OpenAI.
-- `OPENAI_GEN_MODEL` – model identifier for chat/generation calls (defaults to `gpt-4.1`).
+- `OPENAI_GEN_MODEL` – model identifier for chat/generation calls (defaults to `gpt-5-mini`).
 - `OPENAI_EMBED_MODEL` – embedding model used when vectorizing crawled content (defaults to `text-embedding-3-small`, which matches a 1536-dimension Upstash index).
 - `UPSTASH_VECTOR_REST_URL` – REST endpoint for your Upstash Vector index.
 - `UPSTASH_VECTOR_REST_TOKEN` – Upstash Vector REST token; keep private so only backend jobs can manage vectors.
-- `UPSTASH_INDEX_NAME` – logical name of the Upstash Vector index the crawler writes to and the chatbot reads from.
+- `UPSTASH_INDEX_NAME` – logical name of the Upstash Vector index the crawler writes to and the chatbot reads from (defaults to `focus-squad-site` so Preview/Prod can use different indices).
 - `UPSTASH_VECTOR_DIM` – dimension of the Upstash index (e.g., `1536`). This **must** match the embedding model you pick (`text-embedding-3-small` = 1536, `text-embedding-3-large` = 3072), otherwise Upstash rejects queries/upserts.
 - `SITE_BASE_URL` – canonical site origin the crawler starts from (e.g., `https://study-with-feruzbek.vercel.app`).
 - `INDEXER_SECRET` – shared secret required by any indexer webhook/cron to prevent unauthorized crawls.
 - `CRAWL_MAX_PAGES` – safety limit on how many unique pages to visit per crawl run.
 - `CRAWL_MAX_DEPTH` – maximum link depth from the base URL; helps bound crawl time.
 - `CRAWL_ALLOWED_PATHS` – comma-separated list of path prefixes the crawler should include.
-- `CRAWL_BLOCKED_PATHS` – comma-separated list of path prefixes to exclude (useful for `/api`, build assets, etc.).
+- `CRAWL_BLOCKED_PATHS` – comma-separated list of path prefixes to exclude (useful for `/api`, build assets, etc.). Defaults block `/admin`, `/dashboard`, `/link-telegram`, `/signin`, `/api`, `/_next`, `/static`, `/assets`, `/community/admin`.
+- `POST_DEPLOY_REINDEX_URL` – optional host override that `scripts/trigger-reindex.mjs` should hit after a successful deploy (falls back to the new Vercel deployment URL automatically).
 - `USE_MOCK_AI` / `USE_MOCK_VECTOR` – optional toggles (`0`/`1`) that enable deterministic, in-memory embeddings + vector storage for local development so you can test the workflow without hitting OpenAI or Upstash quotas. When these are `1`, you can also adjust `MOCK_EMBED_DIM` (default `1536`) to match your Upstash index dimension.
 
 ## Reindex Automation
 
-`vercel.json` defines a daily cron that reindexes production content at 03:00 UTC:
+`vercel.json` defines a daily cron that reindexes production content at **16:00 UTC** (21:00 Asia/Tashkent) by calling `/api/cron/nightly-reindex`:
 
 ```json
 {
-  "crons": [{ "path": "/api/reindex", "schedule": "0 3 * * *" }]
+  "crons": [{ "path": "/api/cron/nightly-reindex", "schedule": "0 16 * * *" }]
 }
 ```
 
-Trigger the job manually with the shared secret:
+Successful Vercel deploys also run `scripts/trigger-reindex.mjs` (hooked via `npm run postbuild`), which waits for the deployment URL to come online and POSTs `/api/reindex` using the bearer secret. Trigger the job manually with the shared secret:
 
 - Local test (after `npm run dev`):
 
   ```bash
   curl -X POST http://localhost:3000/api/reindex \
-    -H "x-indexer-secret: ${INDEXER_SECRET}"
+    -H "Authorization: Bearer ${INDEXER_SECRET}"
   ```
 
 - Production (replace the domain if needed):
 
   ```bash
   curl -X POST https://study-with-feruzbek.vercel.app/api/reindex \
-    -H "x-indexer-secret: ${INDEXER_SECRET}"
+    -H "Authorization: Bearer ${INDEXER_SECRET}"
   ```
 
 ## Scripts
@@ -127,7 +137,8 @@ NEXT_PUBLIC_TZ="Asia/Tashkent"
 NEXT_PUBLIC_VAPID_PUBLIC_KEY="YOUR_PUBLIC_VAPID_KEY"
 OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
 OPENAI_EMBED_MODEL="text-embedding-3-small"
-OPENAI_GEN_MODEL="gpt-4.1"
+OPENAI_GEN_MODEL="gpt-5-mini"
+POST_DEPLOY_REINDEX_URL=""
 PUBLIC_TG_GROUP_LINK="https://t.me/studywithferuzbek"
 SITE_BASE_URL="https://studywithferuzbek.vercel.app"
 SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
@@ -137,7 +148,7 @@ TELEGRAM_BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
 TELEGRAM_BOT_USERNAME="Studywithferuzbek_bot"
 TELEGRAM_GROUP_ID="YOUR_TELEGRAM_GROUP_ID"
 TELEGRAM_WEBHOOK_SECRET="YOUR_TELEGRAM_WEBHOOK_SECRET"
-UPSTASH_INDEX_NAME="study_with_feruzbek_site"
+UPSTASH_INDEX_NAME="focus-squad-site"
 UPSTASH_VECTOR_REST_TOKEN="YOUR_UPSTASH_VECTOR_REST_TOKEN"
 UPSTASH_VECTOR_REST_URL="https://noble-moose-77370-us1-vector.upstash.io"
 VAPID_PRIVATE_KEY="YOUR_PRIVATE_VAPID_KEY"

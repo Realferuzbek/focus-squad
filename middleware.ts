@@ -78,6 +78,7 @@ const PUBLIC_PATHS = new Set<string>([
   "/signin",
   "/api/auth",
   "/api/reindex",
+  "/api/cron/nightly-reindex",
   "/api/telegram/webhook",
   "/api/admin/state",
   "/_next",
@@ -92,6 +93,9 @@ const STATIC_EXT = /\.(?:png|svg|jpg|jpeg|gif|webp|ico|txt|xml|html)$/i;
 function isPublic(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (pathname === "/") return true;
+  if (pathname === "/api/chat") return true;
+  if (pathname === "/api/chat/rating") return true;
+  if (pathname === "/api/ai/health") return true;
   if (STATIC_EXT.test(pathname)) return true;
   for (const p of PUBLIC_PATHS) if (pathname.startsWith(p)) return true;
   return false;
