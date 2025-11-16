@@ -101,6 +101,39 @@ function isPublic(req: NextRequest) {
   return false;
 }
 
+type SessionSnapshot = {
+  telegram_linked: boolean;
+  is_blocked: boolean | string | number | null | undefined;
+};
+
+async function fetchSessionSnapshot(
+  req: NextRequest,
+): Promise<SessionSnapshot | null> {
+  const cookieHeader = req.headers.get("cookie");
+  if (!cookieHeader) return null;
+  try {
+    const sessionUrl = new URL("/api/auth/session", req.url);
+    const res = await fetch(sessionUrl.toString(), {
+      headers: { cookie: cookieHeader },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const payload = await res.json();
+    const user = payload?.user;
+    if (!user) return null;
+    return {
+      telegram_linked: !!(user.telegram_linked ?? user.telegramLinked),
+      is_blocked: user.is_blocked,
+    };
+  } catch (error) {
+    console.warn("[middleware] session snapshot fetch failed", {
+      path: req.nextUrl.pathname,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
 function isMaintenanceBypassPath(pathname: string): boolean {
   for (const prefix of CSRF_MAINTENANCE_PATH_PREFIXES) {
     if (pathname.startsWith(prefix)) return true;
@@ -199,7 +232,26 @@ export async function middleware(req: NextRequest) {
     return applySecurityHeaders(resp, securityContext);
   }
 
-  const token = await getToken({ req, secret: ENV.NEXTAUTH_SECRET });
+  let token: any = null;
+  try {
+    token = await getToken({ req, secret: ENV.NEXTAUTH_SECRET });
+  } catch (error) {
+    console.warn("[middleware] token decode failed", {
+      path: url.pathname,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  if (!token) {
+    const snapshot = await fetchSessionSnapshot(req);
+    if (snapshot) {
+      token = {
+        telegram_linked: snapshot.telegram_linked,
+        is_blocked: snapshot.is_blocked,
+      };
+    }
+  }
+
   if (!token) {
     const signin = new URL("/signin", req.url);
     signin.searchParams.set("callbackUrl", url.pathname + url.search);
