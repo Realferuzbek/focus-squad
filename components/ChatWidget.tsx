@@ -185,7 +185,11 @@ export default function ChatWidget() {
   }, [loadPreferences]);
 
   const composerDisabled =
-    sending || aiStatus !== "online" || !sessionId || aiStatus === "disabled";
+    sending ||
+    !sessionId ||
+    aiStatus === "disabled" ||
+    aiStatus === "error" ||
+    aiStatus === "loading";
 
   const placeholder = useMemo(() => {
     if (aiStatus === "disabled") {
