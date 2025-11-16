@@ -1,9 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { csrfFetch } from "@/lib/csrf-client";
 
 type StatusResponse = { enabled: boolean };
+
+const TOGGLE_STORAGE_KEY = "focus-ai-toggle";
+const TOGGLE_CHANNEL_NAME = "focus-ai-toggle";
+const TOGGLE_EVENT = "focus-ai-toggle";
 
 function classNames(...parts: (string | false | undefined)[]) {
   return parts.filter(Boolean).join(" ");
@@ -14,6 +18,34 @@ export default function AdminAiToggle() {
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const broadcastRef = useRef<BroadcastChannel | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof BroadcastChannel === "undefined")
+      return;
+    const channel = new BroadcastChannel(TOGGLE_CHANNEL_NAME);
+    broadcastRef.current = channel;
+    return () => {
+      broadcastRef.current = null;
+      channel.close();
+    };
+  }, []);
+
+  const announceStatus = useCallback((enabled: boolean) => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        TOGGLE_STORAGE_KEY,
+        JSON.stringify({ enabled, ts: Date.now() }),
+      );
+    } catch {
+      // best effort
+    }
+    broadcastRef.current?.postMessage({ enabled, ts: Date.now() });
+    window.dispatchEvent(
+      new CustomEvent(TOGGLE_EVENT, { detail: { enabled } }),
+    );
+  }, []);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -52,7 +84,9 @@ export default function AdminAiToggle() {
       if (!res.ok) {
         throw new Error(body?.error || "Failed to update AI status");
       }
-      setStatus(body as StatusResponse);
+      const nextStatus = body as StatusResponse;
+      setStatus(nextStatus);
+      announceStatus(nextStatus.enabled);
     } catch (err) {
       setError(
         err instanceof Error

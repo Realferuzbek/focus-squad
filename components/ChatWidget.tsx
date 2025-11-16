@@ -80,6 +80,9 @@ const launcherTokens: Record<
 };
 
 const LOCAL_PREF_KEY = "focus-chat-memory-pref";
+const TOGGLE_STORAGE_KEY = "focus-ai-toggle";
+const TOGGLE_CHANNEL_NAME = "focus-ai-toggle";
+const TOGGLE_EVENT = "focus-ai-toggle";
 
 function formatTimestamp(value: number) {
   return new Date(value).toLocaleTimeString([], {
@@ -145,6 +148,76 @@ export default function ChatWidget() {
   useEffect(() => {
     refreshStatus();
   }, [refreshStatus]);
+
+  useEffect(() => {
+    if (!open) return;
+    refreshStatus();
+  }, [open, refreshStatus]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refreshStatus();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [refreshStatus]);
+
+  const applyToggleSignal = useCallback(
+    (enabled: boolean) => {
+      setAiStatus(enabled ? "online" : "disabled");
+      refreshStatus();
+    },
+    [refreshStatus],
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== TOGGLE_STORAGE_KEY || !event.newValue) return;
+      try {
+        const payload = JSON.parse(event.newValue);
+        if (typeof payload?.enabled === "boolean") {
+          applyToggleSignal(payload.enabled);
+        }
+      } catch {
+        // ignore malformed payloads
+      }
+    };
+
+    const handleCustomEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ enabled?: boolean }>)?.detail;
+      if (typeof detail?.enabled === "boolean") {
+        applyToggleSignal(detail.enabled);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener(TOGGLE_EVENT, handleCustomEvent as EventListener);
+
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== "undefined") {
+      channel = new BroadcastChannel(TOGGLE_CHANNEL_NAME);
+      channel.onmessage = (event) => {
+        const data = event?.data;
+        if (typeof data?.enabled === "boolean") {
+          applyToggleSignal(data.enabled);
+        }
+      };
+    }
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener(
+        TOGGLE_EVENT,
+        handleCustomEvent as EventListener,
+      );
+      channel?.close();
+    };
+  }, [applyToggleSignal]);
 
   const loadPreferences = useCallback(async () => {
     setPrefLoading(true);
