@@ -10,7 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: message }, { status: guard.status });
   }
 
-  const enabled = await isAiChatEnabled(true);
+  const enabled = await isAiChatEnabled(true, { cache: false });
   return NextResponse.json({ enabled });
 }
 

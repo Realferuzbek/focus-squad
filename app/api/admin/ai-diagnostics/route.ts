@@ -29,7 +29,7 @@ export async function GET() {
       vectorDim: env.UPSTASH_VECTOR_DIM,
     },
     featureFlags: {
-      aiChatEnabled: await isAiChatEnabled(true),
+      aiChatEnabled: await isAiChatEnabled(true, { cache: false }),
     },
     runtime: {
       nodeEnv: process.env.NODE_ENV ?? null,

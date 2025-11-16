@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     const languageDetection = detectLanguage(inputRaw);
     const language = languageDetection.code;
 
-    const aiEnabled = await isAiChatEnabled(true);
+    const aiEnabled = await isAiChatEnabled(true, { cache: false });
     if (!aiEnabled) {
       const reply =
         language === "uz"

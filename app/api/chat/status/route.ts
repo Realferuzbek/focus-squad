@@ -3,7 +3,7 @@ import { isAiChatEnabled } from "@/lib/featureFlags";
 
 export async function GET() {
   try {
-    const enabled = await isAiChatEnabled(true);
+    const enabled = await isAiChatEnabled(true, { cache: false });
     return NextResponse.json(
       {
         enabled,

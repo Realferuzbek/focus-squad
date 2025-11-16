@@ -1,14 +1,26 @@
 import { supabaseAdmin } from "./supabaseServer";
 
 const FLAG_CACHE_MS = 30 * 1000;
-const flagCache = new Map<string, { value: boolean; expiresAt: number }>();
+type FlagCacheEntry = { value: boolean; expiresAt: number };
+const flagCache = new Map<string, FlagCacheEntry>();
 const AI_CHAT_FLAG = "ai_chat_enabled";
 
-async function fetchFlag(key: string, defaultValue: boolean) {
+type FlagFetchOptions = {
+  cache?: boolean;
+};
+
+async function fetchFlag(
+  key: string,
+  defaultValue: boolean,
+  options?: FlagFetchOptions,
+) {
   const now = Date.now();
-  const cached = flagCache.get(key);
-  if (cached && cached.expiresAt > now) {
-    return cached.value;
+  const useCache = options?.cache ?? true;
+  if (useCache) {
+    const cached = flagCache.get(key);
+    if (cached && cached.expiresAt > now) {
+      return cached.value;
+    }
   }
 
   try {
@@ -22,14 +34,18 @@ async function fetchFlag(key: string, defaultValue: boolean) {
     if (error) throw error;
 
     const value = data?.enabled ?? defaultValue;
-    flagCache.set(key, { value, expiresAt: now + FLAG_CACHE_MS });
+    if (useCache) {
+      flagCache.set(key, { value, expiresAt: now + FLAG_CACHE_MS });
+    }
     return value;
   } catch (error) {
     console.error(`[feature_flags] Failed to read flag "${key}"`, error);
-    flagCache.set(key, {
-      value: defaultValue,
-      expiresAt: now + FLAG_CACHE_MS / 2,
-    });
+    if (useCache) {
+      flagCache.set(key, {
+        value: defaultValue,
+        expiresAt: now + FLAG_CACHE_MS / 2,
+      });
+    }
     return defaultValue;
   }
 }
@@ -51,11 +67,17 @@ async function writeFlag(
     throw error;
   }
 
-  flagCache.set(key, { value: enabled, expiresAt: Date.now() + FLAG_CACHE_MS });
+  flagCache.set(key, {
+    value: enabled,
+    expiresAt: Date.now() + FLAG_CACHE_MS,
+  });
 }
 
-export async function isAiChatEnabled(defaultValue = true) {
-  return fetchFlag(AI_CHAT_FLAG, defaultValue);
+export async function isAiChatEnabled(
+  defaultValue = true,
+  options?: FlagFetchOptions,
+) {
+  return fetchFlag(AI_CHAT_FLAG, defaultValue, options);
 }
 
 export async function setAiChatEnabled(

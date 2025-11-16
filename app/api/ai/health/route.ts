@@ -6,7 +6,7 @@ import { isAiChatEnabled } from "@/lib/featureFlags";
 
 export async function GET() {
   try {
-    const enabled = await isAiChatEnabled(true);
+    const enabled = await isAiChatEnabled(true, { cache: false });
     const checks = {
       openaiKey: Boolean(process.env.OPENAI_API_KEY),
       embedModel: env.OPENAI_EMBED_MODEL,
