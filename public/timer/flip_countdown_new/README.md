@@ -2,7 +2,7 @@
 
 Flip Countdown is a lightweight countdown timer served as a plain static site. It stays local-only, ships the background and alarm assets, and runs entirely in the browser.
 
-## Local development
+## Local development!
 
 ```bash
 npm install
