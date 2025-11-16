@@ -3,17 +3,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import Image from "next/image";
-import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getCachedSession } from "@/lib/server-session";
 import SignInInteractive from "@/components/SignInInteractive";
+import Link from "next/link";
 
 export default async function Home() {
   const session = await getCachedSession();
-  if (session?.user) {
-    redirect("/dashboard");
-  }
   const hintId = "home-auth-hint";
+  const isSignedIn = !!session?.user;
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#07070b] px-6 text-white">
@@ -32,16 +30,30 @@ export default async function Home() {
         </p>
 
         <div className="mt-8 space-y-3">
-          <Suspense
-            fallback={
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80" />
-            }
-          >
-            <SignInInteractive defaultCallbackUrl="/dashboard" hintId={hintId} />
-          </Suspense>
+          {isSignedIn ? (
+            <Link
+              href="/dashboard"
+              aria-describedby={hintId}
+              className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl bg-[linear-gradient(120deg,#7c3aed,#8b5cf6,#a855f7,#ec4899)] px-6 text-sm font-semibold text-white shadow-[0_20px_40px_rgba(123,58,237,0.35)] transition-transform duration-200 hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
+            >
+              Go to dashboard
+            </Link>
+          ) : (
+            <Suspense
+              fallback={
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80" />
+              }
+            >
+              <SignInInteractive
+                defaultCallbackUrl="/dashboard"
+                hintId={hintId}
+              />
+            </Suspense>
+          )}
           <p id={hintId} className="text-sm text-zinc-400">
-            We only support Google sign-in. You&apos;ll be redirected back to your
-            dashboard.
+            {isSignedIn
+              ? "You're already signed in. Head straight to your dashboard."
+              : "We only support Google sign-in. You'll be redirected back to your dashboard."}
           </p>
         </div>
       </div>
