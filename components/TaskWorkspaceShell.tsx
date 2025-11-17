@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import TaskSchedulerCalendar from "@/components/TaskSchedulerCalendar";
 
 type Section = "home" | "private" | "settings";
 type PrivateItemType = "page" | "database";
+type SurfaceView = "planner" | "calendar";
 
 type PrivateItem = {
   id: string;
@@ -52,8 +54,27 @@ const typeIcons: Record<PrivateItemType, string> = {
   database: "📊",
 };
 
+const surfaceTabs: Array<{
+  id: SurfaceView;
+  label: string;
+  detail: string;
+}> = [
+  {
+    id: "planner",
+    label: "Planner",
+    detail: "Workspace style layout",
+  },
+  {
+    id: "calendar",
+    label: "Calendar",
+    detail: "Time blocking grid",
+  },
+];
+
 export default function TaskWorkspaceShell() {
   const [activeSection, setActiveSection] = useState<Section>("home");
+  const [activeSurface, setActiveSurface] =
+    useState<SurfaceView>("planner");
   const [privateItems, setPrivateItems] = useState(initialPrivateItems);
   const [activePrivateItemId, setActivePrivateItemId] = useState<string | null>(
     initialPrivateItems[0]?.id ?? null,
@@ -305,40 +326,70 @@ export default function TaskWorkspaceShell() {
           </div>
         </header>
 
-        <div className="mt-8 flex flex-1 flex-col gap-6 lg:flex-row">
-          <nav className="w-full lg:w-64">
-            <div className="rounded-3xl border border-white/10 bg-[#0c0c16] p-4">
-              <p className="text-xs uppercase tracking-[0.4em] text-white/40">
-                Navigate
-              </p>
-              <div className="mt-4 space-y-2">
-                {navItems.map((item) => {
-                  const active = activeSection === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setActiveSection(item.id)}
-                      className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition ${
-                        active
-                          ? "border-[#9b7bff] bg-[#171729]"
-                          : "border-white/10 hover:border-white/30 hover:bg-white/5"
-                      }`}
-                    >
-                      <span className="text-xl">{item.icon}</span>
-                      <div>
-                        <p className="text-sm font-semibold">{item.label}</p>
-                        <p className="text-xs text-zinc-500">
-                          {item.description}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </nav>
+        <div className="mt-8">
+          <div className="flex flex-wrap gap-3">
+            {surfaceTabs.map((surface) => {
+              const isActive = surface.id === activeSurface;
+              return (
+                <button
+                  key={surface.id}
+                  onClick={() => setActiveSurface(surface.id)}
+                  className={`rounded-2xl border px-5 py-3 text-left transition ${
+                    isActive
+                      ? "border-[#9b7bff] bg-white/10 text-white"
+                      : "border-white/10 text-white/70 hover:border-white/30 hover:text-white"
+                  }`}
+                >
+                  <p className="text-sm font-semibold">{surface.label}</p>
+                  <p className="text-xs text-white/60">{surface.detail}</p>
+                </button>
+              );
+            })}
+          </div>
 
-          <section className="flex-1">{renderActiveSection()}</section>
+          {activeSurface === "planner" ? (
+            <div className="mt-6 flex flex-1 flex-col gap-6 lg:flex-row">
+              <nav className="w-full lg:w-64">
+                <div className="rounded-3xl border border-white/10 bg-[#0c0c16] p-4">
+                  <p className="text-xs uppercase tracking-[0.4em] text-white/40">
+                    Navigate
+                  </p>
+                  <div className="mt-4 space-y-2">
+                    {navItems.map((item) => {
+                      const active = activeSection === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => setActiveSection(item.id)}
+                          className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                            active
+                              ? "border-[#9b7bff] bg-[#171729]"
+                              : "border-white/10 hover:border-white/30 hover:bg-white/5"
+                          }`}
+                        >
+                          <span className="text-xl">{item.icon}</span>
+                          <div>
+                            <p className="text-sm font-semibold">
+                              {item.label}
+                            </p>
+                            <p className="text-xs text-zinc-500">
+                              {item.description}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </nav>
+
+              <section className="flex-1">{renderActiveSection()}</section>
+            </div>
+          ) : (
+            <div className="mt-6">
+              <TaskSchedulerCalendar />
+            </div>
+          )}
         </div>
       </div>
     </div>
