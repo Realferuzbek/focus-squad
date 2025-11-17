@@ -272,6 +272,43 @@ export default function TaskWorkspaceShell() {
     ? !!tasksLoadingMap[activePrivateItemId]
     : false;
 
+  const syncAllTasks = useCallback((tasks: StudentTask[]) => {
+    if (!tasks.length) return;
+    setAllTasks((prev) => {
+      const map = new Map(prev.map((task) => [task.id, task]));
+      for (const task of tasks) {
+        map.set(task.id, task);
+      }
+      return Array.from(map.values());
+    });
+  }, []);
+
+  const loadTasksFor = useCallback(
+    async (privateItemId: string) => {
+      setTasksLoadingMap((prev) => ({ ...prev, [privateItemId]: true }));
+      try {
+        const res = await fetch(
+          `/api/task-scheduler/private-items/${privateItemId}/tasks`,
+        );
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.error || "Failed to load tasks");
+        }
+        const data = await res.json();
+        const tasks: StudentTask[] = data.tasks ?? [];
+        setTasksByList((prev) => ({ ...prev, [privateItemId]: tasks }));
+        if (tasks.length) {
+          syncAllTasks(tasks);
+        }
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Failed to load tasks");
+      } finally {
+        setTasksLoadingMap((prev) => ({ ...prev, [privateItemId]: false }));
+      }
+    },
+    [syncAllTasks],
+  );
+
   useEffect(() => {
     loadPrivateItems();
   }, []);
@@ -318,7 +355,7 @@ export default function TaskWorkspaceShell() {
         startDate: today,
         endDate: today,
       }),
-    [activeTasks, today, todayKey],
+    [activeTasks, today],
   );
   const activeHabitInstancesWeek = useMemo(
     () =>
@@ -480,17 +517,6 @@ export default function TaskWorkspaceShell() {
     setListTitleDraft(activePrivateItem?.title ?? "");
   }, [activePrivateItem]);
 
-  const syncAllTasks = useCallback((tasks: StudentTask[]) => {
-    if (!tasks.length) return;
-    setAllTasks((prev) => {
-      const map = new Map(prev.map((task) => [task.id, task]));
-      for (const task of tasks) {
-        map.set(task.id, task);
-      }
-      return Array.from(map.values());
-    });
-  }, []);
-
   function upsertEventInState(event: TaskCalendarEvent) {
     setEvents((prev) => {
       const filtered = prev.filter((existing) => {
@@ -586,29 +612,6 @@ export default function TaskWorkspaceShell() {
       setEventsLoading(false);
     }
   }
-
-  const loadTasksFor = useCallback(async (privateItemId: string) => {
-    setTasksLoadingMap((prev) => ({ ...prev, [privateItemId]: true }));
-    try {
-      const res = await fetch(
-        `/api/task-scheduler/private-items/${privateItemId}/tasks`,
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || "Failed to load tasks");
-      }
-      const data = await res.json();
-      const tasks: StudentTask[] = data.tasks ?? [];
-      setTasksByList((prev) => ({ ...prev, [privateItemId]: tasks }));
-      if (tasks.length) {
-        syncAllTasks(tasks);
-      }
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to load tasks");
-    } finally {
-      setTasksLoadingMap((prev) => ({ ...prev, [privateItemId]: false }));
-    }
-  }, [syncAllTasks]);
 
   function upsertTaskInState(task: StudentTask) {
     setTasksByList((prev) => {

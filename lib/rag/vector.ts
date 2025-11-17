@@ -1,10 +1,10 @@
 import { Index } from "@upstash/vector";
-import { env } from "./env";
+import { env, isMockRagEnv } from "./env";
 
 const useMockVector =
   process.env.USE_MOCK_VECTOR === "1" ||
   process.env.USE_MOCK_AI === "1" ||
-  env.UPSTASH_VECTOR_REST_URL === "mock";
+  isMockRagEnv;
 
 type VectorPayload = {
   id: string;
@@ -53,11 +53,6 @@ function cosineSimilarity(a: number[], b: number[]) {
   return dot / denom;
 }
 
-const upstashVector = new Index({
-  url: env.UPSTASH_VECTOR_REST_URL,
-  token: env.UPSTASH_VECTOR_REST_TOKEN,
-});
-
 function getMemoryVector() {
   const globalKey = "__focus_squad_memory_vector__";
   const globalObj = globalThis as typeof globalThis & {
@@ -69,7 +64,12 @@ function getMemoryVector() {
   return globalObj[globalKey]!;
 }
 
-export const vector = useMockVector ? getMemoryVector() : upstashVector;
+export const vector = useMockVector
+  ? getMemoryVector()
+  : new Index({
+      url: env.UPSTASH_VECTOR_REST_URL,
+      token: env.UPSTASH_VECTOR_REST_TOKEN,
+    });
 
 export type SnippetMeta = {
   url: string;

@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { z } from "zod";
 
 const EnvSchema = z.object({
@@ -21,7 +22,33 @@ const EnvSchema = z.object({
     .default("/admin,/dashboard,/link-telegram,/signin,/api,/_next,/static,/assets,/community/admin"),
 });
 
-const parsed = EnvSchema.parse({
+type EnvInput = z.input<typeof EnvSchema>;
+
+const REQUIRED_KEYS: (keyof EnvInput)[] = [
+  "OPENAI_API_KEY",
+  "UPSTASH_VECTOR_REST_URL",
+  "UPSTASH_VECTOR_REST_TOKEN",
+  "SITE_BASE_URL",
+  "INDEXER_SECRET",
+];
+
+const FALLBACK_ENV: EnvInput = {
+  OPENAI_API_KEY: "mock",
+  OPENAI_GEN_MODEL: "gpt-5-mini",
+  OPENAI_EMBED_MODEL: "text-embedding-3-small",
+  UPSTASH_VECTOR_REST_URL: "https://example.com/mock-vector",
+  UPSTASH_VECTOR_REST_TOKEN: "mock-token",
+  UPSTASH_INDEX_NAME: "focus-squad-site",
+  SITE_BASE_URL: "https://example.com",
+  INDEXER_SECRET: randomUUID(),
+  CRAWL_MAX_PAGES: "400",
+  CRAWL_MAX_DEPTH: "3",
+  CRAWL_ALLOWED_PATHS: "/",
+  CRAWL_BLOCKED_PATHS:
+    "/admin,/dashboard,/link-telegram,/signin,/api,/_next,/static,/assets,/community/admin",
+};
+
+const rawEnv: Partial<EnvInput> = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_GEN_MODEL: process.env.OPENAI_GEN_MODEL,
   OPENAI_EMBED_MODEL: process.env.OPENAI_EMBED_MODEL,
@@ -38,7 +65,36 @@ const parsed = EnvSchema.parse({
   CRAWL_MAX_DEPTH: process.env.CRAWL_MAX_DEPTH,
   CRAWL_ALLOWED_PATHS: process.env.CRAWL_ALLOWED_PATHS,
   CRAWL_BLOCKED_PATHS: process.env.CRAWL_BLOCKED_PATHS,
+};
+
+const withDefinedValues = <T extends Record<string, unknown>>(
+  source: Partial<T>,
+) => {
+  const entries = Object.entries(source).filter(
+    ([, value]) => value !== undefined && value !== null,
+  );
+  return Object.fromEntries(entries) as Partial<T>;
+};
+
+const missingKeys = REQUIRED_KEYS.filter((key) => {
+  const value = rawEnv[key];
+  return typeof value !== "string" || value.trim() === "";
 });
+
+if (missingKeys.length) {
+  console.warn(
+    `[env] Missing rag env vars (${missingKeys.join(
+      ", ",
+    )}); falling back to mock defaults so deployment can proceed.`,
+  );
+}
+
+const parsed = EnvSchema.parse({
+  ...FALLBACK_ENV,
+  ...withDefinedValues(rawEnv),
+});
+
+export const isMockRagEnv = missingKeys.length > 0;
 
 const toPositiveInt = (value?: string) => {
   if (!value) return 1536;
