@@ -318,7 +318,7 @@ export default function TaskWorkspaceShell() {
         startDate: today,
         endDate: today,
       }),
-    [activeTasks, todayKey],
+    [activeTasks, today, todayKey],
   );
   const activeHabitInstancesWeek = useMemo(
     () =>

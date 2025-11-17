@@ -444,6 +444,34 @@ export default function TaskSchedulerCalendar({
     });
   }
 
+  const finalizeSelection = useCallback(
+    (selection: SelectionState) => {
+      const { anchor, currentMinutes, dayIndex, originMinutes } = selection;
+      const startMinutes = clampMinutes(
+        Math.min(originMinutes, currentMinutes),
+      );
+      let endMinutes = clampMinutes(Math.max(originMinutes, currentMinutes));
+      if (endMinutes - startMinutes < MIN_DURATION_MINUTES) {
+        endMinutes = clampMinutes(Math.min(startMinutes + 60, END_MINUTES));
+      }
+      const day = weekDaysRef.current[dayIndex];
+      if (!day) return;
+      const startDate = createDateWithMinutes(day, startMinutes);
+      const endDate = createDateWithMinutes(day, endMinutes);
+      const color = EVENT_COLORS[events.length % EVENT_COLORS.length];
+      openEditor({
+        id: null,
+        title: "",
+        startISO: startDate.toISOString(),
+        endISO: endDate.toISOString(),
+        position: anchor,
+        taskId: null,
+        color,
+      });
+    },
+    [events.length],
+  );
+
   useEffect(() => {
     function handleMouseMove(event: MouseEvent) {
       if (selectionState) {
@@ -512,34 +540,6 @@ export default function TaskSchedulerCalendar({
       window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [selectionState, resizeState, finalizeSelection, persistEventTiming]);
-
-  const finalizeSelection = useCallback(
-    (selection: SelectionState) => {
-      const { anchor, currentMinutes, dayIndex, originMinutes } = selection;
-      const startMinutes = clampMinutes(
-        Math.min(originMinutes, currentMinutes),
-      );
-      let endMinutes = clampMinutes(Math.max(originMinutes, currentMinutes));
-      if (endMinutes - startMinutes < MIN_DURATION_MINUTES) {
-        endMinutes = clampMinutes(Math.min(startMinutes + 60, END_MINUTES));
-      }
-      const day = weekDaysRef.current[dayIndex];
-      if (!day) return;
-      const startDate = createDateWithMinutes(day, startMinutes);
-      const endDate = createDateWithMinutes(day, endMinutes);
-      const color = EVENT_COLORS[events.length % EVENT_COLORS.length];
-      openEditor({
-        id: null,
-        title: "",
-        startISO: startDate.toISOString(),
-        endISO: endDate.toISOString(),
-        position: anchor,
-        taskId: null,
-        color,
-      });
-    },
-    [events.length],
-  );
 
   function handleResizeMouseDown(
     event: React.MouseEvent,
