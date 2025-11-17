@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type {
+  StudentTask,
+  TaskCalendarEvent as PersistedEvent,
+} from "@/lib/taskSchedulerTypes";
 
 const DAY_START_HOUR = 6;
 const DAY_END_HOUR = 23;
@@ -17,6 +21,7 @@ type CalendarEvent = {
   startISO: string;
   endISO: string;
   color: string;
+  taskId: string | null;
 };
 
 type EditorState = {
@@ -25,6 +30,27 @@ type EditorState = {
   startISO: string;
   endISO: string;
   position: { x: number; y: number };
+  taskId: string | null;
+  color: string;
+};
+
+type CalendarEventInput = {
+  title: string;
+  start: string;
+  end: string;
+  taskId: string | null;
+  color?: string | null;
+};
+
+type TaskSchedulerCalendarProps = {
+  events: PersistedEvent[];
+  tasks: StudentTask[];
+  loading?: boolean;
+  onCreateEvent: (input: CalendarEventInput) => Promise<void>;
+  onUpdateEvent: (eventId: string, input: CalendarEventInput) => Promise<void>;
+  onDeleteEvent: (eventId: string) => Promise<void>;
+  focusTaskId?: string | null;
+  onRequestFocusClear?: () => void;
 };
 
 type SelectionState = {
@@ -127,50 +153,65 @@ function buildMonthMatrix(monthReference: Date) {
   return weeks;
 }
 
-function generateInitialEvents(weekStart: Date): CalendarEvent[] {
-  const monday = addDays(weekStart, 1);
-  monday.setHours(9, 0, 0, 0);
-  const mondayEnd = new Date(monday);
-  mondayEnd.setHours(11, 0, 0, 0);
-
-  const wednesday = addDays(weekStart, 3);
-  wednesday.setHours(14, 0, 0, 0);
-  const wednesdayEnd = new Date(wednesday);
-  wednesdayEnd.setHours(15, 30, 0, 0);
-
-  return [
-    {
-      id: "sample-focus",
-      title: "Deep work sprint",
-      startISO: monday.toISOString(),
-      endISO: mondayEnd.toISOString(),
-      color: EVENT_COLORS[0],
-    },
-    {
-      id: "sample-review",
-      title: "Essay revision",
-      startISO: wednesday.toISOString(),
-      endISO: wednesdayEnd.toISOString(),
-      color: EVENT_COLORS[1],
-    },
-  ];
+function mapPersistedEvent(event: PersistedEvent): CalendarEvent {
+  return {
+    id: event.id,
+    title: event.title,
+    startISO: event.start,
+    endISO: event.end,
+    color: event.color ?? EVENT_COLORS[0],
+    taskId: event.taskId ?? null,
+  };
 }
 
-export default function TaskSchedulerCalendar() {
+function buildEventInput(event: CalendarEvent): CalendarEventInput {
+  return {
+    title: event.title,
+    start: event.startISO,
+    end: event.endISO,
+    taskId: event.taskId,
+    color: event.color,
+  };
+}
+
+export default function TaskSchedulerCalendar({
+  events: persistedEvents,
+  tasks,
+  loading = false,
+  onCreateEvent,
+  onUpdateEvent,
+  onDeleteEvent,
+  focusTaskId = null,
+  onRequestFocusClear,
+}: TaskSchedulerCalendarProps) {
   const [visibleWeekStart, setVisibleWeekStart] = useState(() =>
     getStartOfWeek(new Date()),
   );
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [miniCalendarCollapsed, setMiniCalendarCollapsed] = useState(false);
-  const [events, setEvents] = useState<CalendarEvent[]>(() =>
-    generateInitialEvents(getStartOfWeek(new Date())),
-  );
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const eventsRef = useRef<CalendarEvent[]>([]);
+  const pendingResizeRef = useRef<CalendarEvent | null>(null);
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const [selectionState, setSelectionState] = useState<SelectionState | null>(
     null,
   );
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
+  const [highlightedEventId, setHighlightedEventId] = useState<string | null>(
+    null,
+  );
+  const [savingEvent, setSavingEvent] = useState(false);
   const columnRefs = useRef<Array<HTMLDivElement | null>>([]);
+  useEffect(() => {
+    const mapped = persistedEvents.map(mapPersistedEvent);
+    setEvents(mapped);
+    eventsRef.current = mapped;
+  }, [persistedEvents]);
+
+  useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
+
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }, (_, index) => {
       const day = addDays(visibleWeekStart, index);
@@ -189,6 +230,21 @@ export default function TaskSchedulerCalendar() {
       setSelectedDate(weekDays[0]);
     }
   }, [weekDays, selectedDate]);
+
+  useEffect(() => {
+    if (!focusTaskId) return;
+    const match = events.find((event) => event.taskId === focusTaskId);
+    if (match) {
+      const startDate = new Date(match.startISO);
+      setVisibleWeekStart(getStartOfWeek(startDate));
+      setSelectedDate(startDate);
+      setHighlightedEventId(match.id);
+      setTimeout(() => setHighlightedEventId(null), 2000);
+    }
+    if (onRequestFocusClear) {
+      onRequestFocusClear();
+    }
+  }, [focusTaskId, events, onRequestFocusClear]);
 
   const hours = useMemo(
     () =>
@@ -239,6 +295,21 @@ export default function TaskSchedulerCalendar() {
     return clampMinutes(minutes);
   }
 
+  const persistEventTiming = useCallback(
+    async (eventItem: CalendarEvent) => {
+      try {
+        await onUpdateEvent(eventItem.id, buildEventInput(eventItem));
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Failed to update the event.",
+        );
+      }
+    },
+    [onUpdateEvent],
+  );
+
   function handleDayPointerDown(
     dayIndex: number,
     event: React.MouseEvent<HTMLDivElement>,
@@ -269,6 +340,7 @@ export default function TaskSchedulerCalendar() {
         const minutes = snapToIncrement(
           minutesFromPointer(resizeState.dayIndex, event.clientY),
         );
+        let updatedEvent: CalendarEvent | null = null;
         setEvents((prev) =>
           prev.map((evt) => {
             if (evt.id !== resizeState.eventId) return evt;
@@ -280,16 +352,21 @@ export default function TaskSchedulerCalendar() {
                 Math.min(minutes, endMinutes - MIN_DURATION_MINUTES),
               );
               const nextStart = createDateWithMinutes(day, nextMinutes);
-              return { ...evt, startISO: nextStart.toISOString() };
+              updatedEvent = { ...evt, startISO: nextStart.toISOString() };
+              return updatedEvent;
             }
             const startMinutes = getMinutesFromDate(new Date(evt.startISO));
             const nextMinutes = clampMinutes(
               Math.max(minutes, startMinutes + MIN_DURATION_MINUTES),
             );
             const nextEnd = createDateWithMinutes(day, nextMinutes);
-            return { ...evt, endISO: nextEnd.toISOString() };
+            updatedEvent = { ...evt, endISO: nextEnd.toISOString() };
+            return updatedEvent;
           }),
         );
+        if (updatedEvent) {
+          pendingResizeRef.current = updatedEvent;
+        }
       }
     }
 
@@ -299,6 +376,14 @@ export default function TaskSchedulerCalendar() {
         setSelectionState(null);
       }
       if (resizeState) {
+        const pending = pendingResizeRef.current
+          ? pendingResizeRef.current
+          : eventsRef.current.find((evt) => evt.id === resizeState.eventId) ??
+            null;
+        pendingResizeRef.current = null;
+        if (pending) {
+          persistEventTiming(pending);
+        }
         setResizeState(null);
       }
     }
@@ -309,29 +394,35 @@ export default function TaskSchedulerCalendar() {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [selectionState, resizeState]);
+  }, [selectionState, resizeState, finalizeSelection, persistEventTiming]);
 
-  function finalizeSelection(selection: SelectionState) {
-    const { anchor, currentMinutes, dayIndex, originMinutes } = selection;
-    const startMinutes = clampMinutes(
-      Math.min(originMinutes, currentMinutes),
-    );
-    let endMinutes = clampMinutes(Math.max(originMinutes, currentMinutes));
-    if (endMinutes - startMinutes < MIN_DURATION_MINUTES) {
-      endMinutes = clampMinutes(Math.min(startMinutes + 60, END_MINUTES));
-    }
-    const day = weekDaysRef.current[dayIndex];
-    if (!day) return;
-    const startDate = createDateWithMinutes(day, startMinutes);
-    const endDate = createDateWithMinutes(day, endMinutes);
-    openEditor({
-      id: null,
-      title: "",
-      startISO: startDate.toISOString(),
-      endISO: endDate.toISOString(),
-      position: anchor,
-    });
-  }
+  const finalizeSelection = useCallback(
+    (selection: SelectionState) => {
+      const { anchor, currentMinutes, dayIndex, originMinutes } = selection;
+      const startMinutes = clampMinutes(
+        Math.min(originMinutes, currentMinutes),
+      );
+      let endMinutes = clampMinutes(Math.max(originMinutes, currentMinutes));
+      if (endMinutes - startMinutes < MIN_DURATION_MINUTES) {
+        endMinutes = clampMinutes(Math.min(startMinutes + 60, END_MINUTES));
+      }
+      const day = weekDaysRef.current[dayIndex];
+      if (!day) return;
+      const startDate = createDateWithMinutes(day, startMinutes);
+      const endDate = createDateWithMinutes(day, endMinutes);
+      const color = EVENT_COLORS[events.length % EVENT_COLORS.length];
+      openEditor({
+        id: null,
+        title: "",
+        startISO: startDate.toISOString(),
+        endISO: endDate.toISOString(),
+        position: anchor,
+        taskId: null,
+        color,
+      });
+    },
+    [events.length],
+  );
 
   function handleResizeMouseDown(
     event: React.MouseEvent,
@@ -380,13 +471,31 @@ export default function TaskSchedulerCalendar() {
       startISO: calendarEvent.startISO,
       endISO: calendarEvent.endISO,
       position: { x: rect.right + 12, y: rect.top },
+      taskId: calendarEvent.taskId,
+      color: calendarEvent.color,
     });
   }
 
-  function updateEditorField(field: "title" | "startISO" | "endISO", value: string) {
+  function handleLinkChange(taskId: string | null) {
+    const linkedTask = taskId
+      ? tasks.find((task) => task.id === taskId)
+      : null;
     setEditorState((prev) =>
-      prev ? { ...prev, [field]: value } : prev,
+      prev
+        ? {
+            ...prev,
+            taskId,
+            title: linkedTask ? linkedTask.title : prev.title,
+          }
+        : prev,
     );
+  }
+
+  function updateEditorField<K extends keyof EditorState>(
+    field: K,
+    value: EditorState[K],
+  ) {
+    setEditorState((prev) => (prev ? { ...prev, [field]: value } : prev));
   }
 
   function handleTimeChange(field: "start" | "end", value: string) {
@@ -404,49 +513,52 @@ export default function TaskSchedulerCalendar() {
     }
   }
 
-  function handleSaveEvent() {
+  async function handleSaveEvent() {
     if (!editorState) return;
-    const { id, endISO, startISO, title } = editorState;
+    const { id, endISO, startISO, title, taskId, color } = editorState;
     const start = new Date(startISO);
     const end = new Date(endISO);
     if (end.getTime() <= start.getTime()) {
       alert("End time must be after the start time.");
       return;
     }
-
-    setEvents((prev) => {
-      const payload: CalendarEvent = {
-        id: id ?? (crypto?.randomUUID?.() ?? `evt-${Date.now()}`),
-        title: title.trim() || "Untitled block",
-        startISO: start.toISOString(),
-        endISO: end.toISOString(),
-        color: id
-          ? prev.find((event) => event.id === id)?.color ?? EVENT_COLORS[0]
-          : EVENT_COLORS[prev.length % EVENT_COLORS.length],
-      };
-
-      const nextEvents = id
-        ? prev.map((event) => (event.id === id ? payload : event))
-        : [...prev, payload];
-
-      return nextEvents.sort(
-        (a, b) =>
-          new Date(a.startISO).getTime() - new Date(b.startISO).getTime(),
+    const payload: CalendarEventInput = {
+      title: title.trim() || "Untitled block",
+      start: start.toISOString(),
+      end: end.toISOString(),
+      taskId,
+      color,
+    };
+    setSavingEvent(true);
+    try {
+      if (id) {
+        await onUpdateEvent(id, payload);
+      } else {
+        await onCreateEvent(payload);
+      }
+      closeEditor();
+    } catch (error) {
+      alert(
+        error instanceof Error ? error.message : "Failed to save the event.",
       );
-    });
-
-    closeEditor();
+    } finally {
+      setSavingEvent(false);
+    }
   }
 
-  function handleDeleteEvent() {
+  async function handleDeleteEvent() {
     if (!editorState?.id) {
       closeEditor();
       return;
     }
-    setEvents((prev) =>
-      prev.filter((event) => event.id !== editorState.id),
-    );
-    closeEditor();
+    try {
+      await onDeleteEvent(editorState.id);
+      closeEditor();
+    } catch (error) {
+      alert(
+        error instanceof Error ? error.message : "Failed to delete the event.",
+      );
+    }
   }
 
   return (
@@ -454,7 +566,12 @@ export default function TaskSchedulerCalendar() {
       <div className="flex flex-col gap-6 xl:flex-row">
         <aside className="w-full xl:w-80">
           <p className="text-xs uppercase tracking-[0.45em] text-white/40">
-            Scheduling
+            Scheduling{" "}
+            {loading && (
+              <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] tracking-[0.2em] text-white/60">
+                Syncing…
+              </span>
+            )}
           </p>
           <div className="mt-3 rounded-3xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between text-sm font-medium">
@@ -709,11 +826,16 @@ export default function TaskSchedulerCalendar() {
                           const top = minutesToPixels(getMinutesFromDate(start));
                           const height =
                             minutesToPixels(getMinutesFromDate(end)) - top;
+                          const isLinked = !!eventItem.taskId;
+                          const isHighlighted =
+                            highlightedEventId === eventItem.id;
                           return (
                             <div
                               key={eventItem.id}
                               data-event-block
-                              className="absolute inset-x-2 rounded-2xl p-3 text-xs text-white shadow-lg"
+                              className={`absolute inset-x-2 rounded-2xl border border-transparent p-3 text-xs text-white shadow-lg transition ${
+                                isLinked ? "border-white/40" : ""
+                              } ${isHighlighted ? "ring-2 ring-white" : ""}`}
                               style={{
                                 top,
                                 height: Math.max(
@@ -726,6 +848,9 @@ export default function TaskSchedulerCalendar() {
                                 handleEventClick(event, eventItem, columnIndex)
                               }
                             >
+                              {isLinked && (
+                                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-white/80" />
+                              )}
                               <div
                                 className="absolute left-3 right-3 top-1 h-1 cursor-ns-resize rounded-full bg-white/60"
                                 onMouseDown={(event) =>
@@ -798,9 +923,29 @@ export default function TaskSchedulerCalendar() {
               <input
                 value={editorState.title}
                 onChange={(event) => updateEditorField("title", event.target.value)}
+                disabled={!!editorState.taskId}
                 className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 p-2 text-sm text-white outline-none focus:border-white/40"
                 placeholder="Study session"
               />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-[0.3em] text-white/40">
+                Link to task
+              </label>
+              <select
+                value={editorState.taskId ?? ""}
+                onChange={(event) =>
+                  handleLinkChange(event.target.value || null)
+                }
+                className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 p-2 text-sm text-white outline-none focus:border-white/40"
+              >
+                <option value="">Not linked</option>
+                {tasks.map((task) => (
+                  <option key={task.id} value={task.id}>
+                    {task.title}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="flex gap-2">
               <div className="flex-1">
@@ -831,16 +976,18 @@ export default function TaskSchedulerCalendar() {
             <button
               type="button"
               onClick={handleDeleteEvent}
-              className="text-white/50 transition hover:text-white"
+              disabled={savingEvent}
+              className="text-white/50 transition hover:text-white disabled:opacity-40"
             >
               Delete
             </button>
             <button
               type="button"
               onClick={handleSaveEvent}
-              className="rounded-xl bg-gradient-to-r from-[#8a5bff] via-[#b157ff] to-[#ff5ddd] px-4 py-2 font-semibold"
+              disabled={savingEvent}
+              className="rounded-xl bg-gradient-to-r from-[#8a5bff] via-[#b157ff] to-[#ff5ddd] px-4 py-2 font-semibold disabled:opacity-50"
             >
-              Save
+              {savingEvent ? "Saving…" : "Save"}
             </button>
           </div>
         </div>

@@ -1,0 +1,200 @@
+﻿import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  TaskCalendarEvent,
+  TaskPrivateItem,
+  StudentTask,
+  resolveCategoryColor,
+} from "@/lib/taskSchedulerTypes";
+
+export type TaskPrivateItemRow = {
+  id: string;
+  user_id: string;
+  title: string;
+  kind: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskItemRow = {
+  id: string;
+  user_id: string;
+  private_item_id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  category: string | null;
+  due_date: string | null;
+  scheduled_start: string | null;
+  scheduled_end: string | null;
+  estimated_minutes: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskCalendarEventRow = {
+  id: string;
+  user_id: string;
+  task_id: string | null;
+  title: string;
+  start_at: string;
+  end_at: string;
+  color: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const TASK_PRIVATE_ITEM_COLUMNS =
+  "id,user_id,title,kind,created_at,updated_at";
+export const TASK_ITEM_COLUMNS =
+  "id,user_id,private_item_id,title,description,status,priority,category,due_date,scheduled_start,scheduled_end,estimated_minutes,created_at,updated_at";
+export const TASK_CALENDAR_EVENT_COLUMNS =
+  "id,user_id,task_id,title,start_at,end_at,color,created_at,updated_at";
+
+export function serializePrivateItem(row: TaskPrivateItemRow): TaskPrivateItem {
+  return {
+    id: row.id,
+    title: row.title,
+    kind: row.kind as TaskPrivateItem["kind"],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function serializeTask(row: TaskItemRow): StudentTask {
+  return {
+    id: row.id,
+    privateItemId: row.private_item_id,
+    title: row.title,
+    description: row.description ?? null,
+    status: row.status as StudentTask["status"],
+    priority: row.priority as StudentTask["priority"],
+    category: row.category ?? null,
+    dueDate: row.due_date ?? null,
+    scheduledStart: row.scheduled_start ?? null,
+    scheduledEnd: row.scheduled_end ?? null,
+    estimatedMinutes: row.estimated_minutes ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function serializeCalendarEvent(
+  row: TaskCalendarEventRow,
+): TaskCalendarEvent {
+  return {
+    id: row.id,
+    title: row.title,
+    start: row.start_at,
+    end: row.end_at,
+    color: row.color,
+    taskId: row.task_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function ensurePrivateItemOwnership(
+  sb: SupabaseClient,
+  userId: string,
+  privateItemId: string,
+) {
+  if (!privateItemId) return false;
+  const { data } = await sb
+    .from("task_private_items")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("id", privateItemId)
+    .maybeSingle();
+  return !!data;
+}
+
+export async function fetchTaskRow(
+  sb: SupabaseClient,
+  userId: string,
+  taskId: string,
+): Promise<TaskItemRow | null> {
+  if (!taskId) return null;
+  const { data } = await sb
+    .from("task_items")
+    .select(TASK_ITEM_COLUMNS)
+    .eq("user_id", userId)
+    .eq("id", taskId)
+    .maybeSingle();
+  return (data as TaskItemRow | null) ?? null;
+}
+
+export async function fetchEventRow(
+  sb: SupabaseClient,
+  userId: string,
+  eventId: string,
+): Promise<TaskCalendarEventRow | null> {
+  if (!eventId) return null;
+  const { data } = await sb
+    .from("task_calendar_events")
+    .select(TASK_CALENDAR_EVENT_COLUMNS)
+    .eq("user_id", userId)
+    .eq("id", eventId)
+    .maybeSingle();
+  return (data as TaskCalendarEventRow | null) ?? null;
+}
+
+export async function syncTaskCalendarEvent(
+  sb: SupabaseClient,
+  opts: {
+    userId: string;
+    taskId: string;
+    title: string;
+    category?: string | null;
+    scheduledStart?: string | null;
+    scheduledEnd?: string | null;
+  },
+): Promise<TaskCalendarEvent | null> {
+  const { userId, taskId } = opts;
+  const scheduledStart = opts.scheduledStart ?? null;
+  const scheduledEnd = opts.scheduledEnd ?? null;
+
+  if (!scheduledStart || !scheduledEnd) {
+    const { data } = await sb
+      .from("task_calendar_events")
+      .delete()
+      .eq("user_id", userId)
+      .eq("task_id", taskId)
+      .select(TASK_CALENDAR_EVENT_COLUMNS)
+      .maybeSingle();
+    return data ? serializeCalendarEvent(data as TaskCalendarEventRow) : null;
+  }
+
+  const { data } = await sb
+    .from("task_calendar_events")
+    .upsert(
+      {
+        user_id: userId,
+        task_id: taskId,
+        title: opts.title,
+        start_at: scheduledStart,
+        end_at: scheduledEnd,
+        color: resolveCategoryColor(opts.category),
+      },
+      { onConflict: "task_id" },
+    )
+    .select(TASK_CALENDAR_EVENT_COLUMNS)
+    .maybeSingle();
+
+  return data ? serializeCalendarEvent(data as TaskCalendarEventRow) : null;
+}
+
+export async function deleteCalendarEventById(
+  sb: SupabaseClient,
+  userId: string,
+  eventId: string,
+) {
+  const { data } = await sb
+    .from("task_calendar_events")
+    .delete()
+    .eq("user_id", userId)
+    .eq("id", eventId)
+    .select(TASK_CALENDAR_EVENT_COLUMNS)
+    .maybeSingle();
+  return data ? serializeCalendarEvent(data as TaskCalendarEventRow) : null;
+}
