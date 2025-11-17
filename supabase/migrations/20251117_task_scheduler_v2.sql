@@ -21,17 +21,37 @@ create table if not exists public.task_items (
     check (status in ('not_started','in_progress','done')),
   priority text not null default 'medium'
     check (priority in ('low','medium','high')),
-  category text,
+  category text not null default 'assignment'
+    check (category in ('assignment','exam','project','habit','other')),
   due_date date,
   scheduled_start timestamptz,
   scheduled_end timestamptz,
   estimated_minutes integer check (estimated_minutes >= 0),
+  repeat_rule text not null default 'none'
+    check (repeat_rule in ('none','daily','weekdays','custom_days')),
+  repeat_days smallint[],
+  repeat_until date,
+  auto_planned boolean not null default false,
+  auto_block_duration_min integer not null default 50
+    check (auto_block_duration_min > 0),
+  auto_daily_max_minutes integer not null default 240
+    check (auto_daily_max_minutes > 0),
+  auto_start_date date,
+  auto_allowed_days smallint[],
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint task_items_schedule_valid check (
     scheduled_end is null
       or scheduled_start is null
       or scheduled_end > scheduled_start
+  ),
+  constraint task_items_repeat_days_valid check (
+    repeat_days is null
+      or repeat_days <@ ARRAY[0,1,2,3,4,5,6]::smallint[]
+  ),
+  constraint task_items_auto_days_valid check (
+    auto_allowed_days is null
+      or auto_allowed_days <@ ARRAY[0,1,2,3,4,5,6]::smallint[]
   )
 );
 
@@ -49,6 +69,8 @@ create table if not exists public.task_calendar_events (
   start_at timestamptz not null,
   end_at timestamptz not null,
   color text,
+  event_kind text not null default 'manual'
+    check (event_kind in ('manual','auto_plan')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint task_calendar_events_duration check (end_at > start_at)
@@ -57,9 +79,7 @@ create table if not exists public.task_calendar_events (
 create index if not exists task_calendar_events_user_idx
   on public.task_calendar_events (user_id, start_at desc);
 
-create unique index if not exists task_calendar_events_task_unique
-  on public.task_calendar_events (task_id)
-  where task_id is not null;
+drop index if exists task_calendar_events_task_unique;
 
 create or replace function public.touch_task_scheduler_updated_at() returns trigger
 language plpgsql as $$

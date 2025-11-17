@@ -11,6 +11,25 @@ export type StudentTaskStatus = (typeof TASK_STATUSES)[number];
 export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
 export type StudentTaskPriority = (typeof TASK_PRIORITIES)[number];
 
+export const TASK_CATEGORIES = [
+  "assignment",
+  "exam",
+  "project",
+  "habit",
+  "other",
+] as const;
+export type StudentTaskCategory = (typeof TASK_CATEGORIES)[number];
+
+export const TASK_REPEAT_RULES = [
+  "none",
+  "daily",
+  "weekdays",
+  "custom_days",
+] as const;
+export type StudentHabitRepeatRule = (typeof TASK_REPEAT_RULES)[number];
+
+export type TaskCalendarEventKind = "manual" | "auto_plan";
+
 export type TaskPrivateItem = {
   id: string;
   title: string;
@@ -26,11 +45,19 @@ export type StudentTask = {
   description: string | null;
   status: StudentTaskStatus;
   priority: StudentTaskPriority;
-  category: string | null;
+  category: StudentTaskCategory;
   dueDate: string | null;
   scheduledStart: string | null;
   scheduledEnd: string | null;
   estimatedMinutes: number | null;
+  repeatRule: StudentHabitRepeatRule;
+  repeatDays: number[] | null;
+  repeatUntil: string | null;
+  autoPlanned: boolean;
+  autoBlockDurationMin: number;
+  autoDailyMaxMinutes: number;
+  autoStartDate: string | null;
+  autoAllowedDays: number[] | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -42,22 +69,25 @@ export type TaskCalendarEvent = {
   end: string;
   color: string | null;
   taskId: string | null;
+  eventKind: TaskCalendarEventKind;
   createdAt: string;
   updatedAt: string;
 };
 
-const CATEGORY_COLOR_MAP: Record<string, string> = {
-  learning: "#9b7bff",
-  uni: "#34d399",
-  startup: "#f472b6",
-  habit: "#22d3ee",
-  content: "#facc15",
+const CATEGORY_COLOR_MAP: Record<StudentTaskCategory, string> = {
+  assignment: "#60a5fa",
+  exam: "#f87171",
+  project: "#a78bfa",
+  habit: "#4ade80",
+  other: "#9ca3af",
 };
 
 export const DEFAULT_EVENT_COLOR = "#8b5cf6";
 
-export function resolveCategoryColor(category?: string | null) {
+export function resolveCategoryColor(
+  category?: StudentTaskCategory | string | null,
+) {
   if (!category) return DEFAULT_EVENT_COLOR;
-  const normalized = category.trim().toLowerCase();
+  const normalized = category.trim().toLowerCase() as StudentTaskCategory;
   return CATEGORY_COLOR_MAP[normalized] ?? DEFAULT_EVENT_COLOR;
 }

@@ -5,6 +5,11 @@ import type {
   StudentTask,
   TaskCalendarEvent as PersistedEvent,
 } from "@/lib/taskSchedulerTypes";
+import { TASK_DAILY_MINUTES_LIMIT } from "@/lib/taskSchedulerConstants";
+import {
+  generateHabitInstances,
+  type HabitInstance,
+} from "@/lib/taskSchedulerHabits";
 
 const DAY_START_HOUR = 6;
 const DAY_END_HOUR = 23;
@@ -22,6 +27,9 @@ type CalendarEvent = {
   endISO: string;
   color: string;
   taskId: string | null;
+  eventKind: PersistedEvent["eventKind"] | "habit";
+  readOnly?: boolean;
+  isVirtual?: boolean;
 };
 
 type EditorState = {
@@ -116,6 +124,19 @@ function minutesToPixels(minutes: number) {
   return (relative / 60) * HOUR_HEIGHT;
 }
 
+function dateKeyFromISO(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function eventDurationMinutes(event: CalendarEvent) {
+  const start = new Date(event.startISO);
+  const end = new Date(event.endISO);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+}
+
 function formatHourLabel(hour: number) {
   const suffix = hour >= 12 ? "PM" : "AM";
   const normalized = hour % 12 || 12;
@@ -161,6 +182,7 @@ function mapPersistedEvent(event: PersistedEvent): CalendarEvent {
     endISO: event.end,
     color: event.color ?? EVENT_COLORS[0],
     taskId: event.taskId ?? null,
+    eventKind: event.eventKind,
   };
 }
 
@@ -172,6 +194,18 @@ function buildEventInput(event: CalendarEvent): CalendarEventInput {
     taskId: event.taskId,
     color: event.color,
   };
+}
+
+function computeDailyMinutes(eventsList: CalendarEvent[]) {
+  const map = new Map<string, number>();
+  eventsList.forEach((event) => {
+    const key = dateKeyFromISO(event.startISO);
+    if (!key) return;
+    const duration = eventDurationMinutes(event);
+    if (duration <= 0) return;
+    map.set(key, (map.get(key) ?? 0) + duration);
+  });
+  return map;
 }
 
 export default function TaskSchedulerCalendar({
@@ -211,6 +245,89 @@ export default function TaskSchedulerCalendar({
   useEffect(() => {
     eventsRef.current = events;
   }, [events]);
+
+  const habitInstances = useMemo(() => {
+    const weekEnd = addDays(visibleWeekStart, 6);
+    return generateHabitInstances(tasks, {
+      startDate: visibleWeekStart,
+      endDate: weekEnd,
+    });
+  }, [tasks, visibleWeekStart]);
+
+  const habitEvents = useMemo(
+    () =>
+      habitInstances.map((instance) => ({
+        id: instance.id,
+        title: `${instance.title}`,
+        startISO: instance.startISO,
+        endISO: instance.endISO,
+        color: instance.color,
+        taskId: instance.taskId,
+        eventKind: "habit" as const,
+        readOnly: true,
+        isVirtual: true,
+      })),
+    [habitInstances],
+  );
+
+  const renderedEvents = useMemo(
+    () => [...events, ...habitEvents],
+    [events, habitEvents],
+  );
+
+  const persistedDailyMinutes = useMemo(
+    () => computeDailyMinutes(events),
+    [events],
+  );
+  const habitDailyMinutes = useMemo(
+    () => computeDailyMinutes(habitEvents),
+    [habitEvents],
+  );
+  const combinedDailyMinutes = useMemo(() => {
+    const combined = new Map(persistedDailyMinutes);
+    habitDailyMinutes.forEach((value, key) => {
+      combined.set(key, (combined.get(key) ?? 0) + value);
+    });
+    return combined;
+  }, [persistedDailyMinutes, habitDailyMinutes]);
+
+  const overloadedDayKeys = useMemo(() => {
+    const keys = new Set<string>();
+    combinedDailyMinutes.forEach((minutes, key) => {
+      if (minutes > TASK_DAILY_MINUTES_LIMIT) {
+        keys.add(key);
+      }
+    });
+    return keys;
+  }, [combinedDailyMinutes]);
+
+  const getBaselineMinutesForDay = useCallback(
+    (dayKey: string, excludeEventId?: string | null) => {
+      let baseline = combinedDailyMinutes.get(dayKey) ?? 0;
+      if (excludeEventId) {
+        const match = events.find((evt) => evt.id === excludeEventId);
+        if (match && dateKeyFromISO(match.startISO) === dayKey) {
+          baseline -= eventDurationMinutes(match);
+        }
+      }
+      return baseline;
+    },
+    [combinedDailyMinutes, events],
+  );
+
+  const confirmDailyOverload = useCallback(
+    (dayKey: string, minutes: number, excludeEventId?: string | null) => {
+      const baseline = getBaselineMinutesForDay(dayKey, excludeEventId);
+      if (baseline + minutes <= TASK_DAILY_MINUTES_LIMIT) {
+        return true;
+      }
+      const hours = (baseline / 60).toFixed(1);
+      return window.confirm(
+        `This day already has ~${hours}h planned. Add more time?`,
+      );
+    },
+    [getBaselineMinutesForDay],
+  );
 
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }, (_, index) => {
@@ -461,9 +578,14 @@ export default function TaskSchedulerCalendar({
   function handleEventClick(
     event: React.MouseEvent<HTMLDivElement, MouseEvent>,
     calendarEvent: CalendarEvent,
-    dayIndex: number,
   ) {
     event.stopPropagation();
+    if (selectionState || resizeState) {
+      setSelectionState(null);
+      setResizeState(null);
+      return;
+    }
+    if (calendarEvent.readOnly) return;
     const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
     openEditor({
       id: calendarEvent.id,
@@ -520,6 +642,14 @@ export default function TaskSchedulerCalendar({
     const end = new Date(endISO);
     if (end.getTime() <= start.getTime()) {
       alert("End time must be after the start time.");
+      return;
+    }
+    const dayKey = dateKeyFromISO(start.toISOString());
+    const durationMinutes = Math.max(
+      0,
+      Math.round((end.getTime() - start.getTime()) / 60000),
+    );
+    if (!confirmDailyOverload(dayKey, durationMinutes, id)) {
       return;
     }
     const payload: CalendarEventInput = {
@@ -612,6 +742,9 @@ export default function TaskSchedulerCalendar({
                         }`}
                       >
                         {week.map((day) => {
+                          const miniDateKey = day.toISOString().slice(0, 10);
+                          const overloadedMini =
+                            overloadedDayKeys.has(miniDateKey);
                           const isCurrentMonth =
                             day.getMonth() === monthReference.getMonth();
                           const isSelected = isSameDay(day, selectedDate);
@@ -639,6 +772,9 @@ export default function TaskSchedulerCalendar({
                                 }`}
                               >
                                 {day.getDate()}
+                                {overloadedMini && (
+                                  <span className="absolute -bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-rose-400" />
+                                )}
                               </span>
                             </button>
                           );
@@ -710,20 +846,32 @@ export default function TaskSchedulerCalendar({
 
           <div className="mt-6 border-t border-white/10 pt-4">
             <div className="grid grid-cols-7 gap-0 border-b border-white/10 text-center text-sm text-white/70">
-              {weekDays.map((day) => (
-                <div key={day.toISOString()} className="pb-3">
-                  <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                    {day.toLocaleDateString(undefined, { weekday: "short" })}
-                  </p>
-                  <p
-                    className={`text-lg font-semibold ${
-                      isSameDay(day, new Date()) ? "text-white" : "text-white/80"
-                    }`}
-                  >
-                    {day.getDate()}
-                  </p>
-                </div>
-              ))}
+              {weekDays.map((day) => {
+                const headerDateKey = day.toISOString().slice(0, 10);
+                const overloaded = overloadedDayKeys.has(headerDateKey);
+                const dayMinutes = combinedDailyMinutes.get(headerDateKey) ?? 0;
+                return (
+                  <div key={day.toISOString()} className="pb-3">
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/40">
+                      {day.toLocaleDateString(undefined, { weekday: "short" })}
+                    </p>
+                    <p
+                      className={`text-lg font-semibold ${
+                        isSameDay(day, new Date())
+                          ? "text-white"
+                          : "text-white/80"
+                      }`}
+                    >
+                      {day.getDate()}
+                    </p>
+                    {overloaded && (
+                      <span className="mt-1 inline-flex items-center justify-center rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.25em] text-rose-200">
+                        {`${Math.round(dayMinutes / 60)}h+`}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="mt-1 flex">
@@ -743,7 +891,7 @@ export default function TaskSchedulerCalendar({
               <div className="relative flex-1 overflow-hidden">
                 <div className="grid h-full grid-cols-7 border-l border-white/10 text-xs">
                   {weekDays.map((day, columnIndex) => {
-                    const todaysEvents = events.filter((event) =>
+                    const todaysEvents = renderedEvents.filter((event) =>
                       isSameDay(new Date(event.startISO), day),
                     );
                     const selectionPreview =
@@ -829,13 +977,17 @@ export default function TaskSchedulerCalendar({
                           const isLinked = !!eventItem.taskId;
                           const isHighlighted =
                             highlightedEventId === eventItem.id;
+                          const readOnly = eventItem.eventKind === "habit";
+                          const autoplan = eventItem.eventKind === "auto_plan";
                           return (
                             <div
                               key={eventItem.id}
                               data-event-block
                               className={`absolute inset-x-2 rounded-2xl border border-transparent p-3 text-xs text-white shadow-lg transition ${
-                                isLinked ? "border-white/40" : ""
-                              } ${isHighlighted ? "ring-2 ring-white" : ""}`}
+                                isLinked && !readOnly ? "border-white/40" : ""
+                              } ${isHighlighted ? "ring-2 ring-white" : ""} ${
+                                readOnly ? "opacity-80" : ""
+                              }`}
                               style={{
                                 top,
                                 height: Math.max(
@@ -845,34 +997,43 @@ export default function TaskSchedulerCalendar({
                                 backgroundColor: eventItem.color,
                               }}
                               onClick={(event) =>
-                                handleEventClick(event, eventItem, columnIndex)
+                                handleEventClick(event, eventItem)
                               }
                             >
-                              {isLinked && (
+                              {isLinked && !readOnly && (
                                 <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-white/80" />
                               )}
-                              <div
-                                className="absolute left-3 right-3 top-1 h-1 cursor-ns-resize rounded-full bg-white/60"
-                                onMouseDown={(event) =>
-                                  handleResizeMouseDown(
-                                    event,
-                                    eventItem.id,
-                                    columnIndex,
-                                    "start",
-                                  )
-                                }
-                              />
-                              <div
-                                className="absolute bottom-1 left-3 right-3 h-1 cursor-ns-resize rounded-full bg-white/60"
-                                onMouseDown={(event) =>
-                                  handleResizeMouseDown(
-                                    event,
-                                    eventItem.id,
-                                    columnIndex,
-                                    "end",
-                                  )
-                                }
-                              />
+                              {!readOnly && (
+                                <>
+                                  <div
+                                    className="absolute left-3 right-3 top-1 h-1 cursor-ns-resize rounded-full bg-white/60"
+                                    onMouseDown={(event) =>
+                                      handleResizeMouseDown(
+                                        event,
+                                        eventItem.id,
+                                        columnIndex,
+                                        "start",
+                                      )
+                                    }
+                                  />
+                                  <div
+                                    className="absolute bottom-1 left-3 right-3 h-1 cursor-ns-resize rounded-full bg-white/60"
+                                    onMouseDown={(event) =>
+                                      handleResizeMouseDown(
+                                        event,
+                                        eventItem.id,
+                                        columnIndex,
+                                        "end",
+                                      )
+                                    }
+                                  />
+                                </>
+                              )}
+                              {(autoplan || readOnly) && (
+                                <p className="text-[10px] uppercase tracking-[0.3em] text-white/70">
+                                  {readOnly ? "Habit" : "Auto plan"}
+                                </p>
+                              )}
                               <p className="text-[11px] uppercase tracking-[0.2em] opacity-80">
                                 {formatTimeString(start)} –{" "}
                                 {formatTimeString(end)}

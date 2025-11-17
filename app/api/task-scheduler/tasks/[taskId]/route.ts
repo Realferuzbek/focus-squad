@@ -15,6 +15,8 @@ import {
 import {
   TASK_PRIORITIES,
   TASK_STATUSES,
+  TASK_CATEGORIES,
+  TASK_REPEAT_RULES,
   type TaskCalendarEvent,
 } from "@/lib/taskSchedulerTypes";
 import {
@@ -22,6 +24,7 @@ import {
   normalizeEnum,
   normalizeEstimatedMinutes,
   normalizeOptionalString,
+  normalizeWeekdayArray,
   validateScheduleInput,
 } from "@/lib/taskSchedulerValidation";
 
@@ -95,7 +98,10 @@ export async function PATCH(
   }
 
   if (hasProp(body, "category")) {
-    updates.category = normalizeOptionalString(body.category);
+    const normalizedCategory =
+      normalizeEnum(body.category, TASK_CATEGORIES, "assignment") ??
+      "assignment";
+    updates.category = normalizedCategory;
     shouldSyncEvent = true;
   }
 
@@ -180,6 +186,38 @@ export async function PATCH(
         );
       }
       updates.estimated_minutes = normalized;
+    }
+  }
+
+  if (hasProp(body, "repeatRule") || hasProp(body, "repeat_rule")) {
+    const nextRule =
+      normalizeEnum(
+        body?.repeatRule ?? body?.repeat_rule,
+        TASK_REPEAT_RULES,
+        "none",
+      ) ?? "none";
+    updates.repeat_rule = nextRule;
+  }
+
+  if (hasProp(body, "repeatDays") || hasProp(body, "repeat_days")) {
+    updates.repeat_days = normalizeWeekdayArray(
+      body?.repeatDays ?? body?.repeat_days,
+    );
+  }
+
+  if (hasProp(body, "repeatUntil") || hasProp(body, "repeat_until")) {
+    const raw = body?.repeatUntil ?? body?.repeat_until;
+    if (raw === null || raw === "") {
+      updates.repeat_until = null;
+    } else {
+      const normalized = normalizeDateInput(raw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid repeat end" },
+          { status: 400 },
+        );
+      }
+      updates.repeat_until = normalized;
     }
   }
 

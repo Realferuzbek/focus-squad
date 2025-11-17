@@ -49,6 +49,29 @@ export function normalizeEstimatedMinutes(value: unknown) {
   return null;
 }
 
+export function normalizeWeekdayArray(value: unknown) {
+  if (!value) return null;
+  const days = Array.isArray(value) ? value : [];
+  const normalized = days
+    .map((entry) => {
+      if (typeof entry === "number" && Number.isInteger(entry)) {
+        return entry;
+      }
+      if (typeof entry === "string" && entry.trim() !== "") {
+        const parsed = Number(entry);
+        if (!Number.isNaN(parsed)) {
+          return Math.trunc(parsed);
+        }
+      }
+      return null;
+    })
+    .filter((entry): entry is number => entry !== null)
+    .map((entry) => Math.max(0, Math.min(6, entry)));
+  if (!normalized.length) return null;
+  const unique = Array.from(new Set(normalized)).sort((a, b) => a - b);
+  return unique;
+}
+
 export type NormalizedScheduleResult = {
   start: string | null;
   end: string | null;

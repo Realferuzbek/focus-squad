@@ -14,6 +14,8 @@ import {
 import {
   TASK_PRIORITIES,
   TASK_STATUSES,
+  TASK_CATEGORIES,
+  TASK_REPEAT_RULES,
   type TaskCalendarEvent,
 } from "@/lib/taskSchedulerTypes";
 import {
@@ -21,6 +23,7 @@ import {
   normalizeEnum,
   normalizeEstimatedMinutes,
   normalizeOptionalString,
+  normalizeWeekdayArray,
   validateScheduleInput,
 } from "@/lib/taskSchedulerValidation";
 
@@ -89,7 +92,10 @@ export async function POST(
     "not_started";
   const priority =
     normalizeEnum(body?.priority, TASK_PRIORITIES, "medium") || "medium";
-  const category = normalizeOptionalString(body?.category);
+  const category =
+    (normalizeEnum(body?.category, TASK_CATEGORIES, "assignment") as
+      | string
+      | null) ?? "assignment";
   const dueDate = normalizeDateInput(body?.dueDate ?? body?.due_date);
   const schedule = validateScheduleInput(
     body?.scheduledStart ?? body?.scheduled_start,
@@ -117,6 +123,18 @@ export async function POST(
   const estimatedMinutes = normalizeEstimatedMinutes(
     body?.estimatedMinutes ?? body?.estimated_minutes,
   );
+  const repeatRule =
+    normalizeEnum(
+      body?.repeatRule ?? body?.repeat_rule,
+      TASK_REPEAT_RULES,
+      "none",
+    ) ?? "none";
+  const repeatDays = normalizeWeekdayArray(
+    body?.repeatDays ?? body?.repeat_days,
+  );
+  const repeatUntil = normalizeDateInput(
+    body?.repeatUntil ?? body?.repeat_until,
+  );
 
   const insertPayload = {
     user_id: userId,
@@ -130,6 +148,9 @@ export async function POST(
     scheduled_start: schedule.start,
     scheduled_end: schedule.end,
     estimated_minutes: estimatedMinutes,
+    repeat_rule: repeatRule,
+    repeat_days: repeatDays,
+    repeat_until: repeatUntil,
   };
 
   const { data, error } = await sb

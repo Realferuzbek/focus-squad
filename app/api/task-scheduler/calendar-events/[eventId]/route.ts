@@ -48,7 +48,7 @@ export async function PATCH(
 
   const body = await req.json().catch(() => ({}));
 
-  if (eventRow.task_id) {
+  if (eventRow.task_id && eventRow.event_kind === "manual") {
     const taskUpdates: Record<string, any> = {};
 
     if (hasProp(body, "title")) {
@@ -212,7 +212,7 @@ export async function DELETE(
   }
 
   let task: TaskItemRow | null = null;
-  if (deleted.taskId) {
+  if (deleted.taskId && deleted.eventKind === "manual") {
     const { data } = await sb
       .from("task_items")
       .update({ scheduled_start: null, scheduled_end: null })

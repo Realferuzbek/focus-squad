@@ -23,11 +23,19 @@ export type TaskItemRow = {
   description: string | null;
   status: string;
   priority: string;
-  category: string | null;
+  category: string;
   due_date: string | null;
   scheduled_start: string | null;
   scheduled_end: string | null;
   estimated_minutes: number | null;
+  repeat_rule: string;
+  repeat_days: number[] | null;
+  repeat_until: string | null;
+  auto_planned: boolean;
+  auto_block_duration_min: number;
+  auto_daily_max_minutes: number;
+  auto_start_date: string | null;
+  auto_allowed_days: number[] | null;
   created_at: string;
   updated_at: string;
 };
@@ -40,6 +48,7 @@ export type TaskCalendarEventRow = {
   start_at: string;
   end_at: string;
   color: string | null;
+  event_kind: string;
   created_at: string;
   updated_at: string;
 };
@@ -47,9 +56,9 @@ export type TaskCalendarEventRow = {
 export const TASK_PRIVATE_ITEM_COLUMNS =
   "id,user_id,title,kind,created_at,updated_at";
 export const TASK_ITEM_COLUMNS =
-  "id,user_id,private_item_id,title,description,status,priority,category,due_date,scheduled_start,scheduled_end,estimated_minutes,created_at,updated_at";
+  "id,user_id,private_item_id,title,description,status,priority,category,due_date,scheduled_start,scheduled_end,estimated_minutes,repeat_rule,repeat_days,repeat_until,auto_planned,auto_block_duration_min,auto_daily_max_minutes,auto_start_date,auto_allowed_days,created_at,updated_at";
 export const TASK_CALENDAR_EVENT_COLUMNS =
-  "id,user_id,task_id,title,start_at,end_at,color,created_at,updated_at";
+  "id,user_id,task_id,title,start_at,end_at,color,event_kind,created_at,updated_at";
 
 export function serializePrivateItem(row: TaskPrivateItemRow): TaskPrivateItem {
   return {
@@ -69,11 +78,19 @@ export function serializeTask(row: TaskItemRow): StudentTask {
     description: row.description ?? null,
     status: row.status as StudentTask["status"],
     priority: row.priority as StudentTask["priority"],
-    category: row.category ?? null,
+    category: row.category as StudentTask["category"],
     dueDate: row.due_date ?? null,
     scheduledStart: row.scheduled_start ?? null,
     scheduledEnd: row.scheduled_end ?? null,
     estimatedMinutes: row.estimated_minutes ?? null,
+    repeatRule: row.repeat_rule as StudentTask["repeatRule"],
+    repeatDays: row.repeat_days ?? null,
+    repeatUntil: row.repeat_until ?? null,
+    autoPlanned: row.auto_planned,
+    autoBlockDurationMin: row.auto_block_duration_min,
+    autoDailyMaxMinutes: row.auto_daily_max_minutes,
+    autoStartDate: row.auto_start_date ?? null,
+    autoAllowedDays: row.auto_allowed_days ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -89,6 +106,7 @@ export function serializeCalendarEvent(
     end: row.end_at,
     color: row.color,
     taskId: row.task_id,
+    eventKind: row.event_kind as TaskCalendarEvent["eventKind"],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -160,27 +178,50 @@ export async function syncTaskCalendarEvent(
       .delete()
       .eq("user_id", userId)
       .eq("task_id", taskId)
+      .eq("event_kind", "manual")
       .select(TASK_CALENDAR_EVENT_COLUMNS)
       .maybeSingle();
     return data ? serializeCalendarEvent(data as TaskCalendarEventRow) : null;
   }
 
-  const { data } = await sb
+  const { data: existing } = await sb
     .from("task_calendar_events")
-    .upsert(
-      {
-        user_id: userId,
-        task_id: taskId,
+    .select(TASK_CALENDAR_EVENT_COLUMNS)
+    .eq("user_id", userId)
+    .eq("task_id", taskId)
+    .eq("event_kind", "manual")
+    .maybeSingle();
+
+  if (existing) {
+    const { data, error } = await sb
+      .from("task_calendar_events")
+      .update({
         title: opts.title,
         start_at: scheduledStart,
         end_at: scheduledEnd,
         color: resolveCategoryColor(opts.category),
-      },
-      { onConflict: "task_id" },
-    )
+      })
+      .eq("id", (existing as TaskCalendarEventRow).id)
+      .select(TASK_CALENDAR_EVENT_COLUMNS)
+      .maybeSingle();
+    if (error) return null;
+    return data ? serializeCalendarEvent(data as TaskCalendarEventRow) : null;
+  }
+
+  const { data, error } = await sb
+    .from("task_calendar_events")
+    .insert({
+      user_id: userId,
+      task_id: taskId,
+      title: opts.title,
+      start_at: scheduledStart,
+      end_at: scheduledEnd,
+      color: resolveCategoryColor(opts.category),
+      event_kind: "manual",
+    })
     .select(TASK_CALENDAR_EVENT_COLUMNS)
     .maybeSingle();
-
+  if (error) return null;
   return data ? serializeCalendarEvent(data as TaskCalendarEventRow) : null;
 }
 
