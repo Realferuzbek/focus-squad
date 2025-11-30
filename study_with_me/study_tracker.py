@@ -1588,7 +1588,6 @@ async def main():
 
         # Safety snapshot in case no raw updates arrived recently
         await _refresh_snapshot()
-
         # NEW: idle heartbeat every 10 min when no livestream (5/6)
         now_ts = _now_ts()
         if not STATE.call_active and (_last_idle_beat == 0.0 or (now_ts - _last_idle_beat >= HEARTBEAT_IDLE_EVERY)):
