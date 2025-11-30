@@ -46,14 +46,6 @@ export default async function MotivationVaultFeature() {
 
   const now = DateTime.now().setZone(TASHKENT_ZONE);
   const today = buildSnapshot(now);
-  const cycleInfo = computeRotation(now);
-  const dayOfYear = now.ordinal;
-
-  const tomorrow = buildSnapshot(now.plus({ days: 1 }));
-  const theDayAfter = buildSnapshot(now.plus({ days: 2 }));
-  const upcoming = [tomorrow, theDayAfter];
-
-  const timestampLabel = now.toFormat("HH:mm · z");
 
   return (
     <div className="relative min-h-[100dvh] overflow-hidden bg-[#05030d] text-white">
@@ -71,146 +63,42 @@ export default async function MotivationVaultFeature() {
       <main className="relative mx-auto flex max-w-6xl flex-col gap-10 px-4 py-10 lg:py-14">
         <header className="relative overflow-hidden rounded-[32px] border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_30px_90px_rgba(40,18,88,0.35)]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.08),transparent_38%),radial-gradient(circle_at_82%_10%,rgba(255,255,255,0.05),transparent_35%),linear-gradient(140deg,rgba(255,255,255,0.04),transparent_55%)]" />
-          <div className="relative grid gap-8 p-8 lg:grid-cols-[1.5fr,1fr] lg:items-start">
-            <div className="space-y-5">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1 text-[10px] uppercase tracking-[0.45em] text-indigo-100/80">
-                  {t.motivation.heroTag}
-                </span>
-                <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] text-white/60">
-                  Asia/Tashkent
-                </span>
-              </div>
-              <div className="space-y-2">
-                <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-                  {t.motivation.heroTitle}
-                </h1>
-                <p className="max-w-2xl text-base text-white/70 md:text-lg">
-                  {t.motivation.heroSubtitle}
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 shadow-[0_18px_40px_rgba(20,12,70,0.35)]">
-                  <div className="text-[11px] uppercase tracking-[0.35em] text-white/45">
-                    {t.motivation.dayLabel}
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold">{dayOfYear}</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 shadow-[0_18px_40px_rgba(20,12,70,0.35)]">
-                  <div className="text-[11px] uppercase tracking-[0.35em] text-white/45">
-                    {t.motivation.cycleLabel}
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {cycleInfo.cycle <= 0 ? 1 : cycleInfo.cycle}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 shadow-[0_18px_40px_rgba(20,12,70,0.35)]">
-                  <div className="text-[11px] uppercase tracking-[0.35em] text-white/45">
-                    {t.motivation.totalQuotesLabel}
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {MOTIVATION_COUNT}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col gap-4 rounded-[24px] border border-white/15 bg-white/5 px-6 py-5 text-sm text-white/70 shadow-[0_24px_65px_rgba(20,12,70,0.35)]">
-              <div className="text-[11px] uppercase tracking-[0.35em] text-white/60">
-                {t.motivation.refreshedLabel}
-              </div>
-              <div className="text-2xl font-semibold leading-none text-white">
-                {timestampLabel}
-              </div>
-              <p>{now.toFormat("d MMMM yyyy")}</p>
-              <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white/60">
-                {t.motivation.rotationNote}
-              </div>
+          <div className="relative flex flex-col gap-6 p-8 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-3">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1 text-[10px] uppercase tracking-[0.45em] text-indigo-100/80">
+                {t.motivation.heroTag}
+              </span>
+              <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
+                {t.motivation.heroTitle}
+              </h1>
+              <p className="max-w-2xl text-base text-white/70 md:text-lg">
+                {t.motivation.heroSubtitle}
+              </p>
             </div>
           </div>
         </header>
 
-        <section className="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
-          <article className="relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-[#120f2b]/90 via-[#0c0b1c]/90 to-[#0c0a16]/90 p-7 shadow-[0_25px_70px_rgba(16,10,60,0.55)]">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(255,255,255,0.06),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.04),transparent_45%)]" />
-            <div className="relative flex flex-wrap items-center justify-between gap-3">
-              <div className="text-[11px] uppercase tracking-[0.45em] text-fuchsia-100/80">
-                {t.motivation.todaysMantra}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.35em] text-white/80">
-                  #{today.index + 1}
-                </span>
-                <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-[11px] uppercase tracking-[0.35em] text-emerald-100">
-                  Today
-                </span>
-              </div>
+        <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-[#120f2b]/90 via-[#0c0b1c]/90 to-[#0c0a16]/90 p-7 shadow-[0_25px_70px_rgba(16,10,60,0.55)]">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(255,255,255,0.06),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.04),transparent_45%)]" />
+          <div className="relative flex flex-wrap items-center justify-between gap-3">
+            <div className="text-[11px] uppercase tracking-[0.45em] text-fuchsia-100/80">
+              {t.motivation.todaysMantra}
             </div>
-            <p className="relative mt-5 text-2xl font-semibold leading-relaxed text-white md:text-[30px]">
-              {today.quote}
-            </p>
-            <div className="relative mt-6 flex flex-wrap gap-3 text-sm text-white/65">
-              <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                {today.dateLabel}
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.35em] text-white/80">
+                #{today.index + 1}
               </span>
-              <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                {t.motivation.rotatesAtMidnight}
+              <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-[11px] uppercase tracking-[0.35em] text-emerald-100">
+                Today
               </span>
             </div>
-          </article>
-
-          <aside className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-6 text-sm text-white/75 shadow-[0_20px_65px_rgba(12,10,50,0.45)] backdrop-blur-lg">
-            <div className="pointer-events-none absolute inset-y-0 left-0 w-px bg-gradient-to-b from-transparent via-white/40 to-transparent" />
-            <div className="relative flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.35em] text-white/60">
-                  {t.motivation.upNext}
-                </p>
-                <h3 className="text-xl font-semibold text-white">
-                  Rotation timeline
-                </h3>
-              </div>
-              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-white/55">
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                  {t.motivation.dayLabel} {dayOfYear}
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                  {t.motivation.cycleLabel}{" "}
-                  {cycleInfo.cycle <= 0 ? 1 : cycleInfo.cycle}
-                </span>
-              </div>
-            </div>
-
-            <div className="relative mt-5 space-y-4">
-              {upcoming.map((entry) => (
-                <div
-                  key={entry.index}
-                  className="group rounded-2xl border border-white/10 bg-white/5 px-4 py-4 shadow-[0_16px_40px_rgba(15,10,45,0.4)] transition hover:-translate-y-0.5 hover:border-white/20"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/70 to-fuchsia-500/70 text-sm font-semibold text-white shadow-[0_10px_25px_rgba(114,63,200,0.45)]">
-                      #{entry.index + 1}
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-xs uppercase tracking-[0.3em] text-white/55">
-                        {t.motivation.upNext}
-                      </p>
-                      <p className="text-base font-semibold text-white">
-                        {entry.dateLabel}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-sm leading-relaxed text-white/70">
-                    {entry.quote}
-                  </p>
-                  <div className="mt-4 flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.3em] text-white/45">
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                      {t.motivation.rotatesAtMidnight}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </aside>
+          </div>
+          <p className="relative mt-5 text-2xl font-semibold leading-relaxed text-white md:text-[30px]">
+            {today.quote}
+          </p>
+          <div className="relative mt-6 inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/65">
+            {today.dateLabel}
+          </div>
         </section>
 
         <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-r from-[#0c0f25]/90 to-[#0a0819]/90 p-6 text-sm text-white/75 shadow-[0_18px_55px_rgba(20,12,70,0.35)] md:p-8">
