@@ -87,6 +87,8 @@ const PUBLIC_PATHS = new Set<string>([
   "/opengraph-image",
 ]);
 
+const PUBLIC_API_BYPASS_PATHS = ["/api/leaderboard/ingest"];
+
 // treat common static assets as public
 const STATIC_EXT = /\.(?:png|svg|jpg|jpeg|gif|webp|ico|txt|xml|html)$/i;
 
@@ -99,6 +101,10 @@ function isPublic(req: NextRequest) {
   if (STATIC_EXT.test(pathname)) return true;
   for (const p of PUBLIC_PATHS) if (pathname.startsWith(p)) return true;
   return false;
+}
+
+function isBypassPath(pathname: string): boolean {
+  return PUBLIC_API_BYPASS_PATHS.some((path) => pathname.startsWith(path));
 }
 
 type SessionSnapshot = {
@@ -206,6 +212,10 @@ async function resolveLatestSessionVersion(
 
 export async function middleware(req: NextRequest) {
   const url = req.nextUrl;
+  if (isBypassPath(url.pathname)) {
+    return NextResponse.next();
+  }
+
   const baseSecurityContext = buildSecurityContext(req);
   const isTimerFeaturePage =
     url.pathname === "/feature/timer" ||
