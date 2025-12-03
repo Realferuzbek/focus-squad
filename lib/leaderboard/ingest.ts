@@ -379,6 +379,22 @@ export async function storeLeaderboardFailure(
   }
 }
 
+export async function storeDebugIngestMeta(stage: string, extra?: unknown) {
+  const client = supabaseAdmin();
+  const { error } = await client.from("leaderboard_meta").upsert({
+    key: "debug_ingest",
+    value: {
+      stage,
+      extra,
+      recorded_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  });
+  if (error) {
+    console.error("leaderboard ingest: failed to persist debug meta", error);
+  }
+}
+
 function buildRecordsFromPayload(payload: LeaderboardExportPayload) {
   const postedAtIso = new Date(payload.posted_at).toISOString();
   const updatedAtIso = new Date().toISOString();

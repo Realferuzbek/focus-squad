@@ -7,6 +7,7 @@ import {
   payloadSchema,
   SECRET_HEADER,
   storeLeaderboardFailure,
+  storeDebugIngestMeta,
   storeSuccessfulLeaderboardPayload,
   trackerPayloadSchema,
   upsertLeaderboardPayload,
@@ -34,6 +35,10 @@ export async function POST(req: NextRequest) {
     rawBodyText = await req.text();
   } catch (error) {
     console.error("leaderboard ingest: failed to read request body", error);
+    await storeDebugIngestMeta(
+      "read-body-failed",
+      error instanceof Error ? error.message : error,
+    );
     return NextResponse.json(
       { error: "Invalid request body" },
       { status: 400 },
@@ -46,6 +51,10 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const reason = error instanceof Error ? error.message : "invalid json";
     const issues = [{ message: reason }];
+    await storeDebugIngestMeta("json-parse-failed", {
+      reason,
+      length: rawBodyText.length,
+    });
     await storeLeaderboardFailure("tracker-parse", rawBodyText, issues);
     return NextResponse.json({
       status: "stored-for-review",
@@ -54,8 +63,16 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  console.log("INGEST v2: received body length", rawBodyText.length);
+  await storeDebugIngestMeta("received", { length: rawBodyText.length });
+
   const trackerParseResult = trackerPayloadSchema.safeParse(rawBody);
+  console.log("INGEST v2: tracker parse success?", trackerParseResult.success);
   if (!trackerParseResult.success) {
+    await storeDebugIngestMeta(
+      "tracker-parse-failed",
+      trackerParseResult.error.issues,
+    );
     await storeLeaderboardFailure(
       "tracker-parse",
       rawBody,
@@ -69,8 +86,19 @@ export async function POST(req: NextRequest) {
   }
 
   const normalized = normalizeTrackerPayload(trackerParseResult.data);
+  console.log(
+    "INGEST v2: normalized payload boards",
+    normalized.boards.map((b) => b.scope),
+  );
+  await storeDebugIngestMeta("normalized", {
+    scopes: normalized.boards.map((b) => b.scope),
+  });
   const normalizedParseResult = payloadSchema.safeParse(normalized);
   if (!normalizedParseResult.success) {
+    await storeDebugIngestMeta(
+      "normalized-parse-failed",
+      normalizedParseResult.error.issues,
+    );
     await storeLeaderboardFailure(
       "normalized-parse",
       rawBody,
@@ -92,6 +120,8 @@ export async function POST(req: NextRequest) {
       updated: result.updated,
     });
     console.info("leaderboard ingest success", result);
+    console.log("INGEST v2: success", result);
+    await storeDebugIngestMeta("ok", result);
     return NextResponse.json({
       status: "ok",
       inserted: result.inserted,
@@ -100,6 +130,10 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("leaderboard ingest: failed to upsert snapshot", error);
     await storeLeaderboardFailure("db-upsert", rawBody, error);
+    await storeDebugIngestMeta(
+      "db-upsert-error",
+      error instanceof Error ? error.message : error,
+    );
     return NextResponse.json(
       {
         status: "error",
