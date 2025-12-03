@@ -3,10 +3,13 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import {
+  normalizeTrackerPayload,
+  payloadSchema,
   SECRET_HEADER,
-  storeFailedLeaderboardPayload,
+  storeLeaderboardFailure,
+  storeSuccessfulLeaderboardPayload,
+  trackerPayloadSchema,
   upsertLeaderboardPayload,
-  validateLeaderboardPayload,
 } from "@/lib/leaderboard/ingest";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
@@ -26,9 +29,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let rawBody = "";
+  let rawBodyText = "";
   try {
-    rawBody = await req.text();
+    rawBodyText = await req.text();
   } catch (error) {
     console.error("leaderboard ingest: failed to read request body", error);
     return NextResponse.json(
@@ -37,36 +40,57 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const client = supabaseAdmin();
-
-  const recordFailure = async (payload: unknown, issues: unknown) => {
-    await storeFailedLeaderboardPayload(client, payload, issues);
-    console.warn("leaderboard ingest: payload stored for review");
-    return NextResponse.json({ status: "stored-for-review", issues });
-  };
-
-  if (!rawBody) {
-    return recordFailure(rawBody, { reason: "empty_body" });
-  }
-
-  let parsed: unknown;
+  let rawBody: unknown;
   try {
-    parsed = JSON.parse(rawBody);
+    rawBody = JSON.parse(rawBodyText);
   } catch (error) {
     const reason = error instanceof Error ? error.message : "invalid json";
-    return recordFailure(rawBody, { reason: "invalid_json", message: reason });
+    const issues = [{ message: reason }];
+    await storeLeaderboardFailure("tracker-parse", rawBodyText, issues);
+    return NextResponse.json({
+      status: "stored-for-review",
+      stage: "tracker-parse",
+      issues,
+    });
   }
 
-  const validation = validateLeaderboardPayload(parsed);
-  if (!validation.success) {
-    return recordFailure(parsed, validation.issues);
+  const trackerParseResult = trackerPayloadSchema.safeParse(rawBody);
+  if (!trackerParseResult.success) {
+    await storeLeaderboardFailure(
+      "tracker-parse",
+      rawBody,
+      trackerParseResult.error.issues,
+    );
+    return NextResponse.json({
+      status: "stored-for-review",
+      stage: "tracker-parse",
+      issues: trackerParseResult.error.issues,
+    });
   }
+
+  const normalized = normalizeTrackerPayload(trackerParseResult.data);
+  const normalizedParseResult = payloadSchema.safeParse(normalized);
+  if (!normalizedParseResult.success) {
+    await storeLeaderboardFailure(
+      "normalized-parse",
+      rawBody,
+      normalizedParseResult.error.issues,
+    );
+    return NextResponse.json({
+      status: "stored-for-review",
+      stage: "normalized-parse",
+      issues: normalizedParseResult.error.issues,
+    });
+  }
+
+  const client = supabaseAdmin();
 
   try {
-    const result = await upsertLeaderboardPayload(
-      client,
-      validation.normalized,
-    );
+    const result = await upsertLeaderboardPayload(client, normalized);
+    await storeSuccessfulLeaderboardPayload(normalized, {
+      inserted: result.inserted,
+      updated: result.updated,
+    });
     console.info("leaderboard ingest success", result);
     return NextResponse.json({
       status: "ok",
@@ -75,6 +99,14 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("leaderboard ingest: failed to upsert snapshot", error);
-    return NextResponse.json({ error: "Database error" }, { status: 500 });
+    await storeLeaderboardFailure("db-upsert", rawBody, error);
+    return NextResponse.json(
+      {
+        status: "error",
+        stage: "db-upsert",
+        error: error instanceof Error ? error.message : "unknown supabase error",
+      },
+      { status: 500 },
+    );
   }
 }

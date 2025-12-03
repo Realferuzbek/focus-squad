@@ -323,6 +323,62 @@ export async function storeFailedLeaderboardPayload(
   return true;
 }
 
+export async function storeSuccessfulLeaderboardPayload(
+  payload: LeaderboardExportPayload,
+  result: { inserted: number; updated: number },
+) {
+  const client = supabaseAdmin();
+  const { error } = await client.from("leaderboard_meta").upsert({
+    key: "last_successful_payload",
+    value: {
+      stage: "ok",
+      payload,
+      result,
+      recorded_at: new Date().toISOString(),
+    },
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error(
+      "leaderboard ingest: failed to persist successful payload for review",
+      error,
+    );
+    return false;
+  }
+
+  return true;
+}
+
+export async function storeLeaderboardFailure(
+  stage: "tracker-parse" | "normalized-parse" | "db-upsert",
+  rawBody: unknown,
+  issuesOrError: unknown,
+) {
+  const client = supabaseAdmin();
+  const payloadIssues = {
+    stage,
+    issues: issuesOrError,
+    recorded_at: new Date().toISOString(),
+  };
+
+  try {
+    const stored = await storeFailedLeaderboardPayload(
+      client,
+      rawBody,
+      payloadIssues,
+    );
+    if (!stored) {
+      console.error("leaderboard ingest: failed to persist failure payload");
+    }
+  } catch (error) {
+    console.error(
+      "leaderboard ingest: error while persisting failure payload",
+      error,
+    );
+  }
+}
+
 function buildRecordsFromPayload(payload: LeaderboardExportPayload) {
   const postedAtIso = new Date(payload.posted_at).toISOString();
   const updatedAtIso = new Date().toISOString();
