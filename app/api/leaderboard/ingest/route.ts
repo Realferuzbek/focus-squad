@@ -40,15 +40,9 @@ export async function POST(req: NextRequest) {
   const client = supabaseAdmin();
 
   const recordFailure = async (payload: unknown, issues: unknown) => {
-    const stored = await storeFailedLeaderboardPayload(client, payload, issues);
-    if (!stored) {
-      return NextResponse.json(
-        { error: "Failed to persist invalid payload" },
-        { status: 500 },
-      );
-    }
+    await storeFailedLeaderboardPayload(client, payload, issues);
     console.warn("leaderboard ingest: payload stored for review");
-    return NextResponse.json({ status: "stored-for-review" });
+    return NextResponse.json({ status: "stored-for-review", issues });
   };
 
   if (!rawBody) {
@@ -65,13 +59,20 @@ export async function POST(req: NextRequest) {
 
   const validation = validateLeaderboardPayload(parsed);
   if (!validation.success) {
-    return recordFailure(parsed, validation.error.issues);
+    return recordFailure(parsed, validation.issues);
   }
 
   try {
-    const result = await upsertLeaderboardPayload(client, validation.data);
+    const result = await upsertLeaderboardPayload(
+      client,
+      validation.normalized,
+    );
     console.info("leaderboard ingest success", result);
-    return NextResponse.json(result);
+    return NextResponse.json({
+      status: "ok",
+      inserted: result.inserted,
+      updated: result.updated,
+    });
   } catch (error) {
     console.error("leaderboard ingest: failed to upsert snapshot", error);
     return NextResponse.json({ error: "Database error" }, { status: 500 });
