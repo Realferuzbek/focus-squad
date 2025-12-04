@@ -10,8 +10,8 @@ export interface LeaderboardSnapshot {
   period_end: string;
   posted_at: string;
   entries: LeaderboardEntry[];
-  message_id: number;
-  chat_id: number;
+  message_id: number | null | undefined;
+  chat_id: number | null | undefined;
 }
 
 type SnapshotRecord = Record<LeaderboardScope, LeaderboardSnapshot | null>;
@@ -52,8 +52,8 @@ async function fetchLatestSnapshots(): Promise<SnapshotRecord> {
           period_end: row.period_end as string,
           posted_at: row.posted_at as string,
           entries,
-          message_id: row.message_id as number,
-          chat_id: row.chat_id as number,
+          message_id: row.message_id as number | null | undefined,
+          chat_id: row.chat_id as number | null | undefined,
         } satisfies LeaderboardSnapshot,
       ] as const;
     }),

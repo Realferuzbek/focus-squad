@@ -123,8 +123,19 @@ export const trackerPayloadSchema = z
       return !Number.isNaN(parsed.getTime());
     }, "posted_at must be a parseable ISO timestamp"),
     source: z.literal("tracker"),
-    message_id: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
-    chat_id: z.number().int().max(Number.MAX_SAFE_INTEGER),
+    message_id: z
+      .number()
+      .int()
+      .min(1)
+      .max(Number.MAX_SAFE_INTEGER)
+      .nullable()
+      .optional(),
+    chat_id: z
+      .number()
+      .int()
+      .max(Number.MAX_SAFE_INTEGER)
+      .nullable()
+      .optional(),
     boards: z.array(trackerBoardSchema).length(REQUIRED_SCOPES.length),
   })
   .passthrough()
@@ -226,8 +237,19 @@ export const payloadSchema = z
       return !Number.isNaN(parsed.getTime());
     }, "posted_at must be an ISO timestamp in UTC (ending with Z)"),
     source: z.literal("tracker"),
-    message_id: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
-    chat_id: z.number().int().max(Number.MAX_SAFE_INTEGER),
+    message_id: z
+      .number()
+      .int()
+      .min(1)
+      .max(Number.MAX_SAFE_INTEGER)
+      .nullable()
+      .optional(),
+    chat_id: z
+      .number()
+      .int()
+      .max(Number.MAX_SAFE_INTEGER)
+      .nullable()
+      .optional(),
     boards: z.array(boardSchema).length(REQUIRED_SCOPES.length),
   })
   .superRefine((payload, ctx) => {

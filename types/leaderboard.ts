@@ -18,8 +18,8 @@ export interface LeaderboardBoardSnapshot {
 export interface LeaderboardExportPayload {
   posted_at: string;
   source: "tracker";
-  message_id: number;
-  chat_id: number;
+  message_id: number | null | undefined;
+  chat_id: number | null | undefined;
   boards: LeaderboardBoardSnapshot[];
 }
 
@@ -29,14 +29,14 @@ export interface LeaderboardRow {
   period_start: string;
   period_end: string;
   posted_at: string;
-  message_id: number;
-  chat_id: number;
+  message_id: number | null | undefined;
+  chat_id: number | null | undefined;
   entries: LeaderboardEntry[];
   raw_snapshot: LeaderboardBoardSnapshot & {
     posted_at: string;
     source: "tracker";
-    message_id: number;
-    chat_id: number;
+    message_id: number | null | undefined;
+    chat_id: number | null | undefined;
   };
   created_at: string;
   updated_at: string;
