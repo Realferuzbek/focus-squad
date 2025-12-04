@@ -95,12 +95,9 @@ export const trackerBoardSchema = z
 export const trackerPayloadSchema = z
   .object({
     posted_at: z.string().refine((value) => {
-      if (!value.endsWith("Z")) {
-        return false;
-      }
       const parsed = new Date(value);
       return !Number.isNaN(parsed.getTime());
-    }, "posted_at must be an ISO timestamp in UTC (ending with Z)"),
+    }, "posted_at must be a parseable ISO timestamp"),
     source: z.literal("tracker"),
     message_id: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
     chat_id: z.number().int().max(Number.MAX_SAFE_INTEGER),
@@ -237,8 +234,10 @@ type AdminClient = ReturnType<typeof supabaseAdmin>;
 export function normalizeTrackerPayload(
   payload: TrackerPayload,
 ): LeaderboardExportPayload {
+  const normalizedPostedAt = new Date(payload.posted_at).toISOString();
+
   return {
-    posted_at: payload.posted_at,
+    posted_at: normalizedPostedAt,
     source: payload.source,
     message_id: payload.message_id,
     chat_id: payload.chat_id,
