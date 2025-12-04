@@ -451,12 +451,31 @@ type UpsertResult = {
   posted_at: string;
 };
 
+type LeaderboardIdentifier = {
+  scope: LeaderboardScope;
+  period_start: string;
+  period_end: string;
+};
+
+function buildExistingRowsFilter(rows: LeaderboardIdentifier[]) {
+  return rows
+    .map((row) =>
+      [
+        `scope.eq.${row.scope}`,
+        `period_start.eq.${row.period_start}`,
+        `period_end.eq.${row.period_end}`,
+      ].join(","),
+    )
+    .map((group) => `and(${group})`)
+    .join(",");
+}
+
 export async function upsertLeaderboardPayload(
   client: AdminClient,
   payload: LeaderboardExportPayload,
 ) {
   const records = buildRecordsFromPayload(payload);
-  const identifiers = records.map((record) => ({
+  const identifiers: LeaderboardIdentifier[] = records.map((record) => ({
     scope: record.scope,
     period_start: record.period_start,
     period_end: record.period_end,
@@ -464,18 +483,14 @@ export async function upsertLeaderboardPayload(
 
   let existingCount = 0;
   if (identifiers.length > 0) {
-    const orFilters = identifiers
-      .map(
-        (identifier) =>
-          `(scope.eq.${identifier.scope},period_start.eq.${identifier.period_start},period_end.eq.${identifier.period_end})`,
-      )
-      .join(",");
+    const orFilter = buildExistingRowsFilter(identifiers);
 
-    if (orFilters) {
+    if (orFilter) {
+      console.info("INGEST v2: existing rows filter", { orFilter });
       const { data: existingRows, error: existingError } = await client
         .from("leaderboards")
         .select("scope, period_start, period_end")
-        .or(orFilters);
+        .or(orFilter);
 
       if (existingError) {
         console.error(
