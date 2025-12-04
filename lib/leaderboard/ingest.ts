@@ -40,37 +40,61 @@ export const trackerEntrySchema = z
   })
   .passthrough();
 
+function normalizeTrackerDate(
+  raw: string,
+  ctx: z.RefinementCtx,
+  label: "period_start" | "period_end",
+): string | typeof z.NEVER {
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(raw);
+  if (!match) {
+    ctx.addIssue({
+      code: "invalid_string",
+      validation: "regex",
+      message: `${label} must be YYYY-MM-DD`,
+    });
+    return z.NEVER;
+  }
+
+  const datePart = match[1];
+  const [yearStr, monthStr, dayStr] = datePart.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+
+  const d = new Date(Date.UTC(year, month - 1, day));
+  const valid =
+    !Number.isNaN(d.getTime()) &&
+    d.getUTCFullYear() === year &&
+    d.getUTCMonth() === month - 1 &&
+    d.getUTCDate() === day;
+
+  if (!valid) {
+    ctx.addIssue({
+      code: "custom",
+      message: `${label} is not a valid calendar date`,
+    });
+    return z.NEVER;
+  }
+
+  return datePart;
+}
+
+const trackerDateSchema = (label: "period_start" | "period_end") =>
+  z.string().transform((value, ctx) =>
+    normalizeTrackerDate(value, ctx, label),
+  );
+
 export const trackerBoardSchema = z
   .object({
     scope: z.enum(REQUIRED_SCOPES),
     title: z.string(),
     header: z.string(),
-    period_start: z
-      .string()
-      .regex(ISO_DATE_PATTERN, "period_start must be YYYY-MM-DD"),
-    period_end: z
-      .string()
-      .regex(ISO_DATE_PATTERN, "period_end must be YYYY-MM-DD"),
+    period_start: trackerDateSchema("period_start"),
+    period_end: trackerDateSchema("period_end"),
     entries: z.array(trackerEntrySchema).max(5),
   })
   .passthrough()
   .superRefine((board, ctx) => {
-    if (!isValidIsoDate(board.period_start)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "period_start is not a valid calendar date",
-        path: ["period_start"],
-      });
-    }
-
-    if (!isValidIsoDate(board.period_end)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "period_end is not a valid calendar date",
-        path: ["period_end"],
-      });
-    }
-
     if (board.scope === "day" && board.period_start !== board.period_end) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
