@@ -2,6 +2,7 @@ import { supabaseAdmin } from "@/lib/supabaseServer";
 import { REQUIRED_SCOPES } from "./ingest";
 import type {
   LeaderboardExportPayload,
+  LeaderboardEntry,
   LeaderboardScope,
 } from "@/types/leaderboard";
 
@@ -11,7 +12,10 @@ export interface LeaderboardSnapshotRow {
   period_start: string;
   period_end: string;
   posted_at: string;
-  payload: LeaderboardExportPayload;
+  message_id: number | null | undefined;
+  chat_id: number | null | undefined;
+  entries: LeaderboardEntry[];
+  payload?: LeaderboardExportPayload | null;
 }
 
 export type LeaderboardHistoryByScope = Record<
@@ -47,9 +51,12 @@ export async function getLeaderboardHistory(
 ): Promise<LeaderboardSnapshotRow[]> {
   const client = supabaseAdmin();
   const { data, error } = await client
-    .from("leaderboard_snapshots")
-    .select("id, scope, period_start, period_end, posted_at, payload")
+    .from("leaderboards")
+    .select(
+      "id, scope, period_start, period_end, posted_at, message_id, chat_id, entries",
+    )
     .eq("scope", scope)
+    .order("period_start", { ascending: false })
     .order("posted_at", { ascending: false })
     .limit(limit);
 
@@ -57,14 +64,31 @@ export async function getLeaderboardHistory(
     throw error;
   }
 
-  return (data ?? []).map((row) => ({
-    id: String(row.id),
-    scope: row.scope as LeaderboardScope,
-    period_start: normalizeDateString(row.period_start),
-    period_end: normalizeDateString(row.period_end),
-    posted_at: normalizePostedAt(row.posted_at),
-    payload: (row.payload ?? null) as LeaderboardExportPayload,
-  }));
+  return (data ?? []).map((row) => {
+    const messageId =
+      row.message_id === null || row.message_id === undefined
+        ? row.message_id
+        : Number(row.message_id);
+    const chatId =
+      row.chat_id === null || row.chat_id === undefined
+        ? row.chat_id
+        : Number(row.chat_id);
+    const entries = Array.isArray(row.entries)
+      ? (row.entries as LeaderboardEntry[])
+      : [];
+
+    return {
+      id: String(row.id),
+      scope: row.scope as LeaderboardScope,
+      period_start: normalizeDateString(row.period_start),
+      period_end: normalizeDateString(row.period_end),
+      posted_at: normalizePostedAt(row.posted_at),
+      message_id: messageId as number | null | undefined,
+      chat_id: chatId as number | null | undefined,
+      entries,
+      payload: null,
+    } satisfies LeaderboardSnapshotRow;
+  });
 }
 
 export async function getLeaderboardHistoryByScope(

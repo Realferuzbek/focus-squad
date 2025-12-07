@@ -75,6 +75,17 @@ const SCOPE_CONFIG: Record<LeaderboardScope, ScopeConfig> = {
 
 const SCOPES: LeaderboardScope[] = ["day", "week", "month"];
 
+function buildTelegramMessageLink(
+  chatId: number | null | undefined,
+  messageId: number | null | undefined,
+) {
+  if (!chatId || !messageId) return null;
+  const chatSegment = String(chatId).startsWith("-100")
+    ? String(chatId).slice(4)
+    : String(Math.abs(chatId));
+  return `https://t.me/c/${chatSegment}/${messageId}`;
+}
+
 function rankAccent(rank: number) {
   if (rank === 1)
     return "bg-[linear-gradient(135deg,#facc15,#f97316)] text-black shadow-[0_12px_30px_rgba(250,204,21,0.35)]";
@@ -93,11 +104,15 @@ function buildCardSnapshotsFromPayload(
     week: null,
     month: null,
   };
-  if (!snapshot || !snapshot.payload || !Array.isArray(snapshot.payload.boards)) {
+  if (!snapshot) {
     return empty;
   }
 
-  snapshot.payload.boards.forEach((board) => {
+  const boards = Array.isArray(snapshot.payload?.boards)
+    ? snapshot.payload.boards
+    : [];
+
+  boards.forEach((board) => {
     empty[board.scope] = {
       scope: board.scope,
       period_start: board.period_start,
@@ -106,6 +121,16 @@ function buildCardSnapshotsFromPayload(
       entries: Array.isArray(board.entries) ? board.entries : [],
     };
   });
+
+  if (boards.length === 0) {
+    empty[snapshot.scope] = {
+      scope: snapshot.scope,
+      period_start: snapshot.period_start,
+      period_end: snapshot.period_end,
+      posted_at: snapshot.posted_at,
+      entries: snapshot.entries,
+    };
+  }
 
   return empty;
 }
@@ -470,9 +495,20 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
   if (!open) return null;
 
   const secondaryLine = (snapshot: LeaderboardSnapshotRow) => {
-    const topEntry = getTopEntryFromSnapshot(snapshot.payload, scope);
+    const topEntryFromPayload = getTopEntryFromSnapshot(
+      snapshot.payload,
+      scope,
+    );
+    const topEntry =
+      topEntryFromPayload ||
+      (snapshot.entries.length > 0
+        ? [...snapshot.entries].sort((a, b) => a.rank - b.rank)[0]
+        : null);
     if (!topEntry) return "No entries";
-    return `#1 @${topEntry.username} \u00b7 ${formatMinutes(topEntry.minutes)}`;
+    const username = topEntry.username.startsWith("@")
+      ? topEntry.username.slice(1)
+      : topEntry.username;
+    return `#1 @${username} \u00b7 ${formatMinutes(topEntry.minutes)}`;
   };
 
   const handleSelectSnapshot = (id: string) => {
@@ -549,6 +585,10 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
               ) : (
                 historyList.map((snapshot) => {
                   const selected = snapshot.id === selectedSnapshot?.id;
+                  const telegramUrl = buildTelegramMessageLink(
+                    snapshot.chat_id,
+                    snapshot.message_id,
+                  );
                   return (
                     <button
                       key={snapshot.id}
@@ -572,6 +612,21 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
                           <p className="mt-1 text-xs text-white/60">
                             {secondaryLine(snapshot)}
                           </p>
+                          {telegramUrl ? (
+                            <a
+                              href={telegramUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(event) => event.stopPropagation()}
+                              className="mt-1 inline-flex items-center gap-1 text-[11px] text-fuchsia-100 underline underline-offset-4"
+                            >
+                              Open in Telegram
+                            </a>
+                          ) : (
+                            <span className="mt-1 inline-block text-[11px] text-white/45">
+                              No Telegram message (backfill only)
+                            </span>
+                          )}
                         </div>
                         <ChevronRight className="h-4 w-4 text-white/50" />
                       </div>
