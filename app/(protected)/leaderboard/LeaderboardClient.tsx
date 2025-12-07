@@ -572,7 +572,7 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
 
           <div className="flex flex-col gap-6 md:flex-row">
             <div
-              className={`flex w-full max-h-[calc(100vh-3rem)] flex-col overflow-y-auto border-white/10 md:w-[40%] md:border-r ${mobileDetail ? "hidden md:flex" : "flex"}`}
+              className={`flex w-full max-h-[calc(100vh-3rem)] flex-col overflow-y-auto hide-scrollbar border-white/10 md:w-[40%] md:border-r ${mobileDetail ? "hidden md:flex" : "flex"}`}
             >
               <div className="flex gap-2 border-b border-white/10 px-6 py-4">
                 {SCOPES.map((scopeOption) => (
@@ -662,7 +662,7 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
             </div>
 
             <div
-              className={`flex flex-1 max-h-[calc(100vh-3rem)] flex-col overflow-y-auto ${mobileDetail ? "flex" : "hidden md:flex"}`}
+              className={`flex flex-1 max-h-[calc(100vh-3rem)] flex-col overflow-y-auto hide-scrollbar ${mobileDetail ? "flex" : "hidden md:flex"}`}
             >
               <div className="flex items-center justify-between gap-3 border-b border-white/10 px-6 py-4">
                 <div className="flex items-center gap-3">

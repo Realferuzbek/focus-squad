@@ -26,14 +26,16 @@
   --ai-status-error: #f87171;
 }
 
-/* ---- Chat: hide native scroll chrome (no floating widgets), keep wheel/touch scrolling ---- */
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.hide-scrollbar::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+@layer utilities {
+  /* Hide native scrollbars while preserving scroll interaction */
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Composer should not show resize handles or number spinners ever */
