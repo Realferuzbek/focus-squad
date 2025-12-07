@@ -395,49 +395,61 @@ function ScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
       </div>
 
       <div className="mt-6 rounded-2xl border border-white/5 bg-black/30 p-4">
-        {snapshot && snapshot.entries.length > 0 ? (
-          <ol className="space-y-3">
-            {snapshot.entries.map((entry) => (
-              <li
-                key={entry.rank}
-                className="grid grid-cols-[auto,1fr,auto] items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-3 pr-4 text-sm text-white shadow-[0_18px_40px_rgba(8,7,21,0.45)]"
-              >
-                <div
-                  className={`flex h-11 w-11 items-center justify-center rounded-2xl text-lg font-semibold ${rankAccent(entry.rank)}`}
+        {snapshot ? (
+          snapshot.entries.length > 0 ? (
+            <ol className="space-y-3">
+              {snapshot.entries.map((entry) => (
+                <li
+                  key={entry.rank}
+                  className="grid grid-cols-[auto,1fr,auto] items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-3 pr-4 text-sm text-white shadow-[0_18px_40px_rgba(8,7,21,0.45)]"
                 >
-                  #{entry.rank}
-                </div>
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-white">
-                      @{entry.username}
-                    </span>
-                    {entry.title ? (
-                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] uppercase tracking-[0.25em] text-white/60">
-                        {entry.title}
-                      </span>
-                    ) : null}
+                  <div
+                    className={`flex h-11 w-11 items-center justify-center rounded-2xl text-lg font-semibold ${rankAccent(entry.rank)}`}
+                  >
+                    #{entry.rank}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-white/60">
-                    <span className="font-mono text-sm text-white/80">
-                      {formatMinutes(entry.minutes)}
-                    </span>
-                    {entry.emojis.length > 0 ? (
-                      <span className="text-base leading-none">
-                        {entry.emojis.join(" ")}
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-white">
+                        @{entry.username}
                       </span>
-                    ) : null}
+                      {entry.title ? (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] uppercase tracking-[0.25em] text-white/60">
+                          {entry.title}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-white/60">
+                      <span className="font-mono text-sm text-white/80">
+                        {formatMinutes(entry.minutes)}
+                      </span>
+                      {entry.emojis.length > 0 ? (
+                        <span className="text-base leading-none">
+                          {entry.emojis.join(" ")}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                    Minutes
-                  </p>
-                  <p className="font-semibold text-white/80">{entry.minutes}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
+                  <div className="text-right">
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/40">
+                      Minutes
+                    </p>
+                    <p className="font-semibold text-white/80">
+                      {entry.minutes}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <div className="flex min-h-[160px] flex-col items-center justify-center gap-3 text-center text-sm text-white/55">
+              <span className="text-2xl">📂</span>
+              <p>No entries</p>
+              <p className="text-xs text-white/35">
+                Snapshot stored without leaderboard entries.
+              </p>
+            </div>
+          )
         ) : (
           <div className="flex min-h-[160px] flex-col items-center justify-center gap-3 text-center text-sm text-white/55">
             <span className="text-2xl">🕒</span>

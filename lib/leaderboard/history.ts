@@ -47,7 +47,7 @@ function normalizePostedAt(value: unknown) {
 
 export async function getLeaderboardHistory(
   scope: LeaderboardScope,
-  limit = 60,
+  limit = 90,
 ): Promise<LeaderboardSnapshotRow[]> {
   const client = supabaseAdmin();
   const { data, error } = await client
@@ -56,7 +56,6 @@ export async function getLeaderboardHistory(
       "id, scope, period_start, period_end, posted_at, message_id, chat_id, entries",
     )
     .eq("scope", scope)
-    .order("period_start", { ascending: false })
     .order("posted_at", { ascending: false })
     .limit(limit);
 
@@ -92,7 +91,7 @@ export async function getLeaderboardHistory(
 }
 
 export async function getLeaderboardHistoryByScope(
-  limit = 60,
+  limit = 90,
 ): Promise<LeaderboardHistoryByScope> {
   const results = await Promise.all(
     REQUIRED_SCOPES.map(async (scope) => {

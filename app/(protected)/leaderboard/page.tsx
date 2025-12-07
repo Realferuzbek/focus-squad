@@ -47,7 +47,7 @@ export default async function LeaderboardPage() {
   }
 
   try {
-    historyByScope = await getLeaderboardHistoryByScope(30);
+    historyByScope = await getLeaderboardHistoryByScope(90);
   } catch (error) {
     console.error("leaderboard: failed to load leaderboard history", error);
     historyByScope = EMPTY_HISTORY;
