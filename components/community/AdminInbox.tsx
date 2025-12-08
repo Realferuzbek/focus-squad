@@ -91,7 +91,7 @@ export default function AdminInbox({
 
   const panel = (
     <div
-      className="flex h-full w-full flex-col gap-4 overflow-hidden border-r border-white/10 bg-[#080813]/95 p-4 text-white"
+      className="flex h-full w-full flex-col gap-4 overflow-hidden bg-[#080813]/95 p-4 text-white md:border-r md:border-white/10"
       role="navigation"
       aria-label="Admin chat inbox"
     >
@@ -110,7 +110,7 @@ export default function AdminInbox({
         </button>
       </div>
 
-      <div className="flex flex-col gap-2 overflow-y-auto pr-1">
+      <div className="admin-chat-inbox flex min-h-0 flex-col gap-2 overflow-y-auto pr-1">
         {sortedThreads.map((thread) => {
           const isActive = thread.id === activeThreadId;
           const avatar =
@@ -129,10 +129,10 @@ export default function AdminInbox({
               key={thread.id}
               type="button"
               onClick={() => handleSelect(thread.id)}
-              className={`group flex items-center gap-3 rounded-2xl border border-transparent px-3 py-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
+              className={`group flex items-center gap-3 rounded-2xl border px-3 py-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${
                 isActive
-                  ? "bg-white/10"
-                  : "hover:border-white/15 hover:bg-white/5"
+                  ? "border-white/15 bg-gradient-to-r from-[rgba(139,92,246,0.18)] via-[rgba(59,130,246,0.1)] to-transparent shadow-[0_18px_55px_rgba(124,58,237,0.35)] ring-1 ring-[var(--swf-glow-end,#8b5cf6)]/60"
+                  : "border-transparent hover:border-white/15 hover:bg-white/5"
               }`}
               aria-current={isActive ? "true" : "false"}
             >

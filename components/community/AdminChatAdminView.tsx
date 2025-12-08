@@ -9,6 +9,8 @@ import AdminChatClient, {
 } from "@/components/community/AdminChatClient";
 import type { AdminInboxThread } from "@/lib/community/admin/server";
 import { supabaseBrowser } from "@/lib/supabaseClient";
+import GlowPanel from "@/components/GlowPanel";
+import { MessageCircle } from "lucide-react";
 
 type AdminChatAdminViewProps = {
   user: ChatUser;
@@ -176,40 +178,63 @@ export default function AdminChatAdminView({
   }, []);
 
   const showThreadPane = !!activeThreadIdState && !collapsed;
+  const hasActiveThread = !!activeThreadIdState;
 
   return (
     <div className="min-h-[100dvh] bg-[#07070b] px-4 py-8 text-white md:py-12">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 md:flex-row md:gap-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 md:grid md:grid-cols-[320px,minmax(0,1fr)] md:gap-6 lg:gap-8">
         <div
-          className={`md:sticky md:top-10 md:h-[calc(100vh-5rem)] md:flex md:flex-shrink-0 ${
+          className={`md:sticky md:top-12 md:h-[calc(100vh-7rem)] md:min-h-[320px] md:flex md:flex-shrink-0 ${
             showThreadPane ? "md:w-80" : "md:w-full"
           }`}
         >
-          <AdminInbox
-            threads={threads}
-            activeThreadId={activeThreadIdState}
-            currentAdminId={user.id}
-            isMobileOpen={mobileInboxOpen}
-            onCloseMobile={() => setMobileInboxOpen(false)}
-            onThreadOpen={handleThreadOpen}
-            onSelectThread={handleThreadSelect}
-          />
+          <div className="h-full overflow-hidden rounded-3xl border border-white/10 bg-[#080813]/80 shadow-[0_25px_80px_-32px_rgba(119,88,247,0.55)]">
+            <AdminInbox
+              threads={threads}
+              activeThreadId={activeThreadIdState}
+              currentAdminId={user.id}
+              isMobileOpen={mobileInboxOpen}
+              onCloseMobile={() => setMobileInboxOpen(false)}
+              onThreadOpen={handleThreadOpen}
+              onSelectThread={handleThreadSelect}
+            />
+          </div>
         </div>
         <div
           className={`${
             showThreadPane ? "flex" : "hidden"
-          } flex-1 md:flex md:min-h-[calc(100vh-5rem)]`}
+          } flex-1 md:flex md:min-h-[calc(100vh-7rem)]`}
         >
-          <AdminChatClient
-            user={user}
-            initialThread={initialThread}
-            forcedThreadId={activeThreadIdState ?? undefined}
-            threadDisplayMeta={displayMeta}
-            inboxOpen={mobileInboxOpen}
-            onToggleInbox={() => setMobileInboxOpen((prev) => !prev)}
-            onCloseInbox={() => setMobileInboxOpen(false)}
-            onCollapseToInbox={handleCollapse}
-          />
+          {hasActiveThread ? (
+            <AdminChatClient
+              user={user}
+              initialThread={initialThread}
+              forcedThreadId={activeThreadIdState ?? undefined}
+              threadDisplayMeta={displayMeta}
+              inboxOpen={mobileInboxOpen}
+              onToggleInbox={() => setMobileInboxOpen((prev) => !prev)}
+              onCloseInbox={() => setMobileInboxOpen(false)}
+              onCollapseToInbox={handleCollapse}
+            />
+          ) : (
+            <GlowPanel
+              subtle
+              className="flex h-[calc(100vh-7rem)] min-h-[480px] flex-1 flex-col items-center justify-center gap-4 rounded-3xl text-center"
+            >
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5 text-3xl text-white/80 shadow-[0_20px_80px_rgba(124,58,237,0.35)]">
+                <MessageCircle className="h-8 w-8" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold text-white">
+                  Open a conversation
+                </h2>
+                <p className="max-w-md text-sm text-white/70">
+                  Select a member from the inbox to view and reply to their
+                  messages.
+                </p>
+              </div>
+            </GlowPanel>
+          )}
         </div>
       </div>
     </div>
