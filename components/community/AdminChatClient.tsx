@@ -1978,61 +1978,6 @@ export default function AdminChatClient({
               </div>
             </div>
           </div>
-<<<<<<< ours
-        </div>
-      </div>
-    </div>
-    <AnimatePresence>
-      {emojiOpen && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 10 }}
-          id={emojiMenuId}
-          className="fixed bottom-24 right-4 z-50 shadow-2xl md:right-10"
-        >
-          <GlowPanel subtle className="p-2">
-            <EmojiPicker
-              theme="dark"
-              onEmojiSelect={(emoji: any) => {
-                handleInsertEmoji(emoji);
-              }}
-              onClickOutside={() => setEmojiOpen(false)}
-            />
-          </GlowPanel>
-        </motion.div>
-      )}
-    </AnimatePresence>
-
-    <AnimatePresence>
-      {auditOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur"
-          onClick={() => setAuditOpen(false)}
-        >
-          <motion.div
-            initial={{ x: 320 }}
-            animate={{ x: 0 }}
-            exit={{ x: 320 }}
-            transition={{ type: "spring", stiffness: 260, damping: 28 }}
-            className="h-full w-full max-w-md overflow-y-auto border-l border-white/10 bg-[#090912]/95 px-6 py-6 text-white shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-semibold">Recent actions</h3>
-                <p className="text-xs text-white/50">
-                  Logged events for this thread.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="text-sm text-white/60 transition hover:text-white"
-                onClick={() => setAuditOpen(false)}
-=======
         )}
         <AnimatePresence>
           {emojiOpen && (
@@ -2068,16 +2013,15 @@ export default function AdminChatClient({
               <motion.div
                 initial={{ x: 320 }}
                 animate={{ x: 0 }}
-                exit={{ x: 320 }}
-                transition={{ type: "spring", stiffness: 260, damping: 28 }}
-                className="h-full w-full max-w-md overflow-y-auto border-l border-white/10 bg-[#090912]/95 px-6 py-6 text-white shadow-2xl"
-                onClick={(event) => event.stopPropagation()}
->>>>>>> theirs
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-lg font-semibold">Recent actions</h3>
-                    <p className="text-xs text-white/50">
+              exit={{ x: 320 }}
+              transition={{ type: "spring", stiffness: 260, damping: 28 }}
+              className="h-full w-full max-w-md overflow-y-auto border-l border-white/10 bg-[#090912]/95 px-6 py-6 text-white shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold">Recent actions</h3>
+                <p className="text-xs text-white/50">
                       Logged events for this thread.
                     </p>
                   </div>
