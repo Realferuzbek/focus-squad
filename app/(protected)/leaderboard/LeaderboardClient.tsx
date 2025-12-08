@@ -686,17 +686,17 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-40">
+    <div className="fixed inset-0 z-40 overflow-hidden overscroll-none">
       <div
         className="absolute inset-0 bg-[#04030c]/70 backdrop-blur-2xl transition duration-200"
         onClick={onClose}
       />
-      <div className="relative z-50 flex h-full w-full items-center justify-center px-3 py-4 sm:p-6">
+      <div className="relative z-50 flex h-full w-full overflow-hidden items-center justify-center px-3 py-4 sm:p-6">
         <div
           role="dialog"
           aria-modal="true"
           onClick={(event) => event.stopPropagation()}
-          className="relative flex h-full w-full max-h-[calc(100vh-2rem)] max-w-6xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-[#0b0c1a]/92 via-[#060712]/93 to-[#04040c]/96 text-white shadow-[0_35px_120px_rgba(0,0,0,0.6)]"
+          className="relative flex h-full min-h-0 w-full max-h-[calc(100vh-2rem)] max-w-6xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-[#0b0c1a]/92 via-[#060712]/93 to-[#04040c]/96 text-white shadow-[0_35px_120px_rgba(0,0,0,0.6)]"
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-fuchsia-300/40 via-white/30 to-cyan-300/40" />
           <div className="flex flex-col gap-4 border-b border-white/10 p-5 sm:p-6 md:p-7">
@@ -758,9 +758,9 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
             </div>
           </div>
 
-          <div className="flex flex-1 flex-col md:flex-row md:divide-x md:divide-white/10">
+          <div className="flex min-h-0 flex-1 flex-col md:flex-row md:divide-x md:divide-white/10">
             <div
-              className={`relative flex w-full flex-col bg-transparent md:w-[38%] md:min-w-[320px] md:max-w-[400px] ${mobileDetail ? "hidden md:flex" : "flex"}`}
+              className={`relative flex min-h-0 w-full flex-col bg-transparent md:w-[38%] md:min-w-[320px] md:max-w-[400px] ${mobileDetail ? "hidden md:flex" : "flex"}`}
             >
               <div className="flex items-center justify-between gap-3 px-5 pb-3 pt-5 md:pt-6">
                 <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-white/55">
@@ -772,8 +772,8 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
                   </span>
                 </div>
               </div>
-              <div className="flex-1 overflow-hidden">
-                <div className="h-full space-y-3 overflow-y-auto px-5 pb-6 hide-scrollbar">
+              <div className="flex-1 overflow-hidden min-h-0">
+                <div className="h-full space-y-3 overflow-y-auto overscroll-contain px-5 pb-6 hide-scrollbar">
                   {historyList.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
                       <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-white/10 via-white/5 to-white/10 text-2xl shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
@@ -849,7 +849,7 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
             </div>
 
             <div
-              className={`relative flex flex-1 flex-col ${mobileDetail ? "flex" : "hidden md:flex"}`}
+              className={`relative flex min-h-0 flex-1 flex-col ${mobileDetail ? "flex" : "hidden md:flex"}`}
             >
               <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
                 <div className="flex flex-wrap items-center gap-2">
@@ -870,9 +870,9 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-hidden min-h-0">
                 {selectedSnapshot ? (
-                  <div className="h-full overflow-y-auto px-5 pb-6 pt-4 hide-scrollbar">
+                  <div className="h-full overflow-y-auto overscroll-contain px-5 pb-6 pt-4 hide-scrollbar">
                     <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:grid-cols-2">
                       <div className="space-y-1">
                         <p className="text-[11px] uppercase tracking-[0.32em] text-white/50">
