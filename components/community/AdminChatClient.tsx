@@ -1980,7 +1980,6 @@ export default function AdminChatClient({
           </div>
         </div>
       </div>
-    </div>
     <AnimatePresence>
       {emojiOpen && (
         <motion.div
@@ -2294,7 +2293,6 @@ export default function AdminChatClient({
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
     </div>
   );
 }
