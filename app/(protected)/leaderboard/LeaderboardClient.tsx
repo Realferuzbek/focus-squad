@@ -159,6 +159,165 @@ function buildLiveCardSnapshots(
   return mapped;
 }
 
+type ScopeCardProps = {
+  scope: LeaderboardScope;
+  snapshot: CardSnapshot | null;
+  badgeLabel: string;
+};
+
+type SnapshotEmptyStateProps = {
+  icon: string;
+  title: string;
+  subtitle: string;
+};
+
+function SnapshotEmptyState({
+  icon,
+  title,
+  subtitle,
+}: SnapshotEmptyStateProps) {
+  return (
+    <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 text-center text-sm text-white/60">
+      <span className="text-2xl">{icon}</span>
+      <p className="font-semibold text-white">{title}</p>
+      <p className="text-xs text-white/45">{subtitle}</p>
+    </div>
+  );
+}
+
+function LeaderboardEntryRow({ entry }: { entry: LeaderboardEntry }) {
+  return (
+    <li className="group rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[0_18px_45px_rgba(8,7,21,0.35)] transition-transform transition-shadow duration-200 ease-out hover:-translate-y-[2px] hover:scale-[1.01] hover:shadow-[0_25px_55px_rgba(8,7,21,0.45)]">
+      <div className="flex flex-col gap-3 md:grid md:grid-cols-[auto,1fr,auto] md:items-center md:gap-4">
+        <div
+          className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold uppercase tracking-tight ${rankAccent(entry.rank)}`}
+        >
+          #{entry.rank}
+        </div>
+
+        <div className="min-w-0 space-y-1">
+          <p
+            className="truncate text-base font-semibold text-white"
+            title={`@${entry.username}`}
+          >
+            @{entry.username}
+          </p>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
+            {entry.title ? (
+              <span className="truncate" title={entry.title}>
+                {entry.title}
+              </span>
+            ) : null}
+            {entry.emojis.length > 0 ? (
+              <span className="text-base leading-none">{entry.emojis.join(" ")}</span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex items-end justify-between gap-2 text-right md:flex-col md:items-end md:justify-center md:gap-1">
+          <span className="text-[11px] uppercase tracking-[0.3em] text-white/45">
+            Minutes
+          </span>
+          <span
+            className="text-lg font-semibold text-white"
+            title={`${entry.minutes} minutes`}
+          >
+            {formatMinutes(entry.minutes)}
+          </span>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function LiveScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
+  const config = SCOPE_CONFIG[scope];
+  const iconClasses = [
+    "grid h-12 w-12 place-items-center rounded-2xl border border-white/15 text-xl shadow-[0_12px_32px_rgba(0,0,0,0.35)]",
+    `bg-gradient-to-br ${config.accent}`,
+  ].join(" ");
+
+  const badgeClasses =
+    badgeLabel === "LIVE"
+      ? "border-emerald-400/35 bg-emerald-500/20 text-emerald-50 shadow-[0_8px_20px_rgba(16,185,129,0.25)]"
+      : "border-white/15 bg-white/5 text-white/65";
+
+  return (
+    <GlowPanel
+      subtle={config.subtle}
+      className="flex h-full flex-col bg-gradient-to-br from-indigo-950/70 via-slate-950/65 to-black/80 p-5 sm:p-6"
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex flex-1 items-center gap-3">
+          <div className={iconClasses}>{config.icon}</div>
+          <div className="leading-tight">
+            <p className="text-[11px] uppercase tracking-[0.32em] text-white/45">
+              {scope === "day" ? "Day" : scope === "week" ? "Week" : "Month"}
+            </p>
+            <h2 className="text-lg font-semibold text-white">{config.label}</h2>
+          </div>
+        </div>
+        <span
+          className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.35em] ${badgeClasses}`}
+        >
+          {badgeLabel}
+        </span>
+      </div>
+
+      <p className="mt-3 text-sm text-white/65">{config.tagline}</p>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-white/45">
+            Period
+          </p>
+          <p className="mt-1 font-semibold leading-snug text-white">
+            {snapshot
+              ? formatPeriodForCard(scope, snapshot.period_start, snapshot.period_end)
+              : "Awaiting first snapshot"}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] uppercase tracking-[0.3em] text-white/45">
+            Posted
+          </p>
+          <p className="mt-1 leading-snug text-white/75">
+            {snapshot ? formatPostedLabel(snapshot.posted_at ?? null) : "Not published yet"}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex-1 rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 via-white/5 to-white/0 p-3">
+        {snapshot ? (
+          snapshot.entries.length > 0 ? (
+            <ol className="space-y-3">
+              {snapshot.entries.map((entry) => (
+                <LeaderboardEntryRow key={entry.rank} entry={entry} />
+              ))}
+            </ol>
+          ) : (
+            <SnapshotEmptyState
+              icon="📂"
+              title="No entries"
+              subtitle="Snapshot stored without leaderboard entries."
+            />
+          )
+        ) : (
+          <SnapshotEmptyState
+            icon="🕒"
+            title="No snapshot stored for this period yet."
+            subtitle="Snapshots appear automatically once the tracker posts to Telegram."
+          />
+        )}
+      </div>
+
+      <p className="mt-4 text-xs text-white/45">
+        Synced from Study With Me tracker
+      </p>
+    </GlowPanel>
+  );
+}
+
 export default function LeaderboardClient({
   snapshots,
   historyByScope,
@@ -249,18 +408,19 @@ export default function LeaderboardClient({
                 <button
                   type="button"
                   onClick={() => setHistoryOpen(true)}
-                  className="group flex min-w-[110px] flex-col justify-center rounded-3xl border border-white/10 bg-white/5 px-4 text-sm text-white/80 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10"
+                  className="group relative flex min-w-[120px] flex-col justify-center overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-r from-fuchsia-500/10 via-purple-500/10 to-cyan-400/10 px-4 py-3 text-sm text-white/85 shadow-[0_18px_50px_rgba(0,0,0,0.4)] transition hover:-translate-y-0.5 hover:border-white/30 hover:shadow-[0_24px_70px_rgba(124,58,237,0.25)]"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2 font-semibold">
+                  <span className="pointer-events-none absolute inset-0 opacity-40 blur-xl bg-gradient-to-r from-white/10 via-fuchsia-200/15 to-cyan-200/10" />
+                  <div className="relative flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 font-semibold tracking-tight">
                       <History className="h-4 w-4 text-fuchsia-200/90 transition group-hover:scale-105" />
                       History
                     </span>
-                    <span className="rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.28em] text-white/60">
+                    <span className="rounded-full border border-white/20 bg-white/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.28em] text-white/70 shadow-[0_10px_30px_rgba(124,58,237,0.25)]">
                       New
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-white/50">
+                  <p className="relative mt-1 text-xs text-white/60">
                     Browse past snapshots
                   </p>
                 </button>
@@ -268,9 +428,9 @@ export default function LeaderboardClient({
             </div>
           </header>
 
-          <section className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+          <section className="grid gap-6 md:grid-cols-3">
             {SCOPES.map((scope) => (
-              <ScopeCard
+              <LiveScopeCard
                 key={scope}
                 scope={scope}
                 snapshot={liveSnapshots[scope]}
@@ -334,137 +494,125 @@ export default function LeaderboardClient({
   );
 }
 
-type ScopeCardProps = {
-  scope: LeaderboardScope;
-  snapshot: CardSnapshot | null;
-  badgeLabel: string;
-};
-
 function ScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
   const config = SCOPE_CONFIG[scope];
-  const iconClasses = [
-    "grid h-12 w-12 place-items-center rounded-2xl border border-white/15 text-2xl shadow-[0_12px_32px_rgba(0,0,0,0.35)]",
-    `bg-gradient-to-br ${config.accent}`,
-  ].join(" ");
 
   const badgeClasses =
-    badgeLabel === "LIVE"
-      ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-50"
-      : "border-white/15 bg-white/5 text-white/65";
+    badgeLabel === "SNAPSHOT"
+      ? "border-emerald-300/50 bg-emerald-400/20 text-emerald-50 shadow-[0_10px_30px_rgba(16,185,129,0.3)]"
+      : "border-white/20 bg-white/10 text-white/65";
+
+  const scopeLabel = scope === "day" ? "Day" : scope === "week" ? "Week" : "Month";
+
+  const SnapshotEntryRow = ({ entry }: { entry: LeaderboardEntry }) => (
+    <li className="group relative flex items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white transition duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/10">
+      <div
+        className={`flex h-11 w-11 items-center justify-center rounded-2xl text-sm font-semibold uppercase tracking-tight ${rankAccent(entry.rank)}`}
+      >
+        #{entry.rank}
+      </div>
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="truncate font-semibold">@{entry.username}</p>
+        <div className="flex flex-wrap items-center gap-1 text-[11px] text-white/60">
+          {entry.title ? (
+            <span className="truncate" title={entry.title}>
+              {entry.title}
+            </span>
+          ) : null}
+          {entry.emojis.length > 0 ? (
+            <span className="text-base leading-none">{entry.emojis.join(" ")}</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="text-right">
+        <p className="text-[10px] uppercase tracking-[0.26em] text-white/45">Minutes</p>
+        <p className="font-semibold text-white">{formatMinutes(entry.minutes)}</p>
+      </div>
+    </li>
+  );
 
   return (
-    <GlowPanel
-      subtle={config.subtle}
-      className="bg-gradient-to-br from-[#111122] via-[#0a0a16] to-[#03030a]/95"
-    >
-      <div className="flex items-start justify-between gap-3 border-b border-white/5 pb-5">
-        <div className="flex items-center gap-3">
-          <div className={iconClasses}>{config.icon}</div>
-          <div>
-            <h2 className="text-xl font-semibold text-white/90">
-              {config.label}
-            </h2>
-            <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-              {scope}
-            </p>
+    <div className="relative h-full overflow-hidden rounded-[24px] border border-white/15 bg-gradient-to-br from-[#0f1122]/85 via-[#0a0d18]/82 to-[#05060f]/90 p-5 shadow-[0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur">
+      <div
+        className={`pointer-events-none absolute -left-10 -top-16 h-48 w-48 rounded-full opacity-40 blur-3xl ${`bg-gradient-to-br ${config.accent}`}`}
+      />
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-white/10 via-white/30 to-white/10" />
+      <div className="relative flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div
+            className={`grid h-12 w-12 place-items-center rounded-2xl border border-white/15 text-xl shadow-[0_14px_36px_rgba(0,0,0,0.35)] bg-gradient-to-br ${config.accent}`}
+          >
+            {config.icon}
+          </div>
+          <div className="space-y-1 leading-tight">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] uppercase tracking-[0.32em] text-white/70">
+                Snapshot
+              </span>
+              <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.32em] text-white/80">
+                {scopeLabel}
+              </span>
+            </div>
+            <h2 className="text-lg font-semibold text-white">{config.label}</h2>
+            <p className="text-xs text-white/60">{config.tagline}</p>
           </div>
         </div>
         <span
-          className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.35em] ${badgeClasses}`}
+          className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.35em] ${badgeClasses}`}
         >
           {badgeLabel}
         </span>
       </div>
 
-      <div className="mt-4 flex flex-col gap-3">
-        <p className="text-sm text-white/65">{config.tagline}</p>
-        <p className="text-xs uppercase tracking-[0.35em] text-white/40">
-          Period
-        </p>
-        <p className="text-sm font-medium text-white/80">
-          {snapshot
-            ? formatPeriodForCard(scope, snapshot.period_start, snapshot.period_end)
-            : "Awaiting first snapshot"}
-        </p>
-        <p className="text-xs uppercase tracking-[0.35em] text-white/40">
-          Posted
-        </p>
-        <p className="text-sm text-white/75">
-          {snapshot ? formatPostedLabel(snapshot.posted_at ?? null) : "Not published yet"}
-        </p>
+      <div className="relative mt-4 grid grid-cols-2 gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Period</p>
+          <p className="mt-1 font-semibold leading-snug text-white">
+            {snapshot
+              ? formatPeriodForCard(scope, snapshot.period_start, snapshot.period_end)
+              : "Awaiting first snapshot"}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Posted</p>
+          <p className="mt-1 leading-snug text-white/80">
+            {snapshot ? formatPostedLabel(snapshot.posted_at ?? null) : "Not published yet"}
+          </p>
+        </div>
       </div>
 
-      <div className="mt-6 rounded-2xl border border-white/5 bg-black/30 p-4">
+      <div className="relative mt-4 rounded-2xl border border-white/10 bg-black/30 p-3 backdrop-blur-md">
         {snapshot ? (
           snapshot.entries.length > 0 ? (
-            <ol className="space-y-3">
+            <ol className="space-y-2.5">
               {snapshot.entries.map((entry) => (
-                <li
-                  key={entry.rank}
-                  className="grid grid-cols-[auto,1fr,auto] items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-3 pr-4 text-sm text-white shadow-[0_18px_40px_rgba(8,7,21,0.45)]"
-                >
-                  <div
-                    className={`flex h-11 w-11 items-center justify-center rounded-2xl text-lg font-semibold ${rankAccent(entry.rank)}`}
-                  >
-                    #{entry.rank}
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-white">
-                        @{entry.username}
-                      </span>
-                      {entry.title ? (
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] uppercase tracking-[0.25em] text-white/60">
-                          {entry.title}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-white/60">
-                      <span className="font-mono text-sm text-white/80">
-                        {formatMinutes(entry.minutes)}
-                      </span>
-                      {entry.emojis.length > 0 ? (
-                        <span className="text-base leading-none">
-                          {entry.emojis.join(" ")}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                      Minutes
-                    </p>
-                    <p className="font-semibold text-white/80">
-                      {entry.minutes}
-                    </p>
-                  </div>
-                </li>
+                <SnapshotEntryRow key={entry.rank} entry={entry} />
               ))}
             </ol>
           ) : (
-            <div className="flex min-h-[160px] flex-col items-center justify-center gap-3 text-center text-sm text-white/55">
+            <div className="flex min-h-[170px] flex-col items-center justify-center gap-3 text-center text-sm text-white/60">
               <span className="text-2xl">📂</span>
-              <p>No entries</p>
-              <p className="text-xs text-white/35">
-                Snapshot stored without leaderboard entries.
+              <p className="font-semibold text-white">No entries</p>
+              <p className="text-xs text-white/45">
+                No entries recorded for this snapshot.
               </p>
             </div>
           )
         ) : (
-          <div className="flex min-h-[160px] flex-col items-center justify-center gap-3 text-center text-sm text-white/55">
+          <div className="flex min-h-[170px] flex-col items-center justify-center gap-3 text-center text-sm text-white/60">
             <span className="text-2xl">🕒</span>
-            <p>No snapshot stored for this period yet.</p>
-            <p className="text-xs text-white/35">
+            <p className="font-semibold text-white">No snapshot stored for this period yet.</p>
+            <p className="text-xs text-white/45">
               Snapshots appear automatically once the tracker posts to Telegram.
             </p>
           </div>
         )}
       </div>
 
-      <div className="mt-6 text-xs text-white/45">
+      <div className="mt-5 text-[11px] uppercase tracking-[0.3em] text-white/40">
         Synced from Study With Me tracker
       </div>
-    </GlowPanel>
+    </div>
   );
 }
 
@@ -538,144 +686,183 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-40 bg-black/60"
-      onClick={onClose}
-    >
-      <div className="flex h-full w-full items-center justify-center p-4 md:p-6">
+    <div className="fixed inset-0 z-40">
+      <div
+        className="absolute inset-0 bg-[#04030c]/70 backdrop-blur-2xl transition duration-200"
+        onClick={onClose}
+      />
+      <div className="relative z-50 flex h-full w-full items-center justify-center px-3 py-4 sm:p-6">
         <div
           role="dialog"
           aria-modal="true"
           onClick={(event) => event.stopPropagation()}
-          className="flex max-h-[calc(100vh-2rem)] w-full max-w-5xl flex-col gap-6 overflow-y-auto rounded-3xl bg-[#05030b] px-6 py-5 text-white shadow-xl"
+          className="relative flex h-full w-full max-h-[calc(100vh-2rem)] max-w-6xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-[#0b0c1a]/92 via-[#060712]/93 to-[#04040c]/96 text-white shadow-[0_35px_120px_rgba(0,0,0,0.6)]"
         >
-          <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-5">
-            <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-white/45">
-                History
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold">
-                Leaderboard history
-              </h2>
-              <p className="text-sm text-white/60">
-                Browse past Telegram snapshots by scope.
-              </p>
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-fuchsia-300/40 via-white/30 to-cyan-300/40" />
+          <div className="flex flex-col gap-4 border-b border-white/10 p-5 sm:p-6 md:p-7">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-2">
+                <p className="text-[11px] uppercase tracking-[0.38em] text-white/55">
+                  History
+                </p>
+                <h2 className="bg-gradient-to-r from-white via-fuchsia-100 to-cyan-100 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
+                  Leaderboard history
+                </h2>
+                <p className="max-w-2xl text-sm text-white/65">
+                  Browse past Telegram snapshots by scope.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white/80 transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/15 hover:text-white"
+              >
+                Close
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-white/70 transition hover:border-white/20 hover:text-white"
-            >
-              Close
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-6 md:flex-row">
-            <div
-              className={`flex w-full max-h-[calc(100vh-3rem)] flex-col overflow-y-auto hide-scrollbar border-white/10 md:w-[40%] md:border-r ${mobileDetail ? "hidden md:flex" : "flex"}`}
-            >
-              <div className="flex gap-2 border-b border-white/10 px-6 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-white/55">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/65">
+                  Choose scope
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/65">
+                  {scope === "day" ? "Day" : scope === "week" ? "Week" : "Month"} view
+                </span>
+              </div>
+              <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 p-1 shadow-[0_12px_45px_rgba(8,7,21,0.45)]">
                 {SCOPES.map((scopeOption) => (
                   <button
                     key={scopeOption}
                     type="button"
                     onClick={() => setScope(scopeOption)}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    className={`relative min-w-[96px] overflow-hidden rounded-full px-4 py-2 text-sm font-semibold transition duration-200 ${
                       scopeOption === scope
-                        ? "bg-white text-black shadow-[0_10px_30px_rgba(255,255,255,0.2)]"
-                        : "border border-white/10 bg-white/5 text-white/70 hover:border-white/20"
+                        ? "bg-gradient-to-r from-fuchsia-500/80 via-purple-500/80 to-cyan-400/80 text-white shadow-[0_15px_45px_rgba(124,58,237,0.35)]"
+                        : "text-white/70 hover:text-white"
                     }`}
                     aria-pressed={scopeOption === scope}
                   >
-                    {scopeOption === "day"
-                      ? "Day"
-                      : scopeOption === "week"
-                        ? "Week"
-                        : "Month"}
+                    <span className="relative z-10">
+                      {scopeOption === "day"
+                        ? "Day"
+                        : scopeOption === "week"
+                          ? "Week"
+                          : "Month"}
+                    </span>
+                    {scopeOption === scope ? (
+                      <span className="absolute inset-0 z-0 opacity-60 blur-lg bg-gradient-to-r from-white/70 via-fuchsia-200/60 to-cyan-200/60" />
+                    ) : null}
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
 
-              <div className="flex-1 space-y-2 px-6 py-4">
-                {historyList.length === 0 ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-white/50">
-                    <span className="text-2xl">📂</span>
-                    <p>No snapshots stored yet.</p>
-                    <p className="text-xs text-white/35">
-                      Once the tracker posts to Telegram, snapshots will appear
-                      here.
-                    </p>
-                  </div>
-                ) : (
-                  historyList.map((snapshot) => {
-                    const selected = snapshot.id === selectedSnapshot?.id;
-                    const telegramUrl = buildTelegramMessageLink(
-                      snapshot.chat_id,
-                      snapshot.message_id,
-                    );
-                    return (
-                      <button
-                        key={snapshot.id}
-                        type="button"
-                        onClick={() => handleSelectSnapshot(snapshot.id)}
-                        className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
-                          selected
-                            ? "border-white/30 bg-white/5 shadow-[0_15px_40px_rgba(8,7,21,0.35)]"
-                            : "border-white/10 bg-white/0 hover:border-white/20 hover:bg-white/5"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-white">
-                              {formatHistoryPeriodLabel(
-                                scope,
-                                snapshot.period_start,
-                                snapshot.period_end,
+          <div className="flex flex-1 flex-col md:flex-row md:divide-x md:divide-white/10">
+            <div
+              className={`relative flex w-full flex-col bg-transparent md:w-[38%] md:min-w-[320px] md:max-w-[400px] ${mobileDetail ? "hidden md:flex" : "flex"}`}
+            >
+              <div className="flex items-center justify-between gap-3 px-5 pb-3 pt-5 md:pt-6">
+                <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-white/55">
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70">
+                    Timeline
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70">
+                    {scope === "day" ? "Day" : scope === "week" ? "Week" : "Month"}
+                  </span>
+                </div>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <div className="h-full space-y-3 overflow-y-auto px-5 pb-6 hide-scrollbar">
+                  {historyList.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
+                      <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-white/10 via-white/5 to-white/10 text-2xl shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+                        📂
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-semibold text-white">No snapshots stored yet.</p>
+                        <p className="text-xs text-white/45">
+                          Once the tracker posts to Telegram, snapshots will appear here.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    historyList.map((snapshot) => {
+                      const selected = snapshot.id === selectedSnapshot?.id;
+                      const telegramUrl = buildTelegramMessageLink(
+                        snapshot.chat_id,
+                        snapshot.message_id,
+                      );
+                      return (
+                        <button
+                          key={snapshot.id}
+                          type="button"
+                          onClick={() => handleSelectSnapshot(snapshot.id)}
+                          className={`group relative w-full overflow-hidden rounded-2xl border px-4 py-3 text-left transition duration-200 ${
+                            selected
+                              ? "border-fuchsia-300/50 bg-gradient-to-br from-white/10 via-white/5 to-transparent shadow-[0_25px_70px_rgba(124,58,237,0.25)] ring-2 ring-fuchsia-300/35"
+                              : "border-white/10 bg-white/0 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/5 hover:shadow-[0_18px_45px_rgba(0,0,0,0.35)]"
+                          }`}
+                        >
+                          <div
+                            className={`absolute left-0 top-0 h-full w-1.5 bg-gradient-to-b ${selected ? "from-fuchsia-400 via-purple-400 to-cyan-300" : "from-white/10 via-white/5 to-transparent"}`}
+                          />
+                          <div className="relative flex items-start gap-3">
+                            <div className="flex-1 space-y-1.5">
+                              <p className="text-sm font-semibold text-white">
+                                {formatHistoryPeriodLabel(
+                                  scope,
+                                  snapshot.period_start,
+                                  snapshot.period_end,
+                                )}
+                              </p>
+                              <p className="text-xs text-white/60">
+                                {secondaryLine(snapshot)}
+                              </p>
+                              {telegramUrl ? (
+                                <a
+                                  href={telegramUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(event) => event.stopPropagation()}
+                                  className="group/link inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-fuchsia-100 transition hover:border-fuchsia-200/60 hover:bg-fuchsia-500/10 hover:text-white"
+                                >
+                                  <span>Open in Telegram</span>
+                                  <ChevronRight className="h-3 w-3 transition group-hover/link:translate-x-0.5" />
+                                </a>
+                              ) : (
+                                <span className="inline-flex text-[11px] text-white/50">
+                                  No Telegram message (backfill only)
+                                </span>
                               )}
-                            </p>
-                            <p className="mt-1 text-xs text-white/60">
-                              {secondaryLine(snapshot)}
-                            </p>
-                            {telegramUrl ? (
-                              <a
-                                href={telegramUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={(event) => event.stopPropagation()}
-                                className="mt-1 inline-flex items-center gap-1 text-[11px] text-fuchsia-100 underline underline-offset-4"
-                              >
-                                Open in Telegram
-                              </a>
-                            ) : (
-                              <span className="mt-1 inline-block text-[11px] text-white/45">
-                                No Telegram message (backfill only)
-                              </span>
-                            )}
+                            </div>
+                            <div className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition group-hover:border-white/25 group-hover:text-white/80">
+                              <ChevronRight className="h-4 w-4" />
+                            </div>
                           </div>
-                          <ChevronRight className="h-4 w-4 text-white/50" />
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
 
             <div
-              className={`flex flex-1 max-h-[calc(100vh-3rem)] flex-col overflow-y-auto hide-scrollbar ${mobileDetail ? "flex" : "hidden md:flex"}`}
+              className={`relative flex flex-1 flex-col ${mobileDetail ? "flex" : "hidden md:flex"}`}
             >
-              <div className="flex items-center justify-between gap-3 border-b border-white/10 px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.28em] text-white/65">
+              <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white/65">
                     Snapshot
                   </span>
-                  <span className="text-xs uppercase tracking-[0.35em] text-white/40">
-                    {scope}
+                  <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white/70">
+                    {scope === "day" ? "Day" : scope === "week" ? "Week" : "Month"}
                   </span>
                 </div>
                 <button
                   type="button"
-                  className="md:hidden inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1 text-sm text-white/70"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-sm text-white/75 transition hover:border-white/30 hover:text-white md:hidden"
                   onClick={() => setMobileDetail(false)}
                 >
                   <ArrowLeft className="h-4 w-4" />
@@ -683,47 +870,58 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
                 </button>
               </div>
 
-              {selectedSnapshot ? (
-                <>
-                  <div className="border-b border-white/10 px-6 py-4">
-                    <p className="text-xs uppercase tracking-[0.35em] text-white/40">
-                      Period
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-white">
-                      {formatHistoryDetailLabel(
-                        scope,
-                        selectedSnapshot.period_start,
-                        selectedSnapshot.period_end,
-                      )}
-                    </p>
-                    <p className="text-sm text-white/60">
-                      {formatPostedLabel(selectedSnapshot.posted_at)}
-                    </p>
-                  </div>
+              <div className="flex-1 overflow-hidden">
+                {selectedSnapshot ? (
+                  <div className="h-full overflow-y-auto px-5 pb-6 pt-4 hide-scrollbar">
+                    <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <p className="text-[11px] uppercase tracking-[0.32em] text-white/50">
+                          Period
+                        </p>
+                        <p className="text-lg font-semibold text-white">
+                          {formatHistoryDetailLabel(
+                            scope,
+                            selectedSnapshot.period_start,
+                            selectedSnapshot.period_end,
+                          )}
+                        </p>
+                      </div>
+                      <div className="space-y-1 sm:text-right">
+                        <p className="text-[11px] uppercase tracking-[0.32em] text-white/50">
+                          Posted
+                        </p>
+                        <p className="text-sm text-white/75">
+                          {formatPostedLabel(selectedSnapshot.posted_at)}
+                        </p>
+                      </div>
+                    </div>
 
-                  <div className="grid gap-4 px-6 py-5 md:grid-cols-2 xl:grid-cols-3">
-                    {SCOPES.map((scopeKey) => (
-                      <ScopeCard
-                        key={scopeKey}
-                        scope={scopeKey}
-                        snapshot={snapshotBoards[scopeKey]}
-                        badgeLabel={
-                          snapshotBoards[scopeKey] ? "SNAPSHOT" : "MISSING"
-                        }
-                      />
-                    ))}
+                    <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {SCOPES.map((scopeKey) => (
+                        <ScopeCard
+                          key={scopeKey}
+                          scope={scopeKey}
+                          snapshot={snapshotBoards[scopeKey]}
+                          badgeLabel={snapshotBoards[scopeKey] ? "SNAPSHOT" : "MISSING"}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </>
-              ) : (
-                <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-sm text-white/55">
-                  <span className="text-2xl">🗂️</span>
-                  <p>Select a snapshot on the left to view details.</p>
-                </div>
-              )}
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 px-5 text-center text-sm text-white/60">
+                    <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white/5 text-2xl shadow-[0_16px_40px_rgba(0,0,0,0.4)]">
+                      🗂️
+                    </div>
+                    <p className="font-semibold text-white">
+                      Select a snapshot on the left to view details.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="border-t border-white/10 pt-3 text-xs text-white/50">
+          <div className="border-t border-white/10 bg-white/5 px-5 py-3 text-xs text-white/55">
             <p>Synced from Study With Me tracker</p>
             <p className="text-white/35">
               Oldest snapshots may be pruned automatically.
