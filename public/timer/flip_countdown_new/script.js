@@ -3,6 +3,22 @@
 // =======================
 
 // ----- State -----
+const ASSET_VERSION = "2025-12-08-1";
+const VERSION_PARAM = `v=${ASSET_VERSION}`;
+function withAssetVersion(url) {
+  if (!url || !ASSET_VERSION) return url;
+  const stringUrl = String(url);
+  if (/^(?:data:|blob:)/i.test(stringUrl)) return stringUrl;
+  const [base, hash = ""] = stringUrl.split("#");
+  const stripped = base
+    .replace(/([?&])v=[^&#]*/gi, "$1")
+    .replace(/[?&]$/, "");
+  const hasQuery = stripped.includes("?");
+  const joiner = hasQuery ? "&" : "?";
+  const versionedBase = `${stripped}${joiner}${VERSION_PARAM}`;
+  return hash ? `${versionedBase}#${hash}` : versionedBase;
+}
+
 const DEFAULT_TIMER_MINUTES = Object.freeze({
   pomodoro: 25,
   short: 5,
@@ -152,6 +168,20 @@ const TRANSLATIONS = {
   },
 };
 
+function safeParseJSON(key, defaultValue) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return defaultValue;
+    const parsed = JSON.parse(raw);
+    return parsed ?? defaultValue;
+  } catch (_) {
+    try {
+      localStorage.removeItem(key);
+    } catch (_) {}
+    return defaultValue;
+  }
+}
+
 let currentLanguage = loadLanguage();
 
 function loadLanguage() {
@@ -189,20 +219,22 @@ const supportsPerformanceNow =
 // === Background + Fullscreen wiring ===
 const BG_STORE_KEY = "bg-url";
 const BG_LEGACY_KEY = "bg:src";
-const DEFAULT_BG = "assets/backgrounds/background_3.jpg";
+const DEFAULT_BG_SRC = "assets/backgrounds/background_3.jpg";
+const DEFAULT_BG = withAssetVersion(DEFAULT_BG_SRC);
+const DEFAULT_BG_KEY = normalizeBackgroundKey(DEFAULT_BG).toLowerCase();
 const $ = (sel) => document.querySelector(sel);
 
 function currentBg() {
   try {
-    const stored = localStorage.getItem(BG_STORE_KEY);
-    if (stored) return stored;
-    const legacy = localStorage.getItem(BG_LEGACY_KEY);
-    if (legacy) return legacy;
+    const stored = (localStorage.getItem(BG_STORE_KEY) || "").trim();
+    if (stored) return withAssetVersion(stored);
+    const legacy = (localStorage.getItem(BG_LEGACY_KEY) || "").trim();
+    if (legacy) return withAssetVersion(legacy);
   } catch (_) {}
   return "";
 }
 
-let appliedBackground = currentBg();
+let appliedBackground = currentBg() || DEFAULT_BG;
 
 const modeButtons = Array.from(document.querySelectorAll(".mode-btn"));
 const startBtn = document.getElementById("startBtn");
@@ -227,25 +259,27 @@ const MODE_LABEL_KEYS = {
 function resolveBackgroundUrl(src) {
   if (!src) return "";
   if (/^(?:https?:|data:|blob:)/i.test(src)) return src;
+  const normalizedSrc = withAssetVersion(src);
   try {
-    return new URL(src, import.meta.url).toString();
+    return withAssetVersion(new URL(normalizedSrc, import.meta.url).toString());
   } catch (_) {
-    return src;
+    return normalizedSrc;
   }
 }
 
 function normalizeBackgroundKey(url) {
   if (!url) return "";
-  const normalized = url.replace(/\\/g, "/");
-  const idx = normalized.lastIndexOf("assets/backgrounds/");
+  const normalized = String(url).replace(/\\/g, "/");
+  const [pathOnly] = normalized.split("?");
+  const idx = pathOnly.lastIndexOf("assets/backgrounds/");
   if (idx !== -1) {
-    return normalized.slice(idx);
+    return pathOnly.slice(idx);
   }
-  return normalized;
+  return pathOnly;
 }
 
 function themeNameFor(url) {
-  const key = normalizeBackgroundKey(url);
+  const key = normalizeBackgroundKey(url).toLowerCase();
   return THEME_NAME_MAP[key] || DEFAULT_THEME_KEY;
 }
 
@@ -352,9 +386,14 @@ function initLanguageControls() {
 }
 
 function applyBackground(url, { persist = true } = {}) {
-  if (!url) return;
-  const resolved = resolveBackgroundUrl(url);
-  if (!resolved) return;
+  const target = url || DEFAULT_BG;
+  const resolved = resolveBackgroundUrl(target);
+  if (!resolved) {
+    if (target !== DEFAULT_BG) {
+      applyBackground(DEFAULT_BG, { persist: false });
+    }
+    return;
+  }
   const cssValue = `url("${resolved}")`;
   if (bgDiv) {
     bgDiv.style.backgroundImage = cssValue;
@@ -372,12 +411,19 @@ function applyBackground(url, { persist = true } = {}) {
   document.body.style.backgroundAttachment = "fixed";
   document.body.style.removeProperty("filter");
   document.body.style.removeProperty("-webkit-filter");
-  appliedBackground = url;
+  appliedBackground = target;
   if (persist) {
     try {
-      localStorage.setItem(BG_STORE_KEY, url);
-      localStorage.setItem(BG_LEGACY_KEY, url);
+      localStorage.setItem(BG_STORE_KEY, target);
+      localStorage.setItem(BG_LEGACY_KEY, target);
     } catch (_) {}
+  }
+  if (target !== DEFAULT_BG) {
+    const img = new Image();
+    img.onerror = () => {
+      applyBackground(DEFAULT_BG, { persist: true });
+    };
+    img.src = resolved;
   }
 }
 
@@ -478,11 +524,7 @@ function applyTimerMinutes(
 }
 
 function loadTimerPresets() {
-  let stored = null;
-  try {
-    const raw = localStorage.getItem(TIMER_STORE_KEY);
-    if (raw) stored = JSON.parse(raw);
-  } catch (_) {}
+  const stored = safeParseJSON(TIMER_STORE_KEY, null);
   const minutes = { ...DEFAULT_TIMER_MINUTES };
   if (stored && typeof stored === "object") {
     ["pomodoro", "short", "long"].forEach((key) => {
@@ -594,8 +636,8 @@ function closeSheet() {
 async function loadImagesManifest() {
   // Prefer server-enumerated list (auto-updates on deploy), fall back to legacy manifest.
   const sources = [
-    () => fetch("/api/backgrounds", { cache: "no-store" }),
-    () => fetch("assets/images.json", { cache: "no-store" }),
+    () => fetch(withAssetVersion("/api/backgrounds"), { cache: "no-store" }),
+    () => fetch(withAssetVersion("assets/images.json"), { cache: "no-store" }),
   ];
 
   for (const getSource of sources) {
@@ -608,17 +650,19 @@ async function loadImagesManifest() {
         : Array.isArray(data.images)
           ? data.images
           : [];
-      const cleaned = list.filter(
-        (p) => typeof p === "string" && /\.(png|jpe?g)$/i.test(p),
-      );
+      const cleaned = list
+        .map((p) => (typeof p === "string" ? p.trim() : ""))
+        .filter((p) => p && /\.(png|jpe?g)$/i.test(p));
       if (cleaned.length) {
         const seen = new Set();
-        return cleaned.filter((url) => {
-          const key = url.toLowerCase();
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
+        return cleaned
+          .filter((url) => {
+            const key = normalizeBackgroundKey(url).toLowerCase();
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .map((url) => withAssetVersion(url));
       }
     } catch (_) {
       // try next source
@@ -650,11 +694,36 @@ async function initAppearance() {
 
   const images = await loadImagesManifest();
   const saved = currentBg();
-  const availableSet = new Set(images);
-  const initial =
-    saved && availableSet.has(saved) ? saved : images[0] || saved || DEFAULT_BG;
+  const savedKey = normalizeBackgroundKey(saved);
+  const savedKeyNormalized = savedKey.toLowerCase();
+  const availableKeys = new Set(
+    images
+      .map((url) => normalizeBackgroundKey(url).toLowerCase())
+      .filter(Boolean),
+  );
+  const initial = (() => {
+    if (savedKey) {
+      if (availableKeys.has(savedKeyNormalized)) {
+        const match =
+          images.find(
+            (url) =>
+              normalizeBackgroundKey(url).toLowerCase() === savedKeyNormalized,
+          ) || DEFAULT_BG;
+        return match;
+      }
+      return DEFAULT_BG;
+    }
+    return images[0] || DEFAULT_BG;
+  })();
+  const initialKey =
+    normalizeBackgroundKey(initial).toLowerCase() || DEFAULT_BG_KEY;
+  const shouldPersistInitial =
+    Boolean(images.length) || (savedKey && initial === DEFAULT_BG);
 
-  applyBackground(initial, { persist: Boolean(images.length) });
+  applyBackground(
+    availableKeys.has(initialKey) ? initial : DEFAULT_BG,
+    { persist: shouldPersistInitial },
+  );
 
   if (!grid || !bgBtn || !sheet) {
     return;
@@ -734,7 +803,8 @@ const bgDiv = document.querySelector(".bg");
 function resolveBundled(relPath) {
   // file:/// URL that works from the current module (asar-safe)
   // When serving on web, host /assets/* alongside this script.
-  return new URL(relPath, import.meta.url).toString();
+  const resolved = new URL(relPath, import.meta.url).toString();
+  return withAssetVersion(resolved);
 }
 
 function loadBundledAssets() {

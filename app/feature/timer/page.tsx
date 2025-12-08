@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { TimerTelemetryBeacon } from "@/components/TimerTelemetryBeacon";
+import { TIMER_APP_SRC } from "./constants";
 
-const TIMER_APP_SRC = "/timer/flip_countdown_new/index.html";
 const TIMER_TELEMETRY_ENABLED =
   (process.env.ENABLE_TIMER_TELEMETRY ?? "1").trim() !== "0";
 
