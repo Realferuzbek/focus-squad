@@ -700,7 +700,7 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
         >
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-fuchsia-300/40 via-white/30 to-cyan-300/40" />
           <div className="flex flex-col gap-4 border-b border-white/10 p-5 sm:p-6 md:p-7">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-2">
                 <p className="text-[11px] uppercase tracking-[0.38em] text-white/55">
                   History
@@ -720,15 +720,7 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
                 Close
               </button>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-white/55">
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/65">
-                  Choose scope
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/65">
-                  {scope === "day" ? "Day" : scope === "week" ? "Week" : "Month"} view
-                </span>
-              </div>
+            <div className="flex justify-end">
               <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 p-1 shadow-[0_12px_45px_rgba(8,7,21,0.45)]">
                 {SCOPES.map((scopeOption) => (
                   <button
@@ -758,9 +750,9 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col md:flex-row md:divide-x md:divide-white/10">
+          <div className="flex min-h-0 flex-1 flex-col md:flex-row md:gap-8">
             <div
-              className={`relative flex min-h-0 w-full flex-col bg-transparent md:w-[38%] md:min-w-[320px] md:max-w-[400px] ${mobileDetail ? "hidden md:flex" : "flex"}`}
+              className={`relative flex min-h-0 w-full flex-col md:w-[380px] md:min-w-[360px] md:max-w-[420px] md:flex-none ${mobileDetail ? "hidden md:flex" : "flex"}`}
             >
               <div className="flex items-center justify-between gap-3 px-5 pb-3 pt-5 md:pt-6">
                 <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.32em] text-white/55">
@@ -851,18 +843,10 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
             <div
               className={`relative flex min-h-0 flex-1 flex-col ${mobileDetail ? "flex" : "hidden md:flex"}`}
             >
-              <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white/65">
-                    Snapshot
-                  </span>
-                  <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white/70">
-                    {scope === "day" ? "Day" : scope === "week" ? "Week" : "Month"}
-                  </span>
-                </div>
+              <div className="flex items-center justify-end px-5 pt-5 md:hidden">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-sm text-white/75 transition hover:border-white/30 hover:text-white md:hidden"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-sm text-white/75 transition hover:border-white/30 hover:text-white"
                   onClick={() => setMobileDetail(false)}
                 >
                   <ArrowLeft className="h-4 w-4" />
@@ -872,7 +856,7 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
 
               <div className="flex-1 overflow-hidden min-h-0">
                 {selectedSnapshot ? (
-                  <div className="h-full overflow-y-auto overscroll-contain px-5 pb-6 pt-4 hide-scrollbar">
+                  <div className="h-full overflow-y-auto overscroll-contain px-5 pb-6 pt-5 md:pt-6 hide-scrollbar">
                     <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:grid-cols-2">
                       <div className="space-y-1">
                         <p className="text-[11px] uppercase tracking-[0.32em] text-white/50">
@@ -896,7 +880,7 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="mt-5 grid gap-6 sm:grid-cols-2 md:grid-cols-3">
                       {SCOPES.map((scopeKey) => (
                         <ScopeCard
                           key={scopeKey}
@@ -919,13 +903,6 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
                 )}
               </div>
             </div>
-          </div>
-
-          <div className="border-t border-white/10 bg-white/5 px-5 py-3 text-xs text-white/55">
-            <p>Synced from Study With Me tracker</p>
-            <p className="text-white/35">
-              Oldest snapshots may be pruned automatically.
-            </p>
           </div>
         </div>
       </div>
