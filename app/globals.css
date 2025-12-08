@@ -38,42 +38,6 @@
   }
 }
 
-/* Admin chat scroll areas */
-.admin-chat-message-list,
-.admin-chat-inbox {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
-}
-
-.admin-chat-message-list::-webkit-scrollbar,
-.admin-chat-inbox::-webkit-scrollbar {
-  width: 8px;
-}
-
-.admin-chat-message-list::-webkit-scrollbar-track,
-.admin-chat-inbox::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.admin-chat-message-list::-webkit-scrollbar-thumb,
-.admin-chat-inbox::-webkit-scrollbar-thumb {
-  background: linear-gradient(
-    180deg,
-    rgba(139, 92, 246, 0.4),
-    rgba(59, 130, 246, 0.32)
-  );
-  border-radius: 9999px;
-}
-
-.admin-chat-message-list:hover::-webkit-scrollbar-thumb,
-.admin-chat-inbox:hover::-webkit-scrollbar-thumb {
-  background: linear-gradient(
-    180deg,
-    rgba(139, 92, 246, 0.55),
-    rgba(59, 130, 246, 0.45)
-  );
-}
-
 /* Composer should not show resize handles or number spinners ever */
 .chat-input {
   resize: none;
