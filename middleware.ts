@@ -366,6 +366,6 @@ export async function middleware(req: NextRequest) {
 export const config = {
   // EFFECT: Skips middleware on static assets and public signin/timer pages to trim TTFB.
   matcher: [
-    "/((?!$|_next|signin|timer/flip_countdown_new|.*\\.(?:ico|png|jpg|jpeg|gif|svg|webp|avif|css|js|woff2?|txt|json)$).+)",
+    "/((?!$|_next|signin|.*\\.(?:ico|png|jpg|jpeg|gif|svg|webp|avif|css|js|woff2?|txt|json)$).+)",
   ],
 };
