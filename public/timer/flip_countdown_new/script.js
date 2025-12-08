@@ -13,7 +13,6 @@ const TIMER_MIN_MINUTES = 1;
 const TIMER_MAX_MINUTES = 99;
 const THEME_NAME_MAP = Object.freeze({
   "assets/backgrounds/background.jpg": "background.name.dark",
-  "assets/backgrounds/background_2.png": "background.name.midnight",
   "assets/backgrounds/background_3.jpg": "background.name.grey",
 });
 const DEFAULT_THEME_KEY = "background.name.new";
@@ -190,7 +189,7 @@ const supportsPerformanceNow =
 // === Background + Fullscreen wiring ===
 const BG_STORE_KEY = "bg-url";
 const BG_LEGACY_KEY = "bg:src";
-const DEFAULT_BG = "assets/backgrounds/background_2.png";
+const DEFAULT_BG = "assets/backgrounds/background_3.jpg";
 const $ = (sel) => document.querySelector(sel);
 
 function currentBg() {
