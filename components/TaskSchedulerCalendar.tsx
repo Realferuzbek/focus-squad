@@ -700,7 +700,7 @@ export default function TaskSchedulerCalendar({
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] min-h-[640px] flex-col rounded-3xl border border-white/10 bg-[#050512]/90 p-6 text-white shadow-2xl">
+    <div className="mx-auto flex h-[calc(100vh-8rem)] min-h-[640px] w-full max-w-6xl flex-col rounded-3xl border border-white/10 bg-[#050512]/90 p-6 text-white shadow-2xl">
       <div className="flex flex-col gap-2 border-b border-white/10 pb-4 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <p className="flex items-center gap-2 text-[11px] uppercase tracking-[0.45em] text-white/50">
@@ -722,161 +722,156 @@ export default function TaskSchedulerCalendar({
         </div>
       </div>
 
-      <div className="flex h-full w-full flex-1 min-h-0 flex-col gap-4 lg:grid lg:grid-cols-[270px,minmax(0,1fr),240px] lg:gap-6">
-        <aside className="flex min-h-[260px] flex-col gap-4 lg:h-full lg:min-h-0">
-          <div className="space-y-4 rounded-3xl border border-white/10 bg-gradient-to-b from-[#121226] to-[#050512] p-4 shadow-lg">
-            <p className="text-[11px] uppercase tracking-[0.4em] text-white/50">
-              Scheduling
-            </p>
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#0f0f1e] via-[#0a0a17] to-[#070712] p-4 shadow-lg">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.35em] text-white/45">
-                    Mini calendar
-                  </p>
-                  <p className="text-lg font-semibold leading-tight">
-                    {monthReference.toLocaleDateString(undefined, {
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setMiniCalendarCollapsed((prev) => !prev)}
-                  className="rounded-full border border-white/20 p-1 text-white/70 transition hover:border-white/50"
-                  aria-label="Toggle mini calendar"
-                >
-                  <span
-                    className={`inline-block transition-transform ${
-                      miniCalendarCollapsed ? "-rotate-90" : "-rotate-0"
-                    }`}
-                  >
-                    ˅
-                  </span>
-                </button>
+      <div className="mt-6 grid flex-1 min-h-0 gap-6 lg:grid-cols-[280px_minmax(0,1fr)_260px]">
+        <aside className="flex min-w-0 flex-col gap-4">
+          <div className="rounded-3xl border border-white/5 bg-black/40 px-4 pt-4 pb-3 shadow-[0_18px_60px_rgba(0,0,0,0.7)]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                  Scheduling
+                </p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                  Mini calendar
+                </p>
+                <p className="text-sm font-semibold">
+                  {monthReference.toLocaleDateString(undefined, {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </p>
               </div>
-
-              {!miniCalendarCollapsed && (
-                <div className="mt-4">
-                  <div className="grid grid-cols-7 gap-1 text-center text-[11px] uppercase tracking-[0.2em] text-white/40">
-                    {WEEKDAY_LABELS.map((label) => (
-                      <span key={label}>{label}</span>
-                    ))}
-                  </div>
-                  <div className="mt-2 space-y-1">
-                    {miniCalendarWeeks.map((week, weekIndex) => {
-                      const isActiveWeek = week.some((day) =>
-                        isSameWeek(day, visibleWeekStart),
-                      );
-                      return (
-                        <div
-                          key={`week-${weekIndex}`}
-                          className={`grid grid-cols-7 gap-1 rounded-2xl px-1 py-0.5 ${
-                            isActiveWeek ? "bg-white/5" : ""
-                          }`}
-                        >
-                          {week.map((day) => {
-                            const miniDateKey = day.toISOString().slice(0, 10);
-                            const overloadedMini =
-                              overloadedDayKeys.has(miniDateKey);
-                            const isCurrentMonth =
-                              day.getMonth() === monthReference.getMonth();
-                            const isSelected = isSameDay(day, selectedDate);
-                            const isToday = isSameDay(day, new Date());
-                            return (
-                              <button
-                                key={day.toISOString()}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedDate(day);
-                                  setVisibleWeekStart(getStartOfWeek(day));
-                                }}
-                                className={`flex h-8 w-8 items-center justify-center rounded-full text-xs transition ${
-                                  isSelected
-                                    ? "bg-gradient-to-br from-[#ff5ddd] via-[#b157ff] to-[#8a5bff] text-white"
-                                    : "text-white/70"
-                                } ${!isCurrentMonth ? "opacity-40" : ""}`}
-                                aria-label={`Select ${day.toDateString()}`}
-                              >
-                                <span
-                                  className={`relative ${
-                                    isToday && !isSelected
-                                      ? "before:absolute before:-left-1 before:-top-1 before:h-1.5 before:w-1.5 before:rounded-full before:bg-rose-400"
-                                      : ""
-                                  }`}
-                                >
-                                  {day.getDate()}
-                                  {overloadedMini && (
-                                    <span className="absolute -bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-rose-400" />
-                                  )}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => setMiniCalendarCollapsed((prev) => !prev)}
+                className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/40 hover:text-white"
+                aria-label="Toggle mini calendar"
+              >
+                <span
+                  className={`inline-block text-lg transition-transform ${
+                    miniCalendarCollapsed ? "-rotate-90" : "rotate-0"
+                  }`}
+                >
+                  ˅
+                </span>
+              </button>
             </div>
 
-            <button
-              type="button"
-              className="flex w-full items-center justify-between rounded-2xl bg-gradient-to-r from-[#8a5bff] via-[#b157ff] to-[#22d3ee] px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:brightness-110"
-              onClick={() => {}}
-            >
-              Meet with…
-              <span className="text-lg">+</span>
-            </button>
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80 shadow-inner">
-              <p className="text-[11px] uppercase tracking-[0.35em] text-white/40">
-                Integrations
-              </p>
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-3 py-2 text-white/80 transition hover:border-white/20">
-                  <span>Connect calendar</span>
-                  <span className="text-white/50">↗</span>
+            {!miniCalendarCollapsed && (
+              <div className="mt-4">
+                <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                  {WEEKDAY_LABELS.map((label) => (
+                    <span key={label}>{label}</span>
+                  ))}
                 </div>
-                <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-3 py-2 text-white/80 transition hover:border-white/20">
-                  <span>Add internal board</span>
-                  <span className="text-white/50">↗</span>
+                <div className="mt-3 space-y-1.5">
+                  {miniCalendarWeeks.map((week, weekIndex) => {
+                    const isActiveWeek = week.some((day) =>
+                      isSameWeek(day, visibleWeekStart),
+                    );
+                    return (
+                      <div
+                        key={`week-${weekIndex}`}
+                        className={`grid grid-cols-7 gap-1 rounded-2xl px-1 py-1 ${
+                          isActiveWeek ? "bg-white/[0.04]" : ""
+                        }`}
+                      >
+                        {week.map((day) => {
+                          const miniDateKey = day.toISOString().slice(0, 10);
+                          const overloadedMini =
+                            overloadedDayKeys.has(miniDateKey);
+                          const isCurrentMonth =
+                            day.getMonth() === monthReference.getMonth();
+                          const isSelected = isSameDay(day, selectedDate);
+                          const isToday = isSameDay(day, new Date());
+                          return (
+                            <button
+                              key={day.toISOString()}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDate(day);
+                                setVisibleWeekStart(getStartOfWeek(day));
+                              }}
+                              className={`flex h-9 w-9 items-center justify-center rounded-2xl text-xs font-semibold transition ${
+                                isSelected
+                                  ? "bg-white text-black shadow-[0_10px_30px_rgba(255,255,255,0.14)]"
+                                  : "bg-white/[0.03] text-white/70 hover:bg-white/10"
+                              } ${!isCurrentMonth ? "opacity-40" : ""}`}
+                              aria-label={`Select ${day.toDateString()}`}
+                            >
+                              <span
+                                className={`relative ${
+                                  isToday && !isSelected
+                                    ? "before:absolute before:-left-1 before:-top-1 before:h-1.5 before:w-1.5 before:rounded-full before:bg-rose-400"
+                                    : ""
+                                }`}
+                              >
+                                {day.getDate()}
+                                {overloadedMini && (
+                                  <span className="absolute -bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-rose-400" />
+                                )}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="inline-flex items-center justify-between rounded-2xl bg-gradient-to-r from-fuchsia-500 to-sky-400 px-4 py-3 text-sm font-medium text-white shadow-[0_16px_45px_rgba(56,189,248,0.45)] transition hover:brightness-110"
+            onClick={() => {}}
+          >
+            Meet with…
+            <span className="text-lg">+</span>
+          </button>
+
+          <div className="space-y-2 rounded-3xl border border-white/5 bg-black/40 px-4 py-3 text-xs text-white/70">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+              Integrations
+            </p>
+            <div className="flex items-center justify-between rounded-2xl bg-white/[0.03] px-3 py-2">
+              <span>Connect calendar</span>
+              <span className="text-white/50">›</span>
+            </div>
+            <div className="flex items-center justify-between rounded-2xl bg-white/[0.03] px-3 py-2">
+              <span>Add internal board</span>
+              <span className="text-white/50">›</span>
             </div>
           </div>
         </aside>
 
-        <section className="flex h-full min-h-0 flex-col rounded-2xl border border-white/10 bg-[#090912] p-5 shadow-xl">
-          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 shadow-sm backdrop-blur">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 items-center gap-2 rounded-full bg-white/10 px-3 text-xs font-semibold uppercase tracking-[0.25em] text-white">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-[#8a5bff] to-[#22d3ee] text-[10px] font-bold">
-                  You
+        <section className="flex min-h-[640px] min-w-0 flex-col">
+          <header className="flex flex-col gap-3 rounded-3xl border border-white/5 bg-black/40 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3 text-xs">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[11px] font-medium text-white">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-500/80 text-[10px] font-semibold">
+                  YOU
                 </span>
-                <span>GMT+5</span>
-              </div>
-              <span className="hidden text-xs text-white/60 sm:inline">
+                GMT+5
+              </span>
+              <span className="text-[11px] text-white/50">
                 Week synced to your timezone
               </span>
             </div>
-            <div className="text-center text-lg font-semibold md:text-xl">
-              {monthLabel}
-            </div>
-            <div className="flex items-center gap-2 text-sm">
+
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-sm font-semibold">{monthLabel}</span>
               <button
                 type="button"
-                className="flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-white/80 shadow-sm"
+                className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/80 transition hover:border-white/30"
               >
                 Week
-                <span className="text-xs text-white/50">▾</span>
+                <span className="text-xs text-white/60">▾</span>
               </button>
               <button
                 type="button"
                 onClick={handleTabToday}
-                className="rounded-full border border-white/20 px-3 py-1.5 text-white transition hover:border-white/50"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-white transition hover:border-white/40 hover:bg-white/10"
               >
                 Today
               </button>
@@ -884,7 +879,7 @@ export default function TaskSchedulerCalendar({
                 <button
                   type="button"
                   onClick={() => shiftWeek(-1)}
-                  className="rounded-full border border-white/20 p-2 text-lg text-white/80 transition hover:border-white/50"
+                  className="rounded-full border border-white/10 bg-white/[0.04] p-2 text-lg text-white/80 transition hover:border-white/40 hover:bg-white/10"
                   aria-label="Previous week"
                 >
                   ←
@@ -892,240 +887,229 @@ export default function TaskSchedulerCalendar({
                 <button
                   type="button"
                   onClick={() => shiftWeek(1)}
-                  className="rounded-full border border-white/20 p-2 text-lg text-white/80 transition hover:border-white/50"
+                  className="rounded-full border border-white/10 bg-white/[0.04] p-2 text-lg text-white/80 transition hover:border-white/40 hover:bg-white/10"
                   aria-label="Next week"
                 >
                   →
                 </button>
               </div>
             </div>
+          </header>
+
+          <div className="mt-3 flex items-center gap-1 text-xs font-medium">
+            {weekDays.map((day) => {
+              const isToday = isSameDay(day, new Date());
+              return (
+                <div
+                  key={day.toISOString()}
+                  className="flex flex-1 items-center justify-center"
+                >
+                  <div
+                    className={`flex items-center gap-2 rounded-2xl px-3 py-2 transition ${
+                      isToday ? "bg-white/10 text-white" : "text-white/70"
+                    }`}
+                  >
+                    <span className="uppercase text-[11px]">
+                      {day.toLocaleDateString(undefined, {
+                        weekday: "short",
+                      })}
+                    </span>
+                    <span className="text-base font-semibold">
+                      {day.getDate()}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          <div className="mt-4 flex-1 min-h-0 space-y-3">
-            <div className="relative flex min-h-[360px] flex-1 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
-              <div className="flex h-full w-full flex-col overflow-hidden">
-                <div className="sticky top-0 z-10 flex items-center border-b border-white/10 bg-[#090912]/95 px-4 py-2 text-xs text-white/70 backdrop-blur">
-                  <div className="w-16 shrink-0" />
-                  <div className="grid flex-1 grid-cols-7 gap-1">
-                    {weekDays.map((day) => {
-                      const isToday = isSameDay(day, new Date());
+          <div className="mt-3 relative flex-1 overflow-hidden rounded-3xl border border-white/5 bg-[#050612]">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-white/10 to-transparent" />
+            <div className="calendar-scroll h-full overflow-y-auto">
+              <div className="flex h-full min-h-[520px]">
+                <div className="w-16 shrink-0 border-r border-white/5 bg-[#050612] pr-3 text-right text-[11px] text-white/50">
+                  {hours.map((hour) => (
+                    <div
+                      key={`label-${hour}`}
+                      style={{ height: HOUR_HEIGHT }}
+                      className="relative border-t border-white/5"
+                    >
+                      <span className="absolute -top-2 right-0">
+                        {formatHourLabel(hour)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="relative flex-1">
+                  <div className="grid h-full grid-cols-7 text-xs">
+                    {weekDays.map((day, columnIndex) => {
+                      const todaysEvents = renderedEvents.filter((event) =>
+                        isSameDay(new Date(event.startISO), day),
+                      );
+                      const selectionPreview =
+                        selectionState && selectionState.dayIndex === columnIndex
+                          ? {
+                              start: Math.min(
+                                selectionState.originMinutes,
+                                selectionState.currentMinutes,
+                              ),
+                              end: Math.max(
+                                selectionState.originMinutes,
+                                selectionState.currentMinutes,
+                              ),
+                            }
+                          : null;
+                      const isCurrentDay = isSameDay(day, new Date());
+                      const now = new Date();
+                      const nowMinutes = getMinutesFromDate(now);
+                      const showNow =
+                        isCurrentDay &&
+                        nowMinutes >= START_MINUTES &&
+                        nowMinutes <= END_MINUTES;
+
                       return (
                         <div
                           key={day.toISOString()}
-                          className="flex items-center justify-center rounded-xl px-2 py-2 text-center"
+                          ref={(node) => {
+                            columnRefs.current[columnIndex] = node;
+                          }}
+                          className={`relative border-l border-white/5 first:border-l-0 ${
+                            isCurrentDay ? "bg-white/[0.03]" : ""
+                          }`}
+                          style={{
+                            height:
+                              ((END_MINUTES - START_MINUTES) / 60) *
+                              HOUR_HEIGHT,
+                          }}
+                          onMouseDown={(event) =>
+                            handleDayPointerDown(columnIndex, event)
+                          }
                         >
-                          <div
-                            className={`flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold ${
-                              isToday
-                                ? "bg-white/15 text-white ring-1 ring-white/40"
-                                : "text-white/70"
-                            }`}
-                          >
-                            <span className="uppercase">
-                              {day.toLocaleDateString(undefined, {
-                                weekday: "short",
-                              })}
-                            </span>
-                            <span className="text-base">{day.getDate()}</span>
-                          </div>
+                          {hours.map((_, hourIndex) => (
+                            <div
+                              key={`line-${columnIndex}-${hourIndex}`}
+                              className="absolute left-0 right-0 border-t border-white/5"
+                              style={{ top: (hourIndex + 1) * HOUR_HEIGHT }}
+                            />
+                          ))}
+
+                          {showNow && (
+                            <div
+                              className="pointer-events-none absolute left-0 right-0"
+                              style={{
+                                top: minutesToPixels(nowMinutes),
+                              }}
+                            >
+                              <span className="absolute -left-16 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-lg">
+                                {formatTimeString(now)}
+                              </span>
+                              <div className="h-px bg-gradient-to-r from-transparent via-rose-400 to-transparent" />
+                            </div>
+                          )}
+
+                          {selectionPreview &&
+                            (() => {
+                              const previewTop = minutesToPixels(
+                                selectionPreview.start,
+                              );
+                              const previewHeight = Math.max(
+                                minutesToPixels(selectionPreview.end) -
+                                  previewTop,
+                                6,
+                              );
+                              return (
+                                <div
+                                  className="pointer-events-none absolute left-2 right-2 rounded-2xl border border-white/30 bg-white/10"
+                                  style={{
+                                    top: previewTop,
+                                    height: previewHeight,
+                                  }}
+                                />
+                              );
+                            })()}
+
+                          {todaysEvents.map((eventItem) => {
+                            const start = new Date(eventItem.startISO);
+                            const end = new Date(eventItem.endISO);
+                            const top = minutesToPixels(
+                              getMinutesFromDate(start),
+                            );
+                            const height =
+                              minutesToPixels(getMinutesFromDate(end)) - top;
+                            const isLinked = !!eventItem.taskId;
+                            const isHighlighted =
+                              highlightedEventId === eventItem.id;
+                            const readOnly = eventItem.eventKind === "habit";
+                            const autoplan = eventItem.eventKind === "auto_plan";
+                            return (
+                              <div
+                                key={eventItem.id}
+                                data-event-block
+                                className={`absolute inset-x-2 rounded-xl border border-white/10 p-3 text-xs text-white shadow-lg transition duration-150 ${
+                                  isLinked && !readOnly
+                                    ? "border-white/40"
+                                    : ""
+                                } ${isHighlighted ? "ring-2 ring-white" : ""} ${
+                                  readOnly ? "opacity-80" : ""
+                                } hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-xl`}
+                                style={{
+                                  top,
+                                  height: Math.max(
+                                    height,
+                                    (MIN_DURATION_MINUTES / 60) * HOUR_HEIGHT,
+                                  ),
+                                  backgroundImage: `linear-gradient(135deg, ${eventItem.color}, rgba(255,255,255,0.08))`,
+                                }}
+                                onClick={(event) =>
+                                  handleEventClick(event, eventItem)
+                                }
+                              >
+                                {isLinked && !readOnly && (
+                                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-white/80" />
+                                )}
+                                {!readOnly && (
+                                  <>
+                                    <div
+                                      className="absolute left-3 right-3 top-1 h-1 cursor-ns-resize rounded-full bg-white/60"
+                                      onMouseDown={(event) =>
+                                        handleResizeMouseDown(
+                                          event,
+                                          eventItem.id,
+                                          columnIndex,
+                                          "start",
+                                        )
+                                      }
+                                    />
+                                    <div
+                                      className="absolute bottom-1 left-3 right-3 h-1 cursor-ns-resize rounded-full bg-white/60"
+                                      onMouseDown={(event) =>
+                                        handleResizeMouseDown(
+                                          event,
+                                          eventItem.id,
+                                          columnIndex,
+                                          "end",
+                                        )
+                                      }
+                                    />
+                                  </>
+                                )}
+                                {(autoplan || readOnly) && (
+                                  <p className="text-[10px] uppercase tracking-[0.3em] text-white/70">
+                                    {readOnly ? "Habit" : "Auto plan"}
+                                  </p>
+                                )}
+                                <p className="text-[11px] uppercase tracking-[0.2em] opacity-80">
+                                  {formatTimeString(start)} – {formatTimeString(end)}
+                                </p>
+                                <p className="mt-1 text-sm font-semibold">
+                                  {eventItem.title}
+                                </p>
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })}
-                  </div>
-                </div>
-
-                <div className="flex h-full flex-1 overflow-y-auto">
-                  <div className="w-16 shrink-0 border-r border-white/10 bg-[#090912]/70 pr-3 text-right text-[11px] text-white/50">
-                    {hours.map((hour) => (
-                      <div
-                        key={`label-${hour}`}
-                        style={{ height: HOUR_HEIGHT }}
-                        className="relative border-t border-white/5"
-                      >
-                        <span className="absolute -top-2 right-0">
-                          {formatHourLabel(hour)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="relative flex-1">
-                    <div className="grid h-full grid-cols-7 text-xs">
-                      {weekDays.map((day, columnIndex) => {
-                        const todaysEvents = renderedEvents.filter((event) =>
-                          isSameDay(new Date(event.startISO), day),
-                        );
-                        const selectionPreview =
-                          selectionState &&
-                          selectionState.dayIndex === columnIndex
-                            ? {
-                                start: Math.min(
-                                  selectionState.originMinutes,
-                                  selectionState.currentMinutes,
-                                ),
-                                end: Math.max(
-                                  selectionState.originMinutes,
-                                  selectionState.currentMinutes,
-                                ),
-                              }
-                            : null;
-                        const isCurrentDay = isSameDay(day, new Date());
-                        const now = new Date();
-                        const nowMinutes = getMinutesFromDate(now);
-                        const showNow =
-                          isCurrentDay &&
-                          nowMinutes >= START_MINUTES &&
-                          nowMinutes <= END_MINUTES;
-
-                        return (
-                          <div
-                            key={day.toISOString()}
-                            ref={(node) => {
-                              columnRefs.current[columnIndex] = node;
-                            }}
-                            className={`relative border-l border-white/5 first:border-l-0 ${
-                              isCurrentDay ? "bg-white/5" : ""
-                            }`}
-                            style={{
-                              height:
-                                ((END_MINUTES - START_MINUTES) / 60) *
-                                HOUR_HEIGHT,
-                            }}
-                            onMouseDown={(event) =>
-                              handleDayPointerDown(columnIndex, event)
-                            }
-                          >
-                            {hours.map((_, hourIndex) => (
-                              <div
-                                key={`line-${columnIndex}-${hourIndex}`}
-                                className="absolute left-0 right-0 border-t border-white/5"
-                                style={{ top: (hourIndex + 1) * HOUR_HEIGHT }}
-                              />
-                            ))}
-
-                            {isCurrentDay && (
-                              <div className="pointer-events-none absolute inset-0 bg-white/5" />
-                            )}
-
-                            {showNow && (
-                              <div
-                                className="pointer-events-none absolute left-0 right-0"
-                                style={{
-                                  top: minutesToPixels(nowMinutes),
-                                }}
-                              >
-                                <span className="absolute -left-16 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-lg">
-                                  {formatTimeString(now)}
-                                </span>
-                                <div className="h-px bg-gradient-to-r from-transparent via-rose-400 to-transparent" />
-                              </div>
-                            )}
-
-                            {selectionPreview &&
-                              (() => {
-                                const previewTop = minutesToPixels(
-                                  selectionPreview.start,
-                                );
-                                const previewHeight = Math.max(
-                                  minutesToPixels(selectionPreview.end) -
-                                    previewTop,
-                                  6,
-                                );
-                                return (
-                                  <div
-                                    className="pointer-events-none absolute left-2 right-2 rounded-2xl border border-white/30 bg-white/10"
-                                    style={{
-                                      top: previewTop,
-                                      height: previewHeight,
-                                    }}
-                                  />
-                                );
-                              })()}
-
-                            {todaysEvents.map((eventItem) => {
-                              const start = new Date(eventItem.startISO);
-                              const end = new Date(eventItem.endISO);
-                              const top = minutesToPixels(
-                                getMinutesFromDate(start),
-                              );
-                              const height =
-                                minutesToPixels(getMinutesFromDate(end)) - top;
-                              const isLinked = !!eventItem.taskId;
-                              const isHighlighted =
-                                highlightedEventId === eventItem.id;
-                              const readOnly = eventItem.eventKind === "habit";
-                              const autoplan =
-                                eventItem.eventKind === "auto_plan";
-                              return (
-                                <div
-                                  key={eventItem.id}
-                                  data-event-block
-                                  className={`absolute inset-x-2 rounded-xl border border-white/10 p-3 text-xs text-white shadow-lg transition duration-150 ${
-                                    isLinked && !readOnly
-                                      ? "border-white/40"
-                                      : ""
-                                  } ${isHighlighted ? "ring-2 ring-white" : ""} ${
-                                    readOnly ? "opacity-80" : ""
-                                  } hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-xl`}
-                                  style={{
-                                    top,
-                                    height: Math.max(
-                                      height,
-                                      (MIN_DURATION_MINUTES / 60) * HOUR_HEIGHT,
-                                    ),
-                                    backgroundImage: `linear-gradient(135deg, ${eventItem.color}, rgba(255,255,255,0.08))`,
-                                  }}
-                                  onClick={(event) =>
-                                    handleEventClick(event, eventItem)
-                                  }
-                                >
-                                  {isLinked && !readOnly && (
-                                    <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-white/80" />
-                                  )}
-                                  {!readOnly && (
-                                    <>
-                                      <div
-                                        className="absolute left-3 right-3 top-1 h-1 cursor-ns-resize rounded-full bg-white/60"
-                                        onMouseDown={(event) =>
-                                          handleResizeMouseDown(
-                                            event,
-                                            eventItem.id,
-                                            columnIndex,
-                                            "start",
-                                          )
-                                        }
-                                      />
-                                      <div
-                                        className="absolute bottom-1 left-3 right-3 h-1 cursor-ns-resize rounded-full bg-white/60"
-                                        onMouseDown={(event) =>
-                                          handleResizeMouseDown(
-                                            event,
-                                            eventItem.id,
-                                            columnIndex,
-                                            "end",
-                                          )
-                                        }
-                                      />
-                                    </>
-                                  )}
-                                  {(autoplan || readOnly) && (
-                                    <p className="text-[10px] uppercase tracking-[0.3em] text-white/70">
-                                      {readOnly ? "Habit" : "Auto plan"}
-                                    </p>
-                                  )}
-                                  <p className="text-[11px] uppercase tracking-[0.2em] opacity-80">
-                                    {formatTimeString(start)} –{" "}
-                                    {formatTimeString(end)}
-                                  </p>
-                                  <p className="mt-1 text-sm font-semibold">
-                                    {eventItem.title}
-                                  </p>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1133,32 +1117,29 @@ export default function TaskSchedulerCalendar({
           </div>
         </section>
 
-        <aside className="flex min-h-[200px] flex-col gap-4 lg:h-full lg:min-h-0">
-          <div className="max-h-full overflow-y-auto rounded-3xl border border-white/10 bg-gradient-to-b from-[#121226] to-[#050512] p-4 shadow-lg">
-            <p className="text-[11px] uppercase tracking-[0.35em] text-white/50">
+        <aside className="flex min-w-0 flex-col gap-4">
+          <div className="rounded-3xl border border-white/5 bg-black/40 px-4 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
               Quick shortcuts
             </p>
-            <ul className="mt-3 space-y-2 text-sm text-white/80">
+            <div className="mt-3 space-y-2 text-xs">
               {[
                 { label: "Command menu", keys: "Ctrl + K" },
                 { label: "Toggle calendar sidebar", keys: "Ctrl + Alt + K" },
                 { label: "Go to date", keys: "G" },
                 { label: "All keyboard shortcuts", keys: "?" },
               ].map((item) => (
-                <li key={item.label}>
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/5 px-3 py-2 text-left text-white/80 transition hover:border-white/20 hover:bg-white/10"
-                    onClick={() => {}}
-                  >
-                    <span>{item.label}</span>
-                    <span className="rounded-md border border-white/20 bg-white/10 px-2 py-1 text-[11px] font-semibold text-white/80">
-                      {item.keys}
-                    </span>
-                  </button>
-                </li>
+                <div
+                  key={item.label}
+                  className="flex items-center justify-between rounded-2xl bg-white/[0.03] px-3 py-2"
+                >
+                  <span className="text-white/80">{item.label}</span>
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-black/40 px-2 py-1 text-[10px] text-white/70">
+                    {item.keys}
+                  </span>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         </aside>
       </div>

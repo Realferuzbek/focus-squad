@@ -240,6 +240,24 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
+.calendar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.calendar-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.calendar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.calendar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+}
+.calendar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
 .ai-chip {
   opacity: 0;
   transform: translateY(12px);
