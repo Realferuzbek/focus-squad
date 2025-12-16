@@ -700,36 +700,27 @@ export default function TaskSchedulerCalendar({
   }
 
   return (
-    <div className="w-full text-white">
-      <div className="flex items-center justify-between pb-3 text-[11px] uppercase tracking-[0.35em] text-white/40">
-        <span>Calendar</span>
-        {loading && (
-          <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] tracking-[0.25em] text-white/60">
-            Syncing…
-          </span>
-        )}
-      </div>
-
-      <div className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-[#0f0f10] min-h-[720px] lg:h-[calc(100dvh-8rem)]">
-        <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)_320px]">
-          <aside className="order-2 min-h-0 border-t border-white/10 bg-[#111112] px-4 py-4 lg:order-1 lg:overflow-y-auto lg:border-t-0 lg:border-r">
+    <div className="flex h-full min-h-0 w-full flex-col text-white">
+      <div className="relative h-full min-h-0 w-full overflow-hidden border-x border-b border-white/10 bg-[#0f0f10]">
+        <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_300px]">
+          <aside className="order-2 min-h-0 border-t border-white/10 bg-[#0e0e10] px-3 py-3 lg:order-1 lg:border-t-0 lg:border-r">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-white/80">Calendar</p>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  className="rounded-md px-2 py-1 text-xs text-white/60 transition hover:bg-white/5 hover:text-white"
-                  onClick={() => {}}
-                  aria-label="Sidebar menu"
-                >
-                  ⋯
-                </button>
-              </div>
+              <p className="text-[13px] font-semibold text-white/80">
+                Scheduling
+              </p>
+              <button
+                type="button"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-sm text-white/55 transition hover:bg-white/5 hover:text-white"
+                onClick={() => {}}
+                aria-label="Sidebar menu"
+              >
+                ⋯
+              </button>
             </div>
 
-            <div className="mt-4">
+            <div className="mt-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-white/90">
+                <p className="text-[13px] font-semibold text-white/90">
                   {monthReference.toLocaleDateString(undefined, {
                     month: "long",
                     year: "numeric",
@@ -738,7 +729,7 @@ export default function TaskSchedulerCalendar({
                 <button
                   type="button"
                   onClick={() => setMiniCalendarCollapsed((prev) => !prev)}
-                  className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-xs text-white/60 transition hover:bg-white/5 hover:text-white"
                   aria-label="Toggle mini calendar"
                 >
                   <span
@@ -766,7 +757,7 @@ export default function TaskSchedulerCalendar({
                       return (
                         <div
                           key={`week-${weekIndex}`}
-                          className={`grid grid-cols-7 gap-1 rounded-lg px-1 py-1 ${
+                          className={`grid grid-cols-7 gap-1 rounded-md px-1 py-1 ${
                             isActiveWeek ? "bg-white/[0.04]" : ""
                           }`}
                         >
@@ -786,7 +777,7 @@ export default function TaskSchedulerCalendar({
                                   setSelectedDate(day);
                                   setVisibleWeekStart(getStartOfWeek(day));
                                 }}
-                                className={`relative flex h-8 w-8 items-center justify-center rounded-md text-xs font-medium transition ${
+                                className={`relative flex h-7 w-7 items-center justify-center rounded-md text-[11px] font-medium transition ${
                                   isSelected
                                     ? "bg-white/15 text-white"
                                     : "text-white/70 hover:bg-white/10"
@@ -816,20 +807,21 @@ export default function TaskSchedulerCalendar({
               )}
             </div>
 
-            <div className="mt-4 flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/60">
-              <span className="text-white/40">▦</span>
-              <span className="flex-1">Meet with…</span>
+            <div className="mt-3">
               <button
                 type="button"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-transparent text-sm text-white/70 transition hover:bg-white/10 hover:text-white"
+                className="flex w-full items-center justify-between rounded-md px-2 py-2 text-sm text-white/70 transition hover:bg-white/5 hover:text-white"
                 onClick={() => {}}
-                aria-label="Add meeting"
               >
-                +
+                <span className="flex items-center gap-2">
+                  <span className="text-white/35">▦</span>
+                  <span>Meet with…</span>
+                </span>
+                <span className="text-white/40">+</span>
               </button>
             </div>
 
-            <div className="mt-6">
+            <div className="mt-4 border-t border-white/10 pt-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
                 Google Calendar
               </p>
@@ -856,26 +848,27 @@ export default function TaskSchedulerCalendar({
           </aside>
 
           <section className="order-1 flex min-h-0 min-w-0 flex-col lg:order-2">
-            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-              <h2 className="text-base font-semibold text-white">{monthLabel}</h2>
+            <header className="flex h-11 items-center justify-between gap-2 border-b border-white/10 px-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-white">{monthLabel}</h2>
+                {loading && (
+                  <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] tracking-[0.25em] text-white/60">
+                    Syncing…
+                  </span>
+                )}
+              </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 text-sm">
-                <div className="hidden items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-white/60 md:flex">
-                  <input
-                    className="w-40 bg-transparent text-sm text-white/80 outline-none placeholder:text-white/40"
-                    placeholder="Search"
-                  />
-                </div>
+              <div className="flex items-center gap-1 text-sm">
                 <button
                   type="button"
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-white/70 transition hover:bg-white/5 hover:text-white"
+                  className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-[13px] text-white/70 transition hover:bg-white/5 hover:text-white"
                 >
                   Week <span className="text-xs text-white/50">▾</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleTabToday}
-                  className="rounded-md px-2 py-1.5 text-white/70 transition hover:bg-white/5 hover:text-white"
+                  className="h-8 rounded-md px-2 text-[13px] text-white/70 transition hover:bg-white/5 hover:text-white"
                 >
                   Today
                 </button>
@@ -884,7 +877,7 @@ export default function TaskSchedulerCalendar({
                   <button
                     type="button"
                     onClick={() => shiftWeek(-1)}
-                    className="rounded-md px-2 py-1.5 text-white/70 transition hover:bg-white/5 hover:text-white"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-white/70 transition hover:bg-white/5 hover:text-white"
                     aria-label="Previous week"
                   >
                     ‹
@@ -892,7 +885,7 @@ export default function TaskSchedulerCalendar({
                   <button
                     type="button"
                     onClick={() => shiftWeek(1)}
-                    className="rounded-md px-2 py-1.5 text-white/70 transition hover:bg-white/5 hover:text-white"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-white/70 transition hover:bg-white/5 hover:text-white"
                     aria-label="Next week"
                   >
                     ›
@@ -910,15 +903,15 @@ export default function TaskSchedulerCalendar({
                 return (
                   <div
                     key={day.toISOString()}
-                    className={`flex items-center gap-2 px-3 py-2 ${
+                    className={`flex items-center gap-2 px-2.5 py-1.5 ${
                       columnIndex === 0 ? "" : "border-l border-white/10"
                     } ${isToday ? "bg-white/[0.03]" : ""}`}
                   >
-                    <span className="text-[11px] font-medium text-white/50">
+                    <span className="text-[10px] font-medium text-white/50">
                       {day.toLocaleDateString(undefined, { weekday: "short" })}
                     </span>
                     <span
-                      className={`text-sm font-semibold ${
+                      className={`text-[13px] font-semibold ${
                         isToday ? "text-white" : "text-white/80"
                       }`}
                     >
@@ -938,7 +931,7 @@ export default function TaskSchedulerCalendar({
                 return (
                   <div
                     key={`all-day-${day.toISOString()}`}
-                    className={`h-10 ${
+                    className={`h-9 ${
                       columnIndex === 0 ? "" : "border-l border-white/10"
                     } ${isToday ? "bg-white/[0.02]" : ""}`}
                   />
@@ -946,7 +939,7 @@ export default function TaskSchedulerCalendar({
               })}
             </div>
 
-            <div className="calendar-scroll flex-none overflow-y-visible bg-[#0f0f10] lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
+            <div className="calendar-scroll flex-1 min-h-0 overscroll-contain overflow-x-hidden overflow-y-auto bg-[#0f0f10]">
               <div className="flex min-h-[520px]">
                 <div className="w-16 shrink-0 border-r border-white/10 bg-[#0f0f10] pr-3 text-right text-[11px] text-white/50">
                   {hours.map((hour) => (
@@ -1138,17 +1131,16 @@ export default function TaskSchedulerCalendar({
             </div>
           </section>
 
-          <aside className="order-3 min-h-0 border-t border-white/10 bg-[#111112] px-4 py-4 lg:overflow-y-auto lg:border-t-0 lg:border-l">
-            <div className="rounded-md border border-white/10 bg-white/5 px-3 py-2">
-              <div className="flex items-center gap-2 text-sm text-white/70">
-                <input
-                  className="w-full bg-transparent text-sm text-white/80 outline-none placeholder:text-white/40"
-                  placeholder="Search event…"
-                />
-              </div>
+          <aside className="order-3 min-h-0 border-t border-white/10 bg-[#0e0e10] px-3 py-3 lg:border-t-0 lg:border-l">
+            <div className="flex items-center gap-2 rounded-md border border-white/10 bg-[#0f0f10] px-2.5 py-2 text-sm text-white/70">
+              <span className="text-white/35">⌕</span>
+              <input
+                className="w-full bg-transparent text-sm text-white/80 outline-none placeholder:text-white/40"
+                placeholder="Search event…"
+              />
             </div>
 
-            <div className="mt-6">
+            <div className="mt-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
                 Useful shortcuts
               </p>
@@ -1161,7 +1153,7 @@ export default function TaskSchedulerCalendar({
                 ].map((item) => (
                   <div
                     key={item.label}
-                    className="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-white/80 hover:bg-white/5"
+                    className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-white/80 hover:bg-white/5"
                   >
                     <span className="min-w-0 truncate">{item.label}</span>
                     <span className="shrink-0 text-[11px] text-white/50">
@@ -1172,7 +1164,7 @@ export default function TaskSchedulerCalendar({
               </div>
             </div>
           </aside>
-      </div>
+        </div>
       </div>
 
       {editorState && (

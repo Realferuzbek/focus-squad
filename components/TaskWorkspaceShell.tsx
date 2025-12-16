@@ -1096,57 +1096,105 @@ export default function TaskWorkspaceShell() {
     if (activeSection === "private") return renderPrivateView();
     return renderSettingsView();
   }
+
   return (
     <div className="min-h-[100dvh] bg-[#05050b] text-white">
-      <div className="mx-auto flex w-full max-w-6xl flex-col px-4 py-10">
-        <header className="rounded-[32px] border border-white/10 bg-gradient-to-r from-[#1f1f33] via-[#151524] to-[#0a0a14] p-6 shadow-[0_25px_70px_rgba(11,11,20,.55)]">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-2xl">
-                🎓
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.45em] text-fuchsia-200/80">
-                  Workspace
-                </p>
-                <h1 className="mt-1 text-2xl font-semibold">
-                  Study Workspace
-                </h1>
-                <p className="text-sm text-zinc-400">
-                  Minimal shell for the Task Scheduler feature.
-                </p>
-              </div>
+      {activeSurface === "calendar" ? (
+        <div className="flex min-h-[100dvh] flex-col lg:h-[100dvh] lg:overflow-hidden">
+          <div className="flex h-12 items-center justify-between border-b border-white/10 bg-[#05050b] px-4">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-white/90">
+                Study Workspace
+              </span>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-300">
-              Built for calm focus. No calendar, tasks, or AI yet—just a home
-              base to grow from.
+            <div className="inline-flex items-center rounded-md border border-white/10 bg-white/5 p-0.5">
+              {surfaceTabs.map((surface) => {
+                const isActive = surface.id === activeSurface;
+                return (
+                  <button
+                    key={surface.id}
+                    type="button"
+                    onClick={() => setActiveSurface(surface.id)}
+                    className={classNames(
+                      "inline-flex h-8 items-center gap-1.5 rounded-[6px] px-2.5 text-xs font-medium transition",
+                      isActive
+                        ? "bg-white/10 text-white"
+                        : "text-white/60 hover:bg-white/5 hover:text-white",
+                    )}
+                    aria-label={`Switch to ${surface.label}`}
+                  >
+                    <span aria-hidden className="text-sm">
+                      {surface.id === "planner" ? "☰" : "🗓"}
+                    </span>
+                    <span className="hidden sm:inline">{surface.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-        </header>
 
-        <div className="mt-8">
-          <div className="flex flex-wrap gap-3">
-            {surfaceTabs.map((surface) => {
-              const isActive = surface.id === activeSurface;
-              return (
-                <button
-                  key={surface.id}
-                  onClick={() => setActiveSurface(surface.id)}
-                  className={classNames(
-                    "rounded-2xl border px-5 py-3 text-left transition",
-                    isActive
-                      ? "border-[#9b7bff] bg-white/10 text-white"
-                      : "border-white/10 text-white/70 hover:border-white/30 hover:text-white",
-                  )}
-                >
-                  <p className="text-sm font-semibold">{surface.label}</p>
-                  <p className="text-xs text-white/60">{surface.detail}</p>
-                </button>
-              );
-            })}
+          <div className="flex-1 min-h-0">
+            <TaskSchedulerCalendar
+              events={events}
+              tasks={allTasks}
+              loading={eventsLoading || !allTasksLoaded}
+              onCreateEvent={handleCreateEvent}
+              onUpdateEvent={handleUpdateEvent}
+              onDeleteEvent={handleDeleteEvent}
+              focusTaskId={calendarFocusTaskId}
+              onRequestFocusClear={() => setCalendarFocusTaskId(null)}
+            />
           </div>
+        </div>
+      ) : (
+        <div className="mx-auto flex w-full max-w-6xl flex-col px-4 py-10">
+          <header className="rounded-[32px] border border-white/10 bg-gradient-to-r from-[#1f1f33] via-[#151524] to-[#0a0a14] p-6 shadow-[0_25px_70px_rgba(11,11,20,.55)]">
+            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-2xl">
+                  🎓
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.45em] text-fuchsia-200/80">
+                    Workspace
+                  </p>
+                  <h1 className="mt-1 text-2xl font-semibold">
+                    Study Workspace
+                  </h1>
+                  <p className="text-sm text-zinc-400">
+                    Minimal shell for the Task Scheduler feature.
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-300">
+                Built for calm focus. No calendar, tasks, or AI yet—just a home
+                base to grow from.
+              </div>
+            </div>
+          </header>
 
-          {activeSurface === "planner" ? (
+          <div className="mt-8">
+            <div className="flex flex-wrap gap-3">
+              {surfaceTabs.map((surface) => {
+                const isActive = surface.id === activeSurface;
+                return (
+                  <button
+                    key={surface.id}
+                    onClick={() => setActiveSurface(surface.id)}
+                    className={classNames(
+                      "rounded-2xl border px-5 py-3 text-left transition",
+                      isActive
+                        ? "border-[#9b7bff] bg-white/10 text-white"
+                        : "border-white/10 text-white/70 hover:border-white/30 hover:text-white",
+                    )}
+                  >
+                    <p className="text-sm font-semibold">{surface.label}</p>
+                    <p className="text-xs text-white/60">{surface.detail}</p>
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="mt-6 flex flex-1 flex-col gap-6 lg:flex-row">
               <nav className="w-full lg:w-64">
                 <div className="rounded-3xl border border-white/10 bg-[#0c0c16] p-4">
@@ -1183,22 +1231,9 @@ export default function TaskWorkspaceShell() {
 
               <section className="flex-1">{renderActiveSection()}</section>
             </div>
-          ) : (
-            <div className="mt-6">
-              <TaskSchedulerCalendar
-                events={events}
-                tasks={allTasks}
-                loading={eventsLoading || !allTasksLoaded}
-                onCreateEvent={handleCreateEvent}
-                onUpdateEvent={handleUpdateEvent}
-                onDeleteEvent={handleDeleteEvent}
-                focusTaskId={calendarFocusTaskId}
-                onRequestFocusClear={() => setCalendarFocusTaskId(null)}
-              />
-            </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {repeatEditorTask && (
         <HabitRepeatDialog
