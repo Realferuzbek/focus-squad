@@ -22,11 +22,19 @@ import {
   type HabitInstance,
 } from "@/lib/taskSchedulerHabits";
 
-const DAY_START_HOUR = 6;
-const DAY_END_HOUR = 23;
-const START_MINUTES = DAY_START_HOUR * 60;
-const END_MINUTES = (DAY_END_HOUR + 1) * 60;
-const HOUR_HEIGHT = 60;
+const START_HOUR = 1;
+const END_HOUR = 24;
+const TIME_GUTTER_W = 72; // px (tune to match Notion)
+const ALLDAY_H = 32; // px (tune to match Notion)
+const HOUR_ROW_H = 64; // px (use existing if already close)
+
+const START_MINUTES = START_HOUR * 60;
+const END_MINUTES = END_HOUR * 60;
+const GRID_TEMPLATE_COLUMNS = `${TIME_GUTTER_W}px repeat(7, minmax(0, 1fr))`;
+const GRID_HEIGHT_PX = (END_HOUR - START_HOUR) * HOUR_ROW_H;
+const GRID_COLUMNS_STYLE: React.CSSProperties = {
+  gridTemplateColumns: GRID_TEMPLATE_COLUMNS,
+};
 const MIN_DURATION_MINUTES = 30;
 const WEEKDAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 const EVENT_COLORS = ["#9b7bff", "#f472b6", "#22d3ee", "#34d399", "#facc15"];
@@ -132,7 +140,7 @@ function snapToIncrement(minutes: number, increment = 15) {
 
 function minutesToPixels(minutes: number) {
   const relative = clampMinutes(minutes) - START_MINUTES;
-  return (relative / 60) * HOUR_HEIGHT;
+  return (relative / 60) * HOUR_ROW_H;
 }
 
 function dateKeyFromISO(iso: string) {
@@ -381,8 +389,8 @@ export default function TaskSchedulerCalendar({
   const hours = useMemo(
     () =>
       Array.from(
-        { length: DAY_END_HOUR - DAY_START_HOUR + 1 },
-        (_, index) => DAY_START_HOUR + index,
+        { length: END_HOUR - START_HOUR },
+        (_, index) => START_HOUR + index,
       ),
     [],
   );
@@ -902,248 +910,255 @@ export default function TaskSchedulerCalendar({
               </div>
             </header>
 
-            <div className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] border-b border-white/10 bg-[#0f0f10]">
-              <div className="flex items-center justify-end border-r border-white/10 pr-3 text-[11px] font-medium text-white/30">
-                &nbsp;
-              </div>
-              {weekDays.map((day, columnIndex) => {
-                const isToday = isSameDay(day, new Date());
-                const isSelected = isSameDay(day, selectedDate);
-                return (
-                  <div
-                    key={day.toISOString()}
-                    className={`flex items-center px-2 py-1.5 ${
-                      columnIndex === 0 ? "" : "border-l border-white/10"
-                    } ${isToday ? "bg-white/[0.02]" : ""}`}
-                  >
-                    <div className="flex flex-col leading-tight">
-                      <span className="text-[11px] font-medium text-white/50">
-                        {day.toLocaleDateString(undefined, { weekday: "short" })}
-                      </span>
-                      <span
-                        className={`mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[15px] font-semibold ${
-                          isSelected
-                            ? "bg-sky-500/25 text-sky-100"
-                            : isToday
-                              ? "text-white"
-                              : "text-white/80"
+            <div className="calendar-scroll flex-1 min-h-0 overscroll-contain overflow-x-hidden overflow-y-auto bg-[#0f0f10]">
+              <div className="sticky top-0 z-20 bg-[#0f0f10]">
+                <div
+                  className="grid border-b border-white/10 bg-[#0f0f10]"
+                  style={GRID_COLUMNS_STYLE}
+                >
+                  <div className="flex items-center justify-end border-r border-white/10 pr-3 text-[11px] font-medium text-white/30">
+                    &nbsp;
+                  </div>
+                  {weekDays.map((day) => {
+                    const isToday = isSameDay(day, new Date());
+                    const isSelected = isSameDay(day, selectedDate);
+                    return (
+                      <div
+                        key={day.toISOString()}
+                        className={`flex items-center border-r border-white/10 px-2 py-1.5 last:border-r-0 ${
+                          isToday ? "bg-white/[0.02]" : ""
                         }`}
                       >
-                        {day.getDate()}
-                      </span>
-                    </div>
+                        <div className="flex flex-col leading-tight">
+                          <span className="text-[11px] font-medium text-white/50">
+                            {day.toLocaleDateString(undefined, {
+                              weekday: "short",
+                            })}
+                          </span>
+                          <span
+                            className={`mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[15px] font-semibold ${
+                              isSelected
+                                ? "bg-sky-500/25 text-sky-100"
+                                : isToday
+                                  ? "text-white"
+                                  : "text-white/80"
+                            }`}
+                          >
+                            {day.getDate()}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div
+                  className="grid border-b border-white/10 bg-[#0f0f10]"
+                  style={{ ...GRID_COLUMNS_STYLE, height: ALLDAY_H }}
+                >
+                  <div className="allday-label flex h-full items-center justify-center whitespace-nowrap border-r border-white/10 text-[11px] font-medium text-white/40">
+                    All-day
                   </div>
-                );
-              })}
-            </div>
-
-            <div className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] border-b border-white/10 bg-[#0f0f10]">
-              <div className="flex items-center justify-end whitespace-nowrap border-r border-white/10 pr-3 text-[11px] font-medium text-white/40">
-                All-day
+                  {weekDays.map((day) => {
+                    const isToday = isSameDay(day, new Date());
+                    return (
+                      <div
+                        key={`all-day-${day.toISOString()}`}
+                        className={`h-full border-r border-white/10 last:border-r-0 ${
+                          isToday ? "bg-white/[0.02]" : ""
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
               </div>
-              {weekDays.map((day, columnIndex) => {
-                const isToday = isSameDay(day, new Date());
-                return (
-                  <div
-                    key={`all-day-${day.toISOString()}`}
-                    className={`h-8 ${
-                      columnIndex === 0 ? "" : "border-l border-white/10"
-                    } ${isToday ? "bg-white/[0.02]" : ""}`}
-                  />
-                );
-              })}
-            </div>
 
-            <div className="calendar-scroll flex-1 min-h-0 overscroll-contain overflow-x-hidden overflow-y-auto bg-[#0f0f10]">
-              <div className="flex min-h-[520px]">
-                <div className="w-16 shrink-0 border-r border-white/10 bg-[#0f0f10] pr-3 text-right text-[10px] text-white/45">
+              <div className="grid min-h-[520px] bg-[#0f0f10]" style={GRID_COLUMNS_STYLE}>
+                <div
+                  className="relative border-r border-white/10 bg-[#0f0f10] pr-3 text-right text-[10px] text-white/45"
+                  style={{ height: GRID_HEIGHT_PX }}
+                >
                   {hours.map((hour) => (
                     <div
                       key={`label-${hour}`}
-                      style={{ height: HOUR_HEIGHT }}
-                      className="border-t border-white/5"
+                      style={{ height: HOUR_ROW_H }}
+                      className="flex items-center justify-end"
                     >
-                      <div className="flex h-full items-center justify-end">
-                        <span className="tabular-nums">
-                          {formatHourLabel(hour)}
-                        </span>
-                      </div>
+                      <span className="tabular-nums">
+                        {formatHourLabel(hour)}
+                      </span>
                     </div>
                   ))}
+                  {hours.map((_, hourIndex) => (
+                    <div
+                      key={`gutter-line-${hourIndex}`}
+                      className="pointer-events-none absolute left-0 right-0 border-t border-white/5"
+                      style={{ top: (hourIndex + 1) * HOUR_ROW_H }}
+                    />
+                  ))}
                 </div>
-                <div className="relative flex-1">
-                  <div className="grid h-full grid-cols-7 text-xs">
-                    {weekDays.map((day, columnIndex) => {
-                      const todaysEvents = renderedEvents.filter((event) =>
-                        isSameDay(new Date(event.startISO), day),
-                      );
-                      const selectionPreview =
-                        selectionState && selectionState.dayIndex === columnIndex
-                          ? {
-                              start: Math.min(
-                                selectionState.originMinutes,
-                                selectionState.currentMinutes,
-                              ),
-                              end: Math.max(
-                                selectionState.originMinutes,
-                                selectionState.currentMinutes,
-                              ),
-                            }
-                          : null;
-                      const isCurrentDay = isSameDay(day, new Date());
-                      const now = new Date();
-                      const nowMinutes = getMinutesFromDate(now);
-                      const showNow =
-                        isCurrentDay &&
-                        nowMinutes >= START_MINUTES &&
-                        nowMinutes <= END_MINUTES;
 
-                      return (
+                {weekDays.map((day, columnIndex) => {
+                  const todaysEvents = renderedEvents.filter((event) =>
+                    isSameDay(new Date(event.startISO), day),
+                  );
+                  const selectionPreview =
+                    selectionState && selectionState.dayIndex === columnIndex
+                      ? {
+                          start: Math.min(
+                            selectionState.originMinutes,
+                            selectionState.currentMinutes,
+                          ),
+                          end: Math.max(
+                            selectionState.originMinutes,
+                            selectionState.currentMinutes,
+                          ),
+                        }
+                      : null;
+                  const isCurrentDay = isSameDay(day, new Date());
+                  const now = new Date();
+                  const nowMinutes = getMinutesFromDate(now);
+                  const showNow =
+                    isCurrentDay &&
+                    nowMinutes >= START_MINUTES &&
+                    nowMinutes <= END_MINUTES;
+
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      ref={(node) => {
+                        columnRefs.current[columnIndex] = node;
+                      }}
+                      className={`relative border-r border-white/10 last:border-r-0 text-xs ${
+                        isCurrentDay ? "bg-white/[0.02]" : ""
+                      }`}
+                      style={{ height: GRID_HEIGHT_PX }}
+                      onMouseDown={(event) =>
+                        handleDayPointerDown(columnIndex, event)
+                      }
+                    >
+                      {hours.map((_, hourIndex) => (
                         <div
-                          key={day.toISOString()}
-                          ref={(node) => {
-                            columnRefs.current[columnIndex] = node;
-                          }}
-                          className={`relative border-l border-white/10 first:border-l-0 ${
-                            isCurrentDay ? "bg-white/[0.02]" : ""
-                          }`}
+                          key={`line-${columnIndex}-${hourIndex}`}
+                          className="absolute left-0 right-0 border-t border-white/5"
+                          style={{ top: (hourIndex + 1) * HOUR_ROW_H }}
+                        />
+                      ))}
+
+                      {showNow && (
+                        <div
+                          className="pointer-events-none absolute left-0 right-0"
                           style={{
-                            height:
-                              ((END_MINUTES - START_MINUTES) / 60) *
-                              HOUR_HEIGHT,
+                            top: minutesToPixels(nowMinutes),
                           }}
-                          onMouseDown={(event) =>
-                            handleDayPointerDown(columnIndex, event)
-                          }
                         >
-                          {hours.map((_, hourIndex) => (
-                            <div
-                              key={`line-${columnIndex}-${hourIndex}`}
-                              className="absolute left-0 right-0 border-t border-white/5"
-                              style={{ top: (hourIndex + 1) * HOUR_HEIGHT }}
-                            />
-                          ))}
-
-                          {showNow && (
-                            <div
-                              className="pointer-events-none absolute left-0 right-0"
-                              style={{
-                                top: minutesToPixels(nowMinutes),
-                              }}
-                            >
-                              <span className="absolute -left-16 rounded-md bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-                                {formatTimeString(now)}
-                              </span>
-                              <div className="h-px bg-rose-400/70" />
-                            </div>
-                          )}
-
-                          {selectionPreview &&
-                            (() => {
-                              const previewTop = minutesToPixels(
-                                selectionPreview.start,
-                              );
-                              const previewHeight = Math.max(
-                                minutesToPixels(selectionPreview.end) -
-                                  previewTop,
-                                6,
-                              );
-                              return (
-                                <div
-                                  className="pointer-events-none absolute left-2 right-2 rounded-md border border-white/20 bg-white/5"
-                                  style={{
-                                    top: previewTop,
-                                    height: previewHeight,
-                                  }}
-                                />
-                              );
-                            })()}
-
-                          {todaysEvents.map((eventItem) => {
-                            const start = new Date(eventItem.startISO);
-                            const end = new Date(eventItem.endISO);
-                            const top = minutesToPixels(
-                              getMinutesFromDate(start),
-                            );
-                            const height =
-                              minutesToPixels(getMinutesFromDate(end)) - top;
-                            const isLinked = !!eventItem.taskId;
-                            const isHighlighted =
-                              highlightedEventId === eventItem.id;
-                            const readOnly = eventItem.eventKind === "habit";
-                            const autoplan = eventItem.eventKind === "auto_plan";
-                            return (
-                              <div
-                                key={eventItem.id}
-                                data-event-block
-                                className={`group absolute inset-x-2 rounded-md border border-white/10 px-2 py-2 text-[12px] text-white/95 transition-colors ${
-                                  isLinked && !readOnly
-                                    ? "border-white/30"
-                                    : ""
-                                } ${isHighlighted ? "ring-2 ring-white" : ""} ${
-                                  readOnly ? "opacity-80" : ""
-                                } hover:border-white/20`}
-                                style={{
-                                  top,
-                                  height: Math.max(
-                                    height,
-                                    (MIN_DURATION_MINUTES / 60) * HOUR_HEIGHT,
-                                  ),
-                                  backgroundImage: `linear-gradient(135deg, ${eventItem.color}, rgba(0,0,0,0.35))`,
-                                }}
-                                onClick={(event) =>
-                                  handleEventClick(event, eventItem)
-                                }
-                              >
-                                {isLinked && !readOnly && (
-                                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-white/70" />
-                                )}
-                                {!readOnly && (
-                                  <>
-                                    <div
-                                      className="absolute left-3 right-3 top-1 h-0.5 cursor-ns-resize rounded-full bg-white/70 opacity-0 transition-opacity group-hover:opacity-100"
-                                      onMouseDown={(event) =>
-                                        handleResizeMouseDown(
-                                          event,
-                                          eventItem.id,
-                                          columnIndex,
-                                          "start",
-                                        )
-                                      }
-                                    />
-                                    <div
-                                      className="absolute bottom-1 left-3 right-3 h-0.5 cursor-ns-resize rounded-full bg-white/70 opacity-0 transition-opacity group-hover:opacity-100"
-                                      onMouseDown={(event) =>
-                                        handleResizeMouseDown(
-                                          event,
-                                          eventItem.id,
-                                          columnIndex,
-                                          "end",
-                                        )
-                                      }
-                                    />
-                                  </>
-                                )}
-                                {(autoplan || readOnly) && (
-                                  <p className="text-[10px] uppercase tracking-[0.3em] text-white/80">
-                                    {readOnly ? "Habit" : "Auto plan"}
-                                  </p>
-                                )}
-                                <p className="text-[11px] opacity-90">
-                                  {formatTimeString(start)} –{" "}
-                                  {formatTimeString(end)}
-                                </p>
-                                <p className="mt-1 text-sm font-semibold">
-                                  {eventItem.title}
-                                </p>
-                              </div>
-                            );
-                          })}
+                          <span
+                            className="absolute rounded-md bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
+                            style={{ left: -TIME_GUTTER_W }}
+                          >
+                            {formatTimeString(now)}
+                          </span>
+                          <div className="h-px bg-rose-400/70" />
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                      )}
+
+                      {selectionPreview &&
+                        (() => {
+                          const previewTop = minutesToPixels(
+                            selectionPreview.start,
+                          );
+                          const previewHeight = Math.max(
+                            minutesToPixels(selectionPreview.end) - previewTop,
+                            6,
+                          );
+                          return (
+                            <div
+                              className="pointer-events-none absolute left-2 right-2 rounded-md border border-white/20 bg-white/5"
+                              style={{
+                                top: previewTop,
+                                height: previewHeight,
+                              }}
+                            />
+                          );
+                        })()}
+
+                      {todaysEvents.map((eventItem) => {
+                        const start = new Date(eventItem.startISO);
+                        const end = new Date(eventItem.endISO);
+                        const top = minutesToPixels(getMinutesFromDate(start));
+                        const height =
+                          minutesToPixels(getMinutesFromDate(end)) - top;
+                        const isLinked = !!eventItem.taskId;
+                        const isHighlighted = highlightedEventId === eventItem.id;
+                        const readOnly = eventItem.eventKind === "habit";
+                        const autoplan = eventItem.eventKind === "auto_plan";
+                        return (
+                          <div
+                            key={eventItem.id}
+                            data-event-block
+                            className={`group absolute inset-x-2 rounded-md border border-white/10 px-2 py-2 text-[12px] text-white/95 transition-colors ${
+                              isLinked && !readOnly ? "border-white/30" : ""
+                            } ${isHighlighted ? "ring-2 ring-white" : ""} ${
+                              readOnly ? "opacity-80" : ""
+                            } hover:border-white/20`}
+                            style={{
+                              top,
+                              height: Math.max(
+                                height,
+                                (MIN_DURATION_MINUTES / 60) * HOUR_ROW_H,
+                              ),
+                              backgroundImage: `linear-gradient(135deg, ${eventItem.color}, rgba(0,0,0,0.35))`,
+                            }}
+                            onClick={(event) =>
+                              handleEventClick(event, eventItem)
+                            }
+                          >
+                            {isLinked && !readOnly && (
+                              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-white/70" />
+                            )}
+                            {!readOnly && (
+                              <>
+                                <div
+                                  className="absolute left-3 right-3 top-1 h-0.5 cursor-ns-resize rounded-full bg-white/70 opacity-0 transition-opacity group-hover:opacity-100"
+                                  onMouseDown={(event) =>
+                                    handleResizeMouseDown(
+                                      event,
+                                      eventItem.id,
+                                      columnIndex,
+                                      "start",
+                                    )
+                                  }
+                                />
+                                <div
+                                  className="absolute bottom-1 left-3 right-3 h-0.5 cursor-ns-resize rounded-full bg-white/70 opacity-0 transition-opacity group-hover:opacity-100"
+                                  onMouseDown={(event) =>
+                                    handleResizeMouseDown(
+                                      event,
+                                      eventItem.id,
+                                      columnIndex,
+                                      "end",
+                                    )
+                                  }
+                                />
+                              </>
+                            )}
+                            {(autoplan || readOnly) && (
+                              <p className="text-[10px] uppercase tracking-[0.3em] text-white/80">
+                                {readOnly ? "Habit" : "Auto plan"}
+                              </p>
+                            )}
+                            <p className="text-[11px] opacity-90">
+                              {formatTimeString(start)} – {formatTimeString(end)}
+                            </p>
+                            <p className="mt-1 text-sm font-semibold">
+                              {eventItem.title}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </section>
