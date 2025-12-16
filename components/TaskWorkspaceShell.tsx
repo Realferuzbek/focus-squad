@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import TaskSchedulerCalendar from "@/components/TaskSchedulerCalendar";
+import { Calendar as CalendarIcon, List as ListIcon } from "lucide-react";
 import { csrfFetch } from "@/lib/csrf-client";
 import {
   StudentHabitRepeatRule,
@@ -1100,13 +1101,8 @@ export default function TaskWorkspaceShell() {
   return (
     <div className="min-h-[100dvh] bg-[#05050b] text-white">
       {activeSurface === "calendar" ? (
-        <div className="flex min-h-[100dvh] flex-col lg:h-[100dvh] lg:overflow-hidden">
-          <div className="flex h-12 items-center justify-between border-b border-white/10 bg-[#05050b] px-4">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-white/90">
-                Study Workspace
-              </span>
-            </div>
+        <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#0f0f10]">
+          <div className="flex h-11 items-center border-b border-white/10 px-3">
             <div className="inline-flex items-center rounded-md border border-white/10 bg-white/5 p-0.5">
               {surfaceTabs.map((surface) => {
                 const isActive = surface.id === activeSurface;
@@ -1116,17 +1112,19 @@ export default function TaskWorkspaceShell() {
                     type="button"
                     onClick={() => setActiveSurface(surface.id)}
                     className={classNames(
-                      "inline-flex h-8 items-center gap-1.5 rounded-[6px] px-2.5 text-xs font-medium transition",
+                      "inline-flex h-7 w-7 items-center justify-center rounded-[6px] transition",
                       isActive
                         ? "bg-white/10 text-white"
                         : "text-white/60 hover:bg-white/5 hover:text-white",
                     )}
                     aria-label={`Switch to ${surface.label}`}
+                    title={surface.label}
                   >
-                    <span aria-hidden className="text-sm">
-                      {surface.id === "planner" ? "☰" : "🗓"}
-                    </span>
-                    <span className="hidden sm:inline">{surface.label}</span>
+                    {surface.id === "planner" ? (
+                      <ListIcon className="h-4 w-4" aria-hidden />
+                    ) : (
+                      <CalendarIcon className="h-4 w-4" aria-hidden />
+                    )}
                   </button>
                 );
               })}

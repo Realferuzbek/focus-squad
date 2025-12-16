@@ -5,6 +5,17 @@ import type {
   StudentTask,
   TaskCalendarEvent as PersistedEvent,
 } from "@/lib/taskSchedulerTypes";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Database,
+  Eye,
+  Link2,
+  Plus,
+  Search,
+  Users,
+} from "lucide-react";
 import { TASK_DAILY_MINUTES_LIMIT } from "@/lib/taskSchedulerConstants";
 import {
   generateHabitInstances,
@@ -700,27 +711,40 @@ export default function TaskSchedulerCalendar({
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col text-white">
-      <div className="relative h-full min-h-0 w-full overflow-hidden border-x border-b border-white/10 bg-[#0f0f10]">
-        <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_300px]">
-          <aside className="order-2 min-h-0 border-t border-white/10 bg-[#0e0e10] px-3 py-3 lg:order-1 lg:border-t-0 lg:border-r">
+    <div className="notion-calendar flex h-full min-h-0 w-full flex-col text-white">
+      <div className="relative h-full min-h-0 w-full overflow-hidden bg-[#0f0f10]">
+        <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[272px_minmax(0,1fr)_288px]">
+          <aside className="order-2 min-h-0 overflow-y-auto hide-scrollbar border-t border-white/10 bg-[#0f0f10] px-3 py-2 lg:order-1 lg:border-t-0 lg:border-r">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[13px] font-semibold text-white/80">
-                Scheduling
-              </p>
+              <div className="flex min-w-0 items-center gap-2">
+                <Link2 className="h-4 w-4 text-white/40" aria-hidden />
+                <p className="truncate text-[13px] font-semibold leading-5 text-white/85">
+                  Scheduling
+                </p>
+              </div>
               <button
                 type="button"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-sm text-white/55 transition hover:bg-white/5 hover:text-white"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/55 transition hover:bg-white/5 hover:text-white"
                 onClick={() => {}}
-                aria-label="Sidebar menu"
+                aria-label="Toggle scheduling visibility"
               >
-                ⋯
+                <Eye className="h-4 w-4" aria-hidden />
               </button>
             </div>
 
-            <div className="mt-3">
+            <div className="mt-2">
+              <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
+                <Users className="h-4 w-4 text-white/35" aria-hidden />
+                <input
+                  className="w-full bg-transparent text-[13px] leading-5 text-white/80 outline-none placeholder:text-white/40"
+                  placeholder="Meet with…"
+                />
+              </div>
+            </div>
+
+            <div className="mt-3 border-t border-white/10 pt-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[13px] font-semibold text-white/90">
+                <p className="text-[13px] font-semibold leading-5 text-white/90">
                   {monthReference.toLocaleDateString(undefined, {
                     month: "long",
                     year: "numeric",
@@ -732,13 +756,12 @@ export default function TaskSchedulerCalendar({
                   className="inline-flex h-7 w-7 items-center justify-center rounded-md text-xs text-white/60 transition hover:bg-white/5 hover:text-white"
                   aria-label="Toggle mini calendar"
                 >
-                  <span
-                    className={`inline-block transition-transform ${
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${
                       miniCalendarCollapsed ? "-rotate-90" : "rotate-0"
                     }`}
-                  >
-                    ▾
-                  </span>
+                    aria-hidden
+                  />
                 </button>
               </div>
 
@@ -757,8 +780,8 @@ export default function TaskSchedulerCalendar({
                       return (
                         <div
                           key={`week-${weekIndex}`}
-                          className={`grid grid-cols-7 gap-1 rounded-md px-1 py-1 ${
-                            isActiveWeek ? "bg-white/[0.04]" : ""
+                          className={`grid grid-cols-7 gap-1 rounded-md p-1 ${
+                            isActiveWeek ? "bg-white/[0.03]" : ""
                           }`}
                         >
                           {week.map((day) => {
@@ -777,10 +800,10 @@ export default function TaskSchedulerCalendar({
                                   setSelectedDate(day);
                                   setVisibleWeekStart(getStartOfWeek(day));
                                 }}
-                                className={`relative flex h-7 w-7 items-center justify-center rounded-md text-[11px] font-medium transition ${
+                                className={`relative flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-medium transition ${
                                   isSelected
                                     ? "bg-white/15 text-white"
-                                    : "text-white/70 hover:bg-white/10"
+                                    : "text-white/70 hover:bg-white/[0.06]"
                                 } ${!isCurrentMonth ? "opacity-40" : ""}`}
                                 aria-label={`Select ${day.toDateString()}`}
                               >
@@ -807,43 +830,28 @@ export default function TaskSchedulerCalendar({
               )}
             </div>
 
-            <div className="mt-3">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between rounded-md px-2 py-2 text-sm text-white/70 transition hover:bg-white/5 hover:text-white"
-                onClick={() => {}}
-              >
-                <span className="flex items-center gap-2">
-                  <span className="text-white/35">▦</span>
-                  <span>Meet with…</span>
-                </span>
-                <span className="text-white/40">+</span>
-              </button>
-            </div>
-
-            <div className="mt-4 border-t border-white/10 pt-4">
+            <div className="mt-3 border-t border-white/10 pt-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
                 Google Calendar
               </p>
-              <button
-                type="button"
-                className="mt-2 flex w-full items-center justify-between rounded-md px-2 py-2 text-sm text-white/70 transition hover:bg-white/5 hover:text-white"
-                onClick={() => {}}
-              >
-                <span>Add calendar account</span>
-                <span className="text-white/40">+</span>
-              </button>
-            </div>
-
-            <div className="mt-4 border-t border-white/10 pt-4">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between rounded-md px-2 py-2 text-sm text-white/70 transition hover:bg-white/5 hover:text-white"
-                onClick={() => {}}
-              >
-                <span>Add Notion database</span>
-                <span className="text-white/40">+</span>
-              </button>
+              <div className="mt-1 space-y-0.5">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] leading-5 text-white/70 transition hover:bg-white/[0.03] hover:text-white"
+                  onClick={() => {}}
+                >
+                  <Plus className="h-4 w-4 text-white/40" aria-hidden />
+                  <span>Add calendar account</span>
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] leading-5 text-white/70 transition hover:bg-white/[0.03] hover:text-white"
+                  onClick={() => {}}
+                >
+                  <Database className="h-4 w-4 text-white/40" aria-hidden />
+                  <span>Add Notion database</span>
+                </button>
+              </div>
             </div>
           </aside>
 
@@ -863,7 +871,7 @@ export default function TaskSchedulerCalendar({
                   type="button"
                   className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-[13px] text-white/70 transition hover:bg-white/5 hover:text-white"
                 >
-                  Week <span className="text-xs text-white/50">▾</span>
+                  Week <ChevronDown className="h-4 w-4 text-white/50" aria-hidden />
                 </button>
                 <button
                   type="button"
@@ -880,7 +888,7 @@ export default function TaskSchedulerCalendar({
                     className="inline-flex h-8 w-8 items-center justify-center rounded-md text-white/70 transition hover:bg-white/5 hover:text-white"
                     aria-label="Previous week"
                   >
-                    ‹
+                    <ChevronLeft className="h-4 w-4" aria-hidden />
                   </button>
                   <button
                     type="button"
@@ -888,42 +896,49 @@ export default function TaskSchedulerCalendar({
                     className="inline-flex h-8 w-8 items-center justify-center rounded-md text-white/70 transition hover:bg-white/5 hover:text-white"
                     aria-label="Next week"
                   >
-                    ›
+                    <ChevronRight className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
               </div>
             </header>
 
-            <div className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] border-b border-white/10">
+            <div className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] border-b border-white/10 bg-[#0f0f10]">
               <div className="flex items-center justify-end border-r border-white/10 pr-3 text-[11px] font-medium text-white/30">
                 &nbsp;
               </div>
               {weekDays.map((day, columnIndex) => {
                 const isToday = isSameDay(day, new Date());
+                const isSelected = isSameDay(day, selectedDate);
                 return (
                   <div
                     key={day.toISOString()}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 ${
+                    className={`flex items-center px-2 py-1.5 ${
                       columnIndex === 0 ? "" : "border-l border-white/10"
-                    } ${isToday ? "bg-white/[0.03]" : ""}`}
+                    } ${isToday ? "bg-white/[0.02]" : ""}`}
                   >
-                    <span className="text-[10px] font-medium text-white/50">
-                      {day.toLocaleDateString(undefined, { weekday: "short" })}
-                    </span>
-                    <span
-                      className={`text-[13px] font-semibold ${
-                        isToday ? "text-white" : "text-white/80"
-                      }`}
-                    >
-                      {day.getDate()}
-                    </span>
+                    <div className="flex flex-col leading-tight">
+                      <span className="text-[11px] font-medium text-white/50">
+                        {day.toLocaleDateString(undefined, { weekday: "short" })}
+                      </span>
+                      <span
+                        className={`mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[15px] font-semibold ${
+                          isSelected
+                            ? "bg-sky-500/25 text-sky-100"
+                            : isToday
+                              ? "text-white"
+                              : "text-white/80"
+                        }`}
+                      >
+                        {day.getDate()}
+                      </span>
+                    </div>
                   </div>
                 );
               })}
             </div>
 
             <div className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] border-b border-white/10 bg-[#0f0f10]">
-              <div className="flex items-center justify-end border-r border-white/10 pr-3 text-[10px] font-medium uppercase tracking-[0.25em] text-white/30">
+              <div className="flex items-center justify-end whitespace-nowrap border-r border-white/10 pr-3 text-[11px] font-medium text-white/40">
                 All-day
               </div>
               {weekDays.map((day, columnIndex) => {
@@ -931,7 +946,7 @@ export default function TaskSchedulerCalendar({
                 return (
                   <div
                     key={`all-day-${day.toISOString()}`}
-                    className={`h-9 ${
+                    className={`h-8 ${
                       columnIndex === 0 ? "" : "border-l border-white/10"
                     } ${isToday ? "bg-white/[0.02]" : ""}`}
                   />
@@ -941,16 +956,18 @@ export default function TaskSchedulerCalendar({
 
             <div className="calendar-scroll flex-1 min-h-0 overscroll-contain overflow-x-hidden overflow-y-auto bg-[#0f0f10]">
               <div className="flex min-h-[520px]">
-                <div className="w-16 shrink-0 border-r border-white/10 bg-[#0f0f10] pr-3 text-right text-[11px] text-white/50">
+                <div className="w-16 shrink-0 border-r border-white/10 bg-[#0f0f10] pr-3 text-right text-[10px] text-white/45">
                   {hours.map((hour) => (
                     <div
                       key={`label-${hour}`}
                       style={{ height: HOUR_HEIGHT }}
-                      className="relative border-t border-white/5"
+                      className="border-t border-white/5"
                     >
-                      <span className="absolute -top-2 right-0">
-                        {formatHourLabel(hour)}
-                      </span>
+                      <div className="flex h-full items-center justify-end">
+                        <span className="tabular-nums">
+                          {formatHourLabel(hour)}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1131,12 +1148,12 @@ export default function TaskSchedulerCalendar({
             </div>
           </section>
 
-          <aside className="order-3 min-h-0 border-t border-white/10 bg-[#0e0e10] px-3 py-3 lg:border-t-0 lg:border-l">
-            <div className="flex items-center gap-2 rounded-md border border-white/10 bg-[#0f0f10] px-2.5 py-2 text-sm text-white/70">
-              <span className="text-white/35">⌕</span>
+          <aside className="order-3 min-h-0 overflow-y-auto hide-scrollbar border-t border-white/10 bg-[#0f0f10] px-3 py-2 lg:border-t-0 lg:border-l">
+            <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
+              <Search className="h-4 w-4 text-white/35" aria-hidden />
               <input
-                className="w-full bg-transparent text-sm text-white/80 outline-none placeholder:text-white/40"
-                placeholder="Search event…"
+                className="w-full bg-transparent text-[13px] leading-5 text-white/80 outline-none placeholder:text-white/40"
+                placeholder="Search"
               />
             </div>
 
@@ -1144,23 +1161,40 @@ export default function TaskSchedulerCalendar({
               <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
                 Useful shortcuts
               </p>
-              <div className="mt-2 space-y-1 text-sm">
+              <div className="mt-2 space-y-0.5">
                 {[
                   { label: "Command menu", keys: "Ctrl + K" },
                   { label: "Toggle calendar sidebar", keys: "Ctrl + Alt + K" },
                   { label: "Go to date", keys: "G" },
                   { label: "All keyboard shortcuts", keys: "?" },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-white/80 hover:bg-white/5"
-                  >
-                    <span className="min-w-0 truncate">{item.label}</span>
-                    <span className="shrink-0 text-[11px] text-white/50">
-                      {item.keys}
-                    </span>
-                  </div>
-                ))}
+                ].map((item) => {
+                  const keyParts = item.keys
+                    .split("+")
+                    .map((part) => part.trim())
+                    .filter(Boolean);
+
+                  return (
+                    <div
+                      key={item.label}
+                      className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-[13px] leading-5 text-white/80 hover:bg-white/[0.03]"
+                    >
+                      <span className="min-w-0 truncate">{item.label}</span>
+                      <span className="flex shrink-0 items-center gap-1 text-[11px] text-white/60">
+                        {keyParts.map((part, index) => (
+                          <span
+                            key={`${part}-${index}`}
+                            className="inline-flex items-center gap-1"
+                          >
+                            {index > 0 && (
+                              <span className="text-white/25">+</span>
+                            )}
+                            <kbd>{part}</kbd>
+                          </span>
+                        ))}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </aside>

@@ -240,22 +240,41 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
-.calendar-scroll {
+.notion-calendar .calendar-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
-.calendar-scroll::-webkit-scrollbar {
+.notion-calendar .calendar-scroll::-webkit-scrollbar {
   width: 8px;
 }
-.calendar-scroll::-webkit-scrollbar-track {
+.notion-calendar .calendar-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
-.calendar-scroll::-webkit-scrollbar-thumb {
+.notion-calendar .calendar-scroll::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.16);
   border-radius: 999px;
 }
-.calendar-scroll::-webkit-scrollbar-thumb:hover {
+.notion-calendar .calendar-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.24);
+}
+
+.notion-calendar kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.14);
+  font-size: 10px;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.62);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 .ai-chip {
