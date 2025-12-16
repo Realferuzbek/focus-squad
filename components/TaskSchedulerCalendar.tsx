@@ -700,234 +700,255 @@ export default function TaskSchedulerCalendar({
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-8rem)] min-h-[640px] w-full max-w-6xl flex-col rounded-3xl border border-white/10 bg-[#050512]/90 p-6 text-white shadow-2xl">
-      <div className="flex flex-col gap-2 border-b border-white/10 pb-4 md:flex-row md:items-center md:justify-between">
-        <div className="space-y-1">
-          <p className="flex items-center gap-2 text-[11px] uppercase tracking-[0.45em] text-white/50">
-            Scheduling
-            {loading && (
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] tracking-[0.2em] text-white/60">
-                Syncing…
-              </span>
-            )}
-          </p>
-          <p className="text-sm text-white/60">
-            Map tasks, habits, and blocks across your week.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#8a5bff] to-[#ff5ddd] text-xs font-semibold uppercase tracking-widest">
-            You
-          </div>
-        </div>
+    <div className="w-full text-white">
+      <div className="flex items-center justify-between pb-3 text-[11px] uppercase tracking-[0.35em] text-white/40">
+        <span>Calendar</span>
+        {loading && (
+          <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] tracking-[0.25em] text-white/60">
+            Syncing…
+          </span>
+        )}
       </div>
 
-      <div className="mt-6 grid flex-1 min-h-0 gap-6 lg:grid-cols-[280px_minmax(0,1fr)_260px]">
-        <aside className="flex min-w-0 flex-col gap-4">
-          <div className="rounded-3xl border border-white/5 bg-black/40 px-4 pt-4 pb-3 shadow-[0_18px_60px_rgba(0,0,0,0.7)]">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-                  Scheduling
-                </p>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-                  Mini calendar
-                </p>
-                <p className="text-sm font-semibold">
+      <div className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-[#0f0f10] min-h-[720px] lg:h-[calc(100dvh-8rem)]">
+        <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)_320px]">
+          <aside className="order-2 min-h-0 border-t border-white/10 bg-[#111112] px-4 py-4 lg:order-1 lg:overflow-y-auto lg:border-t-0 lg:border-r">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-white/80">Calendar</p>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  className="rounded-md px-2 py-1 text-xs text-white/60 transition hover:bg-white/5 hover:text-white"
+                  onClick={() => {}}
+                  aria-label="Sidebar menu"
+                >
+                  ⋯
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-white/90">
                   {monthReference.toLocaleDateString(undefined, {
                     month: "long",
                     year: "numeric",
                   })}
                 </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setMiniCalendarCollapsed((prev) => !prev)}
-                className="rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/40 hover:text-white"
-                aria-label="Toggle mini calendar"
-              >
-                <span
-                  className={`inline-block text-lg transition-transform ${
-                    miniCalendarCollapsed ? "-rotate-90" : "rotate-0"
-                  }`}
-                >
-                  ˅
-                </span>
-              </button>
-            </div>
-
-            {!miniCalendarCollapsed && (
-              <div className="mt-4">
-                <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-                  {WEEKDAY_LABELS.map((label) => (
-                    <span key={label}>{label}</span>
-                  ))}
-                </div>
-                <div className="mt-3 space-y-1.5">
-                  {miniCalendarWeeks.map((week, weekIndex) => {
-                    const isActiveWeek = week.some((day) =>
-                      isSameWeek(day, visibleWeekStart),
-                    );
-                    return (
-                      <div
-                        key={`week-${weekIndex}`}
-                        className={`grid grid-cols-7 gap-1 rounded-2xl px-1 py-1 ${
-                          isActiveWeek ? "bg-white/[0.04]" : ""
-                        }`}
-                      >
-                        {week.map((day) => {
-                          const miniDateKey = day.toISOString().slice(0, 10);
-                          const overloadedMini =
-                            overloadedDayKeys.has(miniDateKey);
-                          const isCurrentMonth =
-                            day.getMonth() === monthReference.getMonth();
-                          const isSelected = isSameDay(day, selectedDate);
-                          const isToday = isSameDay(day, new Date());
-                          return (
-                            <button
-                              key={day.toISOString()}
-                              type="button"
-                              onClick={() => {
-                                setSelectedDate(day);
-                                setVisibleWeekStart(getStartOfWeek(day));
-                              }}
-                              className={`flex h-9 w-9 items-center justify-center rounded-2xl text-xs font-semibold transition ${
-                                isSelected
-                                  ? "bg-white text-black shadow-[0_10px_30px_rgba(255,255,255,0.14)]"
-                                  : "bg-white/[0.03] text-white/70 hover:bg-white/10"
-                              } ${!isCurrentMonth ? "opacity-40" : ""}`}
-                              aria-label={`Select ${day.toDateString()}`}
-                            >
-                              <span
-                                className={`relative ${
-                                  isToday && !isSelected
-                                    ? "before:absolute before:-left-1 before:-top-1 before:h-1.5 before:w-1.5 before:rounded-full before:bg-rose-400"
-                                    : ""
-                                }`}
-                              >
-                                {day.getDate()}
-                                {overloadedMini && (
-                                  <span className="absolute -bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-rose-400" />
-                                )}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <button
-            type="button"
-            className="inline-flex items-center justify-between rounded-2xl bg-gradient-to-r from-fuchsia-500 to-sky-400 px-4 py-3 text-sm font-medium text-white shadow-[0_16px_45px_rgba(56,189,248,0.45)] transition hover:brightness-110"
-            onClick={() => {}}
-          >
-            Meet with…
-            <span className="text-lg">+</span>
-          </button>
-
-          <div className="space-y-2 rounded-3xl border border-white/5 bg-black/40 px-4 py-3 text-xs text-white/70">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-              Integrations
-            </p>
-            <div className="flex items-center justify-between rounded-2xl bg-white/[0.03] px-3 py-2">
-              <span>Connect calendar</span>
-              <span className="text-white/50">›</span>
-            </div>
-            <div className="flex items-center justify-between rounded-2xl bg-white/[0.03] px-3 py-2">
-              <span>Add internal board</span>
-              <span className="text-white/50">›</span>
-            </div>
-          </div>
-        </aside>
-
-        <section className="flex min-h-[640px] min-w-0 flex-col">
-          <header className="flex flex-col gap-3 rounded-3xl border border-white/5 bg-black/40 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-3 text-xs">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[11px] font-medium text-white">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-500/80 text-[10px] font-semibold">
-                  YOU
-                </span>
-                GMT+5
-              </span>
-              <span className="text-[11px] text-white/50">
-                Week synced to your timezone
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-sm font-semibold">{monthLabel}</span>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-white/80 transition hover:border-white/30"
-              >
-                Week
-                <span className="text-xs text-white/60">▾</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleTabToday}
-                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-white transition hover:border-white/40 hover:bg-white/10"
-              >
-                Today
-              </button>
-              <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => shiftWeek(-1)}
-                  className="rounded-full border border-white/10 bg-white/[0.04] p-2 text-lg text-white/80 transition hover:border-white/40 hover:bg-white/10"
-                  aria-label="Previous week"
+                  onClick={() => setMiniCalendarCollapsed((prev) => !prev)}
+                  className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
+                  aria-label="Toggle mini calendar"
                 >
-                  ←
-                </button>
-                <button
-                  type="button"
-                  onClick={() => shiftWeek(1)}
-                  className="rounded-full border border-white/10 bg-white/[0.04] p-2 text-lg text-white/80 transition hover:border-white/40 hover:bg-white/10"
-                  aria-label="Next week"
-                >
-                  →
-                </button>
-              </div>
-            </div>
-          </header>
-
-          <div className="mt-3 flex items-center gap-1 text-xs font-medium">
-            {weekDays.map((day) => {
-              const isToday = isSameDay(day, new Date());
-              return (
-                <div
-                  key={day.toISOString()}
-                  className="flex flex-1 items-center justify-center"
-                >
-                  <div
-                    className={`flex items-center gap-2 rounded-2xl px-3 py-2 transition ${
-                      isToday ? "bg-white/10 text-white" : "text-white/70"
+                  <span
+                    className={`inline-block transition-transform ${
+                      miniCalendarCollapsed ? "-rotate-90" : "rotate-0"
                     }`}
                   >
-                    <span className="uppercase text-[11px]">
-                      {day.toLocaleDateString(undefined, {
-                        weekday: "short",
-                      })}
+                    ▾
+                  </span>
+                </button>
+              </div>
+
+              {!miniCalendarCollapsed && (
+                <div className="mt-3">
+                  <div className="grid grid-cols-7 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">
+                    {WEEKDAY_LABELS.map((label) => (
+                      <span key={label}>{label}</span>
+                    ))}
+                  </div>
+                  <div className="mt-2 space-y-1">
+                    {miniCalendarWeeks.map((week, weekIndex) => {
+                      const isActiveWeek = week.some((day) =>
+                        isSameWeek(day, visibleWeekStart),
+                      );
+                      return (
+                        <div
+                          key={`week-${weekIndex}`}
+                          className={`grid grid-cols-7 gap-1 rounded-lg px-1 py-1 ${
+                            isActiveWeek ? "bg-white/[0.04]" : ""
+                          }`}
+                        >
+                          {week.map((day) => {
+                            const miniDateKey = day.toISOString().slice(0, 10);
+                            const overloadedMini =
+                              overloadedDayKeys.has(miniDateKey);
+                            const isCurrentMonth =
+                              day.getMonth() === monthReference.getMonth();
+                            const isSelected = isSameDay(day, selectedDate);
+                            const isToday = isSameDay(day, new Date());
+                            return (
+                              <button
+                                key={day.toISOString()}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedDate(day);
+                                  setVisibleWeekStart(getStartOfWeek(day));
+                                }}
+                                className={`relative flex h-8 w-8 items-center justify-center rounded-md text-xs font-medium transition ${
+                                  isSelected
+                                    ? "bg-white/15 text-white"
+                                    : "text-white/70 hover:bg-white/10"
+                                } ${!isCurrentMonth ? "opacity-40" : ""}`}
+                                aria-label={`Select ${day.toDateString()}`}
+                              >
+                                <span
+                                  className={`relative ${
+                                    isToday && !isSelected
+                                      ? "before:absolute before:-left-1 before:-top-1 before:h-1.5 before:w-1.5 before:rounded-full before:bg-rose-400"
+                                      : ""
+                                  }`}
+                                >
+                                  {day.getDate()}
+                                </span>
+                                {overloadedMini && (
+                                  <span className="absolute -bottom-0.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-rose-400" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/60">
+              <span className="text-white/40">▦</span>
+              <span className="flex-1">Meet with…</span>
+              <button
+                type="button"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-transparent text-sm text-white/70 transition hover:bg-white/10 hover:text-white"
+                onClick={() => {}}
+                aria-label="Add meeting"
+              >
+                +
+              </button>
+            </div>
+
+            <div className="mt-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
+                Google Calendar
+              </p>
+              <button
+                type="button"
+                className="mt-2 flex w-full items-center justify-between rounded-md px-2 py-2 text-sm text-white/70 transition hover:bg-white/5 hover:text-white"
+                onClick={() => {}}
+              >
+                <span>Add calendar account</span>
+                <span className="text-white/40">+</span>
+              </button>
+            </div>
+
+            <div className="mt-4 border-t border-white/10 pt-4">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between rounded-md px-2 py-2 text-sm text-white/70 transition hover:bg-white/5 hover:text-white"
+                onClick={() => {}}
+              >
+                <span>Add Notion database</span>
+                <span className="text-white/40">+</span>
+              </button>
+            </div>
+          </aside>
+
+          <section className="order-1 flex min-h-0 min-w-0 flex-col lg:order-2">
+            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+              <h2 className="text-base font-semibold text-white">{monthLabel}</h2>
+
+              <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                <div className="hidden items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-white/60 md:flex">
+                  <input
+                    className="w-40 bg-transparent text-sm text-white/80 outline-none placeholder:text-white/40"
+                    placeholder="Search"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-white/70 transition hover:bg-white/5 hover:text-white"
+                >
+                  Week <span className="text-xs text-white/50">▾</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTabToday}
+                  className="rounded-md px-2 py-1.5 text-white/70 transition hover:bg-white/5 hover:text-white"
+                >
+                  Today
+                </button>
+                <div className="mx-1 hidden h-5 w-px bg-white/10 sm:block" />
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => shiftWeek(-1)}
+                    className="rounded-md px-2 py-1.5 text-white/70 transition hover:bg-white/5 hover:text-white"
+                    aria-label="Previous week"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => shiftWeek(1)}
+                    className="rounded-md px-2 py-1.5 text-white/70 transition hover:bg-white/5 hover:text-white"
+                    aria-label="Next week"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <div className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] border-b border-white/10">
+              <div className="flex items-center justify-end border-r border-white/10 pr-3 text-[11px] font-medium text-white/30">
+                &nbsp;
+              </div>
+              {weekDays.map((day, columnIndex) => {
+                const isToday = isSameDay(day, new Date());
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={`flex items-center gap-2 px-3 py-2 ${
+                      columnIndex === 0 ? "" : "border-l border-white/10"
+                    } ${isToday ? "bg-white/[0.03]" : ""}`}
+                  >
+                    <span className="text-[11px] font-medium text-white/50">
+                      {day.toLocaleDateString(undefined, { weekday: "short" })}
                     </span>
-                    <span className="text-base font-semibold">
+                    <span
+                      className={`text-sm font-semibold ${
+                        isToday ? "text-white" : "text-white/80"
+                      }`}
+                    >
                       {day.getDate()}
                     </span>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
 
-          <div className="mt-3 relative flex-1 overflow-hidden rounded-3xl border border-white/5 bg-[#050612]">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-white/10 to-transparent" />
-            <div className="calendar-scroll h-full overflow-y-auto">
-              <div className="flex h-full min-h-[520px]">
-                <div className="w-16 shrink-0 border-r border-white/5 bg-[#050612] pr-3 text-right text-[11px] text-white/50">
+            <div className="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] border-b border-white/10 bg-[#0f0f10]">
+              <div className="flex items-center justify-end border-r border-white/10 pr-3 text-[10px] font-medium uppercase tracking-[0.25em] text-white/30">
+                All-day
+              </div>
+              {weekDays.map((day, columnIndex) => {
+                const isToday = isSameDay(day, new Date());
+                return (
+                  <div
+                    key={`all-day-${day.toISOString()}`}
+                    className={`h-10 ${
+                      columnIndex === 0 ? "" : "border-l border-white/10"
+                    } ${isToday ? "bg-white/[0.02]" : ""}`}
+                  />
+                );
+              })}
+            </div>
+
+            <div className="calendar-scroll flex-none overflow-y-visible bg-[#0f0f10] lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
+              <div className="flex min-h-[520px]">
+                <div className="w-16 shrink-0 border-r border-white/10 bg-[#0f0f10] pr-3 text-right text-[11px] text-white/50">
                   {hours.map((hour) => (
                     <div
                       key={`label-${hour}`}
@@ -973,8 +994,8 @@ export default function TaskSchedulerCalendar({
                           ref={(node) => {
                             columnRefs.current[columnIndex] = node;
                           }}
-                          className={`relative border-l border-white/5 first:border-l-0 ${
-                            isCurrentDay ? "bg-white/[0.03]" : ""
+                          className={`relative border-l border-white/10 first:border-l-0 ${
+                            isCurrentDay ? "bg-white/[0.02]" : ""
                           }`}
                           style={{
                             height:
@@ -1000,10 +1021,10 @@ export default function TaskSchedulerCalendar({
                                 top: minutesToPixels(nowMinutes),
                               }}
                             >
-                              <span className="absolute -left-16 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-lg">
+                              <span className="absolute -left-16 rounded-md bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
                                 {formatTimeString(now)}
                               </span>
-                              <div className="h-px bg-gradient-to-r from-transparent via-rose-400 to-transparent" />
+                              <div className="h-px bg-rose-400/70" />
                             </div>
                           )}
 
@@ -1019,7 +1040,7 @@ export default function TaskSchedulerCalendar({
                               );
                               return (
                                 <div
-                                  className="pointer-events-none absolute left-2 right-2 rounded-2xl border border-white/30 bg-white/10"
+                                  className="pointer-events-none absolute left-2 right-2 rounded-md border border-white/20 bg-white/5"
                                   style={{
                                     top: previewTop,
                                     height: previewHeight,
@@ -1045,32 +1066,32 @@ export default function TaskSchedulerCalendar({
                               <div
                                 key={eventItem.id}
                                 data-event-block
-                                className={`absolute inset-x-2 rounded-xl border border-white/10 p-3 text-xs text-white shadow-lg transition duration-150 ${
+                                className={`group absolute inset-x-2 rounded-md border border-white/10 px-2 py-2 text-[12px] text-white/95 transition-colors ${
                                   isLinked && !readOnly
-                                    ? "border-white/40"
+                                    ? "border-white/30"
                                     : ""
                                 } ${isHighlighted ? "ring-2 ring-white" : ""} ${
                                   readOnly ? "opacity-80" : ""
-                                } hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-xl`}
+                                } hover:border-white/20`}
                                 style={{
                                   top,
                                   height: Math.max(
                                     height,
                                     (MIN_DURATION_MINUTES / 60) * HOUR_HEIGHT,
                                   ),
-                                  backgroundImage: `linear-gradient(135deg, ${eventItem.color}, rgba(255,255,255,0.08))`,
+                                  backgroundImage: `linear-gradient(135deg, ${eventItem.color}, rgba(0,0,0,0.35))`,
                                 }}
                                 onClick={(event) =>
                                   handleEventClick(event, eventItem)
                                 }
                               >
                                 {isLinked && !readOnly && (
-                                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-white/80" />
+                                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-white/70" />
                                 )}
                                 {!readOnly && (
                                   <>
                                     <div
-                                      className="absolute left-3 right-3 top-1 h-1 cursor-ns-resize rounded-full bg-white/60"
+                                      className="absolute left-3 right-3 top-1 h-0.5 cursor-ns-resize rounded-full bg-white/70 opacity-0 transition-opacity group-hover:opacity-100"
                                       onMouseDown={(event) =>
                                         handleResizeMouseDown(
                                           event,
@@ -1081,7 +1102,7 @@ export default function TaskSchedulerCalendar({
                                       }
                                     />
                                     <div
-                                      className="absolute bottom-1 left-3 right-3 h-1 cursor-ns-resize rounded-full bg-white/60"
+                                      className="absolute bottom-1 left-3 right-3 h-0.5 cursor-ns-resize rounded-full bg-white/70 opacity-0 transition-opacity group-hover:opacity-100"
                                       onMouseDown={(event) =>
                                         handleResizeMouseDown(
                                           event,
@@ -1094,12 +1115,13 @@ export default function TaskSchedulerCalendar({
                                   </>
                                 )}
                                 {(autoplan || readOnly) && (
-                                  <p className="text-[10px] uppercase tracking-[0.3em] text-white/70">
+                                  <p className="text-[10px] uppercase tracking-[0.3em] text-white/80">
                                     {readOnly ? "Habit" : "Auto plan"}
                                   </p>
                                 )}
-                                <p className="text-[11px] uppercase tracking-[0.2em] opacity-80">
-                                  {formatTimeString(start)} – {formatTimeString(end)}
+                                <p className="text-[11px] opacity-90">
+                                  {formatTimeString(start)} –{" "}
+                                  {formatTimeString(end)}
                                 </p>
                                 <p className="mt-1 text-sm font-semibold">
                                   {eventItem.title}
@@ -1114,39 +1136,48 @@ export default function TaskSchedulerCalendar({
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <aside className="flex min-w-0 flex-col gap-4">
-          <div className="rounded-3xl border border-white/5 bg-black/40 px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-              Quick shortcuts
-            </p>
-            <div className="mt-3 space-y-2 text-xs">
-              {[
-                { label: "Command menu", keys: "Ctrl + K" },
-                { label: "Toggle calendar sidebar", keys: "Ctrl + Alt + K" },
-                { label: "Go to date", keys: "G" },
-                { label: "All keyboard shortcuts", keys: "?" },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="flex items-center justify-between rounded-2xl bg-white/[0.03] px-3 py-2"
-                >
-                  <span className="text-white/80">{item.label}</span>
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-black/40 px-2 py-1 text-[10px] text-white/70">
-                    {item.keys}
-                  </span>
-                </div>
-              ))}
+          <aside className="order-3 min-h-0 border-t border-white/10 bg-[#111112] px-4 py-4 lg:overflow-y-auto lg:border-t-0 lg:border-l">
+            <div className="rounded-md border border-white/10 bg-white/5 px-3 py-2">
+              <div className="flex items-center gap-2 text-sm text-white/70">
+                <input
+                  className="w-full bg-transparent text-sm text-white/80 outline-none placeholder:text-white/40"
+                  placeholder="Search event…"
+                />
+              </div>
             </div>
-          </div>
-        </aside>
+
+            <div className="mt-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
+                Useful shortcuts
+              </p>
+              <div className="mt-2 space-y-1 text-sm">
+                {[
+                  { label: "Command menu", keys: "Ctrl + K" },
+                  { label: "Toggle calendar sidebar", keys: "Ctrl + Alt + K" },
+                  { label: "Go to date", keys: "G" },
+                  { label: "All keyboard shortcuts", keys: "?" },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-white/80 hover:bg-white/5"
+                  >
+                    <span className="min-w-0 truncate">{item.label}</span>
+                    <span className="shrink-0 text-[11px] text-white/50">
+                      {item.keys}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+      </div>
       </div>
 
       {editorState && (
         <div
-          className="fixed z-50 rounded-2xl border border-white/20 bg-[#05050b] p-4 shadow-2xl"
+          className="fixed z-50 rounded-lg border border-white/15 bg-[#111112] p-4 shadow-xl"
           style={{
             left: editorState.position.x,
             top: editorState.position.y,
@@ -1177,7 +1208,7 @@ export default function TaskSchedulerCalendar({
                   updateEditorField("title", event.target.value)
                 }
                 disabled={!!editorState.taskId}
-                className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 p-2 text-sm text-white outline-none focus:border-white/40"
+                className="mt-1 w-full rounded-md border border-white/10 bg-black/20 p-2 text-sm text-white outline-none focus:border-white/30"
                 placeholder="Study session"
               />
             </div>
@@ -1190,7 +1221,7 @@ export default function TaskSchedulerCalendar({
                 onChange={(event) =>
                   handleLinkChange(event.target.value || null)
                 }
-                className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 p-2 text-sm text-white outline-none focus:border-white/40"
+                className="mt-1 w-full rounded-md border border-white/10 bg-black/20 p-2 text-sm text-white outline-none focus:border-white/30"
               >
                 <option value="">Not linked</option>
                 {tasks.map((task) => (
@@ -1211,7 +1242,7 @@ export default function TaskSchedulerCalendar({
                   onChange={(event) =>
                     handleTimeChange("start", event.target.value)
                   }
-                  className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 p-2 text-sm text-white outline-none focus:border-white/40"
+                  className="mt-1 w-full rounded-md border border-white/10 bg-black/20 p-2 text-sm text-white outline-none focus:border-white/30"
                 />
               </div>
               <div className="flex-1">
@@ -1224,7 +1255,7 @@ export default function TaskSchedulerCalendar({
                   onChange={(event) =>
                     handleTimeChange("end", event.target.value)
                   }
-                  className="mt-1 w-full rounded-xl border border-white/15 bg-white/5 p-2 text-sm text-white outline-none focus:border-white/40"
+                  className="mt-1 w-full rounded-md border border-white/10 bg-black/20 p-2 text-sm text-white outline-none focus:border-white/30"
                 />
               </div>
             </div>
@@ -1242,7 +1273,7 @@ export default function TaskSchedulerCalendar({
               type="button"
               onClick={handleSaveEvent}
               disabled={savingEvent}
-              className="rounded-xl bg-gradient-to-r from-[#8a5bff] via-[#b157ff] to-[#ff5ddd] px-4 py-2 font-semibold disabled:opacity-50"
+              className="rounded-md border border-white/10 bg-white/10 px-4 py-2 font-semibold text-white transition hover:bg-white/15 disabled:opacity-50"
             >
               {savingEvent ? "Saving…" : "Save"}
             </button>
