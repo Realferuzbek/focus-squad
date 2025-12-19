@@ -68,8 +68,21 @@ export type TaskCalendarEvent = {
   start: string;
   end: string;
   color: string | null;
+  calendarId?: string | null;
+  description?: string | null;
   taskId: string | null;
   eventKind: TaskCalendarEventKind;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TaskCalendar = {
+  id: string;
+  name: string;
+  color: string;
+  isDefault: boolean;
+  isVisible: boolean;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 };

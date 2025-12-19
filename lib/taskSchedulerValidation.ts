@@ -1,5 +1,7 @@
 ﻿const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
 export function normalizeDateInput(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -19,6 +21,29 @@ export function normalizeOptionalString(value: unknown) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed || null;
+}
+
+export function normalizeCalendarName(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 48) return null;
+  return trimmed;
+}
+
+export function normalizeHexColor(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return HEX_COLOR_RE.test(trimmed) ? trimmed : null;
+}
+
+export function normalizeBoolean(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return null;
 }
 
 export function normalizeEnum<T extends readonly string[]>(

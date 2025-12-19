@@ -31,6 +31,26 @@ function hasProp(body: any, key: string) {
   return body && Object.prototype.hasOwnProperty.call(body, key);
 }
 
+async function ensureCalendarAccess(
+  sb: ReturnType<typeof supabaseAdmin>,
+  userId: string,
+  calendarId: string,
+) {
+  const { data, error } = await sb
+    .from("task_calendars")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("id", calendarId)
+    .maybeSingle();
+  if (error) {
+    return { ok: false, status: 500, message: error.message };
+  }
+  if (!data) {
+    return { ok: false, status: 404, message: "Calendar not found" };
+  }
+  return { ok: true } as const;
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { eventId: string } },
@@ -47,9 +67,45 @@ export async function PATCH(
   }
 
   const body = await req.json().catch(() => ({}));
+  const hasCalendarId = hasProp(body, "calendarId");
+  let calendarIdValue: string | null | undefined;
+  if (hasCalendarId) {
+    if (body.calendarId === null || body.calendarId === "") {
+      calendarIdValue = null;
+    } else if (typeof body.calendarId === "string" && body.calendarId.trim()) {
+      calendarIdValue = body.calendarId.trim();
+      const calendarCheck = await ensureCalendarAccess(
+        sb,
+        userId,
+        calendarIdValue,
+      );
+      if (!calendarCheck.ok) {
+        return NextResponse.json(
+          { error: calendarCheck.message },
+          { status: calendarCheck.status },
+        );
+      }
+    } else {
+      return NextResponse.json(
+        { error: "Invalid calendar" },
+        { status: 400 },
+      );
+    }
+  }
+  const hasDescription = hasProp(body, "description");
+  const descriptionValue = hasDescription
+    ? normalizeOptionalString(body.description)
+    : null;
 
   if (eventRow.task_id && eventRow.event_kind === "manual") {
     const taskUpdates: Record<string, any> = {};
+    const eventUpdates: Record<string, any> = {};
+    if (calendarIdValue !== undefined) {
+      eventUpdates.calendar_id = calendarIdValue;
+    }
+    if (hasDescription) {
+      eventUpdates.description = descriptionValue;
+    }
 
     if (hasProp(body, "title")) {
       const nextTitle =
@@ -94,9 +150,31 @@ export async function PATCH(
     }
 
     if (Object.keys(taskUpdates).length === 0) {
-      return NextResponse.json(
-        { event: serializeCalendarEvent(eventRow), task: null },
-      );
+      if (Object.keys(eventUpdates).length === 0) {
+        return NextResponse.json(
+          { event: serializeCalendarEvent(eventRow), task: null },
+        );
+      }
+
+      const { data, error } = await sb
+        .from("task_calendar_events")
+        .update(eventUpdates)
+        .eq("user_id", userId)
+        .eq("id", eventRow.id)
+        .select(TASK_CALENDAR_EVENT_COLUMNS)
+        .maybeSingle();
+
+      if (error || !data) {
+        return NextResponse.json(
+          { error: error?.message || "Failed to update event" },
+          { status: 500 },
+        );
+      }
+
+      return NextResponse.json({
+        event: serializeCalendarEvent(data as TaskCalendarEventRow),
+        task: null,
+      });
     }
 
     const { data, error } = await sb
@@ -115,19 +193,33 @@ export async function PATCH(
     }
 
     const updatedTask = serializeTask(data as TaskItemRow);
-    const event = await syncTaskCalendarEvent(sb, {
+    const syncOptions: Parameters<typeof syncTaskCalendarEvent>[1] = {
       userId,
       taskId: updatedTask.id,
       title: updatedTask.title,
       category: updatedTask.category,
       scheduledStart: updatedTask.scheduledStart,
       scheduledEnd: updatedTask.scheduledEnd,
-    });
+    };
+    if (calendarIdValue !== undefined) {
+      syncOptions.calendarId = calendarIdValue;
+    }
+    if (hasDescription) {
+      syncOptions.description = descriptionValue;
+    }
+
+    const event = await syncTaskCalendarEvent(sb, syncOptions);
 
     return NextResponse.json({ event, task: updatedTask });
   }
 
   const eventUpdates: Record<string, any> = {};
+  if (calendarIdValue !== undefined) {
+    eventUpdates.calendar_id = calendarIdValue;
+  }
+  if (hasDescription) {
+    eventUpdates.description = descriptionValue;
+  }
 
   if (hasProp(body, "title")) {
     const nextTitle =

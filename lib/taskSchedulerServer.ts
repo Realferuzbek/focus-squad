@@ -1,6 +1,7 @@
 ﻿import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   TaskCalendarEvent,
+  TaskCalendar,
   TaskPrivateItem,
   StudentTask,
   resolveCategoryColor,
@@ -44,11 +45,25 @@ export type TaskCalendarEventRow = {
   id: string;
   user_id: string;
   task_id: string | null;
+  calendar_id: string | null;
   title: string;
+  description: string | null;
   start_at: string;
   end_at: string;
   color: string | null;
   event_kind: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskCalendarRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string;
+  is_default: boolean;
+  is_visible: boolean;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 };
@@ -58,7 +73,9 @@ export const TASK_PRIVATE_ITEM_COLUMNS =
 export const TASK_ITEM_COLUMNS =
   "id,user_id,private_item_id,title,description,status,priority,category,due_date,scheduled_start,scheduled_end,estimated_minutes,repeat_rule,repeat_days,repeat_until,auto_planned,auto_block_duration_min,auto_daily_max_minutes,auto_start_date,auto_allowed_days,created_at,updated_at";
 export const TASK_CALENDAR_EVENT_COLUMNS =
-  "id,user_id,task_id,title,start_at,end_at,color,event_kind,created_at,updated_at";
+  "id,user_id,task_id,calendar_id,title,description,start_at,end_at,color,event_kind,created_at,updated_at";
+export const TASK_CALENDAR_COLUMNS =
+  "id,user_id,name,color,is_default,is_visible,sort_order,created_at,updated_at";
 
 export function serializePrivateItem(row: TaskPrivateItemRow): TaskPrivateItem {
   return {
@@ -105,8 +122,23 @@ export function serializeCalendarEvent(
     start: row.start_at,
     end: row.end_at,
     color: row.color,
+    calendarId: row.calendar_id ?? null,
+    description: row.description ?? null,
     taskId: row.task_id,
     eventKind: row.event_kind as TaskCalendarEvent["eventKind"],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function serializeCalendar(row: TaskCalendarRow): TaskCalendar {
+  return {
+    id: row.id,
+    name: row.name,
+    color: row.color,
+    isDefault: row.is_default,
+    isVisible: row.is_visible,
+    sortOrder: row.sort_order,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -157,6 +189,22 @@ export async function fetchEventRow(
   return (data as TaskCalendarEventRow | null) ?? null;
 }
 
+export async function fetchDefaultCalendarId(
+  sb: SupabaseClient,
+  userId: string,
+) {
+  const { data } = await sb
+    .from("task_calendars")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("is_default", true)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
 export async function syncTaskCalendarEvent(
   sb: SupabaseClient,
   opts: {
@@ -166,11 +214,15 @@ export async function syncTaskCalendarEvent(
     category?: string | null;
     scheduledStart?: string | null;
     scheduledEnd?: string | null;
+    calendarId?: string | null;
+    description?: string | null;
   },
 ): Promise<TaskCalendarEvent | null> {
   const { userId, taskId } = opts;
   const scheduledStart = opts.scheduledStart ?? null;
   const scheduledEnd = opts.scheduledEnd ?? null;
+  const hasCalendarId = Object.prototype.hasOwnProperty.call(opts, "calendarId");
+  const hasDescription = Object.prototype.hasOwnProperty.call(opts, "description");
 
   if (!scheduledStart || !scheduledEnd) {
     const { data } = await sb
@@ -193,14 +245,21 @@ export async function syncTaskCalendarEvent(
     .maybeSingle();
 
   if (existing) {
+    const updates: Record<string, any> = {
+      title: opts.title,
+      start_at: scheduledStart,
+      end_at: scheduledEnd,
+      color: resolveCategoryColor(opts.category),
+    };
+    if (hasCalendarId) {
+      updates.calendar_id = opts.calendarId ?? null;
+    }
+    if (hasDescription) {
+      updates.description = opts.description ?? null;
+    }
     const { data, error } = await sb
       .from("task_calendar_events")
-      .update({
-        title: opts.title,
-        start_at: scheduledStart,
-        end_at: scheduledEnd,
-        color: resolveCategoryColor(opts.category),
-      })
+      .update(updates)
       .eq("id", (existing as TaskCalendarEventRow).id)
       .select(TASK_CALENDAR_EVENT_COLUMNS)
       .maybeSingle();
@@ -208,17 +267,32 @@ export async function syncTaskCalendarEvent(
     return data ? serializeCalendarEvent(data as TaskCalendarEventRow) : null;
   }
 
+  let calendarIdForInsert: string | null | undefined;
+  if (hasCalendarId) {
+    calendarIdForInsert = opts.calendarId ?? null;
+  } else {
+    calendarIdForInsert = await fetchDefaultCalendarId(sb, userId);
+  }
+
+  const insertPayload: Record<string, any> = {
+    user_id: userId,
+    task_id: taskId,
+    title: opts.title,
+    start_at: scheduledStart,
+    end_at: scheduledEnd,
+    color: resolveCategoryColor(opts.category),
+    event_kind: "manual",
+  };
+  if (calendarIdForInsert !== undefined) {
+    insertPayload.calendar_id = calendarIdForInsert;
+  }
+  if (hasDescription) {
+    insertPayload.description = opts.description ?? null;
+  }
+
   const { data, error } = await sb
     .from("task_calendar_events")
-    .insert({
-      user_id: userId,
-      task_id: taskId,
-      title: opts.title,
-      start_at: scheduledStart,
-      end_at: scheduledEnd,
-      color: resolveCategoryColor(opts.category),
-      event_kind: "manual",
-    })
+    .insert(insertPayload)
     .select(TASK_CALENDAR_EVENT_COLUMNS)
     .maybeSingle();
   if (error) return null;

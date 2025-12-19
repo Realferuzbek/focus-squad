@@ -7,16 +7,14 @@ import { supabaseAdmin } from "@/lib/supabaseServer";
 import {
   TASK_CALENDAR_EVENT_COLUMNS,
   TASK_ITEM_COLUMNS,
+  fetchDefaultCalendarId,
   serializeCalendarEvent,
   serializeTask,
   syncTaskCalendarEvent,
   type TaskCalendarEventRow,
   type TaskItemRow,
 } from "@/lib/taskSchedulerServer";
-import {
-  DEFAULT_EVENT_COLOR,
-  type TaskCalendarEvent,
-} from "@/lib/taskSchedulerTypes";
+import { DEFAULT_EVENT_COLOR } from "@/lib/taskSchedulerTypes";
 import {
   normalizeOptionalString,
   validateScheduleInput,
@@ -26,6 +24,30 @@ async function requireUserId() {
   const session = await auth();
   const id = (session?.user as any)?.id;
   return typeof id === "string" ? id : null;
+}
+
+function hasProp(body: any, key: string) {
+  return body && Object.prototype.hasOwnProperty.call(body, key);
+}
+
+async function ensureCalendarAccess(
+  sb: ReturnType<typeof supabaseAdmin>,
+  userId: string,
+  calendarId: string,
+) {
+  const { data, error } = await sb
+    .from("task_calendars")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("id", calendarId)
+    .maybeSingle();
+  if (error) {
+    return { ok: false, status: 500, message: error.message };
+  }
+  if (!data) {
+    return { ok: false, status: 404, message: "Calendar not found" };
+  }
+  return { ok: true } as const;
 }
 
 export async function GET() {
@@ -75,8 +97,27 @@ export async function POST(req: NextRequest) {
 
   const taskId = typeof body?.taskId === "string" ? body.taskId : null;
   const sb = supabaseAdmin();
+  const calendarIdInput = normalizeOptionalString(body?.calendarId);
+  const hasDescription = hasProp(body, "description");
+  const description = hasDescription
+    ? normalizeOptionalString(body?.description)
+    : null;
 
   if (taskId) {
+    if (calendarIdInput) {
+      const calendarCheck = await ensureCalendarAccess(
+        sb,
+        userId,
+        calendarIdInput,
+      );
+      if (!calendarCheck.ok) {
+        return NextResponse.json(
+          { error: calendarCheck.message },
+          { status: calendarCheck.status },
+        );
+      }
+    }
+
     const { data, error } = await sb
       .from("task_items")
       .update({
@@ -99,16 +140,38 @@ export async function POST(req: NextRequest) {
     }
 
     const updatedTask = serializeTask(data as TaskItemRow);
-    const event = await syncTaskCalendarEvent(sb, {
+    const syncOptions: Parameters<typeof syncTaskCalendarEvent>[1] = {
       userId,
       taskId,
       title: updatedTask.title,
       category: updatedTask.category,
       scheduledStart: schedule.start,
       scheduledEnd: schedule.end,
-    });
+    };
+    if (calendarIdInput) {
+      syncOptions.calendarId = calendarIdInput;
+    }
+    if (hasDescription) {
+      syncOptions.description = description;
+    }
+
+    const event = await syncTaskCalendarEvent(sb, syncOptions);
 
     return NextResponse.json({ event, task: updatedTask });
+  }
+
+  let calendarId = calendarIdInput;
+  if (!calendarId) {
+    calendarId = await fetchDefaultCalendarId(sb, userId);
+  }
+  if (calendarId) {
+    const calendarCheck = await ensureCalendarAccess(sb, userId, calendarId);
+    if (!calendarCheck.ok) {
+      return NextResponse.json(
+        { error: calendarCheck.message },
+        { status: calendarCheck.status },
+      );
+    }
   }
 
   const title = normalizeOptionalString(body?.title) ?? "Untitled block";
@@ -119,7 +182,9 @@ export async function POST(req: NextRequest) {
     .insert({
       user_id: userId,
       task_id: null,
+      calendar_id: calendarId,
       title,
+      description,
       start_at: schedule.start,
       end_at: schedule.end,
       color,
