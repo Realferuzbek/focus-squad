@@ -20,7 +20,7 @@ import {
 const START_HOUR = 1;
 const END_HOUR = 24;
 const TIME_GUTTER_W = 72; // px (tune to match Notion)
-const ALLDAY_H = 32; // px (tune to match Notion)
+const ALLDAY_H = 28; // px (tune to match Notion)
 const HOUR_ROW_H = 64; // px (use existing if already close)
 
 const START_MINUTES = START_HOUR * 60;
@@ -409,6 +409,16 @@ export default function TaskSchedulerCalendar({
     });
   }, [visibleWeekStart]);
 
+  const gmtLabel = useMemo(() => {
+    const offsetMinutes = -new Date().getTimezoneOffset();
+    const sign = offsetMinutes >= 0 ? "+" : "-";
+    const absMinutes = Math.abs(offsetMinutes);
+    const hours = Math.floor(absMinutes / 60);
+    const minutes = absMinutes % 60;
+    const minutesLabel = minutes ? `:${`${minutes}`.padStart(2, "0")}` : "";
+    return `GMT${sign}${hours}${minutesLabel}`;
+  }, []);
+
   function handleTabToday() {
     const today = new Date();
     setVisibleWeekStart(getStartOfWeek(today));
@@ -713,6 +723,13 @@ export default function TaskSchedulerCalendar({
     }
   }
 
+  const today = new Date();
+  const nowMinutes = getMinutesFromDate(today);
+  const showNowIndicator =
+    weekDays.some((day) => isSameDay(day, today)) &&
+    nowMinutes >= START_MINUTES &&
+    nowMinutes <= END_MINUTES;
+
   return (
     <div className="notion-calendar flex h-full min-h-0 w-full flex-col text-white">
       <div className="relative h-full min-h-0 w-full overflow-hidden bg-[#0f0f10]">
@@ -864,32 +881,32 @@ export default function TaskSchedulerCalendar({
                   className="grid border-b border-white/10 bg-[#0f0f10]"
                   style={GRID_COLUMNS_STYLE}
                 >
-                  <div className="flex items-center justify-end border-r border-white/10 pr-3 text-[11px] font-medium text-white/30">
-                    &nbsp;
+                  <div className="flex items-center justify-end border-r border-white/10 pr-3 text-[10px] font-medium text-white/40">
+                    {gmtLabel}
                   </div>
                   {weekDays.map((day) => {
-                    const isToday = isSameDay(day, new Date());
+                    const isToday = isSameDay(day, today);
                     const isSelected = isSameDay(day, selectedDate);
                     return (
                       <div
                         key={day.toISOString()}
-                        className={`flex items-center border-r border-white/10 px-2 py-1.5 last:border-r-0 ${
+                        className={`flex items-center border-r border-white/10 px-2 py-1 last:border-r-0 ${
                           isToday ? "bg-white/[0.02]" : ""
                         }`}
                       >
-                        <div className="flex flex-col leading-tight">
-                          <span className="text-[11px] font-medium text-white/50">
+                        <div className="flex items-center gap-2 leading-none">
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40">
                             {day.toLocaleDateString(undefined, {
                               weekday: "short",
                             })}
                           </span>
                           <span
-                            className={`mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[15px] font-semibold ${
-                              isSelected
-                                ? "bg-sky-500/25 text-sky-100"
-                                : isToday
-                                  ? "text-white"
-                                  : "text-white/80"
+                            className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[12px] font-semibold ${
+                              isToday
+                                ? "bg-rose-500 text-white shadow-sm"
+                                : isSelected
+                                  ? "bg-white/10 text-white"
+                                  : "text-white/70"
                             }`}
                           >
                             {day.getDate()}
@@ -908,7 +925,7 @@ export default function TaskSchedulerCalendar({
                     All-day
                   </div>
                   {weekDays.map((day) => {
-                    const isToday = isSameDay(day, new Date());
+                    const isToday = isSameDay(day, today);
                     return (
                       <div
                         key={`all-day-${day.toISOString()}`}
@@ -921,7 +938,32 @@ export default function TaskSchedulerCalendar({
                 </div>
               </div>
 
-              <div className="grid min-h-[520px] bg-[#0f0f10]" style={GRID_COLUMNS_STYLE}>
+              <div
+                className="relative grid min-h-[520px] bg-[#0f0f10]"
+                style={GRID_COLUMNS_STYLE}
+              >
+                {showNowIndicator && (
+                  <div
+                    className="pointer-events-none absolute left-0 right-0 z-20"
+                    style={{ top: minutesToPixels(nowMinutes) }}
+                  >
+                    <div
+                      className="absolute top-0 flex items-center justify-end pr-3"
+                      style={{
+                        width: TIME_GUTTER_W,
+                        transform: "translateY(-50%)",
+                      }}
+                    >
+                      <span className="inline-flex h-5 items-center rounded-full bg-rose-500 px-2 text-[10px] font-semibold text-white shadow-sm">
+                        {formatTimeString(today)}
+                      </span>
+                    </div>
+                    <div
+                      className="absolute top-0 h-px bg-rose-400/80"
+                      style={{ left: TIME_GUTTER_W, right: 0 }}
+                    />
+                  </div>
+                )}
                 <div
                   className="relative border-r border-white/10 bg-[#0f0f10] pr-3 text-right text-[10px] text-white/45"
                   style={{ height: GRID_HEIGHT_PX }}
@@ -963,13 +1005,7 @@ export default function TaskSchedulerCalendar({
                           ),
                         }
                       : null;
-                  const isCurrentDay = isSameDay(day, new Date());
-                  const now = new Date();
-                  const nowMinutes = getMinutesFromDate(now);
-                  const showNow =
-                    isCurrentDay &&
-                    nowMinutes >= START_MINUTES &&
-                    nowMinutes <= END_MINUTES;
+                  const isCurrentDay = isSameDay(day, today);
 
                   return (
                     <div
@@ -992,23 +1028,6 @@ export default function TaskSchedulerCalendar({
                           style={{ top: (hourIndex + 1) * HOUR_ROW_H }}
                         />
                       ))}
-
-                      {showNow && (
-                        <div
-                          className="pointer-events-none absolute left-0 right-0"
-                          style={{
-                            top: minutesToPixels(nowMinutes),
-                          }}
-                        >
-                          <span
-                            className="absolute rounded-md bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
-                            style={{ left: -TIME_GUTTER_W }}
-                          >
-                            {formatTimeString(now)}
-                          </span>
-                          <div className="h-px bg-rose-400/70" />
-                        </div>
-                      )}
 
                       {selectionPreview &&
                         (() => {
