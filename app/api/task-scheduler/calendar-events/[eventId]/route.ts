@@ -73,11 +73,12 @@ export async function PATCH(
     if (body.calendarId === null || body.calendarId === "") {
       calendarIdValue = null;
     } else if (typeof body.calendarId === "string" && body.calendarId.trim()) {
-      calendarIdValue = body.calendarId.trim();
+      const calendarId = body.calendarId.trim();
+      calendarIdValue = calendarId;
       const calendarCheck = await ensureCalendarAccess(
         sb,
         userId,
-        calendarIdValue,
+        calendarId,
       );
       if (!calendarCheck.ok) {
         return NextResponse.json(
