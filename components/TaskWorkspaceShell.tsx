@@ -20,7 +20,6 @@ import {
   TASK_REPEAT_RULES,
   TASK_STATUSES,
 } from "@/lib/taskSchedulerTypes";
-import { TASK_DAILY_MINUTES_LIMIT } from "@/lib/taskSchedulerConstants";
 import { generateHabitInstances } from "@/lib/taskSchedulerHabits";
 
 type Section = "home" | "private" | "settings";
@@ -64,6 +63,8 @@ type CalendarEventInput = {
   start: string;
   end: string;
   taskId: string | null;
+  calendarId?: string | null;
+  description?: string | null;
   color?: string | null;
 };
 
@@ -221,22 +222,6 @@ function buildTaskEventDateMap(events: TaskCalendarEvent[]) {
     map.get(event.taskId)!.add(dateKey);
   });
   return map;
-}
-
-function computeDailyMinutesFromEvents(events: TaskCalendarEvent[]) {
-  const minutes = new Map<string, number>();
-  events.forEach((event) => {
-    const start = new Date(event.start);
-    const end = new Date(event.end);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
-    const key = start.toISOString().slice(0, 10);
-    const duration = Math.max(
-      0,
-      Math.round((end.getTime() - start.getTime()) / 60000),
-    );
-    minutes.set(key, (minutes.get(key) ?? 0) + duration);
-  });
-  return minutes;
 }
 
 function getDefaultCalendarId(calendars: TaskCalendar[]) {
@@ -500,56 +485,6 @@ export default function TaskWorkspaceShell() {
     weekEnd,
     weekStart,
   ]);
-
-  const eventsDailyMinutes = useMemo(
-    () => computeDailyMinutesFromEvents(events),
-    [events],
-  );
-
-  const habitMinutesAll = useMemo(() => {
-    const map = new Map<string, number>();
-    const windowInstances = generateHabitInstances(allTasks, {
-      startDate: weekStart,
-      endDate: weekEnd,
-    });
-    windowInstances.forEach((instance) => {
-      map.set(
-        instance.dateKey,
-        (map.get(instance.dateKey) ?? 0) + instance.durationMinutes,
-      );
-    });
-    return map;
-  }, [allTasks, weekEnd, weekStart]);
-
-  const combinedDailyMinutes = useMemo(() => {
-    const combined = new Map(eventsDailyMinutes);
-    habitMinutesAll.forEach((value, key) => {
-      combined.set(key, (combined.get(key) ?? 0) + value);
-    });
-    return combined;
-  }, [eventsDailyMinutes, habitMinutesAll]);
-
-  const todayOverloadMessage = useMemo(() => {
-    const minutes = combinedDailyMinutes.get(todayKey) ?? 0;
-    if (minutes <= TASK_DAILY_MINUTES_LIMIT) return null;
-    const hours = (minutes / 60).toFixed(1);
-    return `Heads up: Today is overloaded (~${hours}h planned).`;
-  }, [combinedDailyMinutes, todayKey]);
-
-  const weekOverloadMessage = useMemo(() => {
-    for (const key of weekDateKeys) {
-      const minutes = combinedDailyMinutes.get(key) ?? 0;
-      if (minutes > TASK_DAILY_MINUTES_LIMIT) {
-        const day = new Date(key);
-        const hours = (minutes / 60).toFixed(1);
-        const dayLabel = day.toLocaleDateString(undefined, {
-          weekday: "long",
-        });
-        return `Heads up: ${dayLabel} is overloaded (~${hours}h scheduled).`;
-      }
-    }
-    return null;
-  }, [combinedDailyMinutes, weekDateKeys]);
 
   useEffect(() => {
     setListTitleDraft(activePrivateItem?.title ?? "");
@@ -1004,12 +939,6 @@ export default function TaskWorkspaceShell() {
           `${data.remainingBlocks} study block(s) could not be scheduled before the deadline.`,
         );
       }
-      if (Array.isArray(data.overloadedDays) && data.overloadedDays.length) {
-        const warning = data.overloadedDays[0];
-        alert(
-          `Heads up: ${warning.date} now exceeds the safe load (~${Math.round(warning.minutes / 60)}h).`,
-        );
-      }
     } catch (error) {
       alert(
         error instanceof Error
@@ -1169,8 +1098,6 @@ export default function TaskWorkspaceShell() {
                     savingTaskIds={taskSavingIds}
                     view={taskView}
                     onViewChange={setTaskView}
-                    todayOverloadMessage={todayOverloadMessage}
-                    weekOverloadMessage={weekOverloadMessage}
                     onRepeatRequest={setRepeatEditorTask}
                     onAutoPlanRequest={setAutoPlanTarget}
                   />
@@ -1425,8 +1352,6 @@ type TaskListPaneProps = {
   savingTaskIds: Set<string>;
   view: TaskViewFilter;
   onViewChange: (view: TaskViewFilter) => void;
-  todayOverloadMessage: string | null;
-  weekOverloadMessage: string | null;
   onRepeatRequest: (task: StudentTask) => void;
   onAutoPlanRequest: (task: StudentTask) => void;
 };
@@ -1440,8 +1365,6 @@ function TaskListPane({
   savingTaskIds,
   view,
   onViewChange,
-  todayOverloadMessage,
-  weekOverloadMessage,
   onRepeatRequest,
   onAutoPlanRequest,
 }: TaskListPaneProps) {
@@ -1501,13 +1424,6 @@ function TaskListPane({
           </button>
         ))}
       </div>
-      {((view === "today" && todayOverloadMessage) ||
-        (view === "week" && weekOverloadMessage)) && (
-        <div className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
-          {view === "today" ? todayOverloadMessage : weekOverloadMessage}
-        </div>
-      )}
-
       <div className="mt-4 overflow-x-auto">
         <div className="min-w-[780px] space-y-2">
           <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.2em] text-white/50">

@@ -16,7 +16,6 @@ import {
   List as ListIcon,
   MoreHorizontal,
 } from "lucide-react";
-import { TASK_DAILY_MINUTES_LIMIT } from "@/lib/taskSchedulerConstants";
 import { generateHabitInstances } from "@/lib/taskSchedulerHabits";
 
 const START_HOUR = 1;
@@ -166,19 +165,6 @@ function minutesToPixels(minutes: number) {
   return (relative / 60) * HOUR_ROW_H;
 }
 
-function dateKeyFromISO(iso: string) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 10);
-}
-
-function eventDurationMinutes(event: CalendarEvent) {
-  const start = new Date(event.startISO);
-  const end = new Date(event.endISO);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
-  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
-}
-
 function formatHourLabel(hour: number) {
   const suffix = hour >= 12 ? "PM" : "AM";
   const normalized = hour % 12 || 12;
@@ -262,18 +248,6 @@ function buildEventInput(event: CalendarEvent): CalendarEventInput {
   };
 }
 
-function computeDailyMinutes(eventsList: CalendarEvent[]) {
-  const map = new Map<string, number>();
-  eventsList.forEach((event) => {
-    const key = dateKeyFromISO(event.startISO);
-    if (!key) return;
-    const duration = eventDurationMinutes(event);
-    if (duration <= 0) return;
-    map.set(key, (map.get(key) ?? 0) + duration);
-  });
-  return map;
-}
-
 function pickCalendarColor(usedColors: Set<string>) {
   return EVENT_COLORS.find((color) => !usedColors.has(color)) ?? EVENT_COLORS[0];
 }
@@ -323,6 +297,7 @@ export default function TaskSchedulerCalendar({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const pendingResizeRef = useRef<CalendarEvent | null>(null);
   const [editorState, setEditorState] = useState<EditorState | null>(null);
+  const [calendarSelectOpen, setCalendarSelectOpen] = useState(false);
   const [selectionState, setSelectionState] = useState<SelectionState | null>(
     null,
   );
@@ -344,6 +319,7 @@ export default function TaskSchedulerCalendar({
   });
   const calendarMenuRef = useRef<HTMLDivElement | null>(null);
   const calendarMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const calendarSelectRef = useRef<HTMLDivElement | null>(null);
 
   const activeCalendar = useMemo(
     () =>
@@ -453,60 +429,6 @@ export default function TaskSchedulerCalendar({
     [visibleEvents, habitEvents],
   );
 
-  const persistedDailyMinutes = useMemo(
-    () => computeDailyMinutes(visibleEvents),
-    [visibleEvents],
-  );
-  const habitDailyMinutes = useMemo(
-    () => computeDailyMinutes(habitEvents),
-    [habitEvents],
-  );
-  const combinedDailyMinutes = useMemo(() => {
-    const combined = new Map(persistedDailyMinutes);
-    habitDailyMinutes.forEach((value, key) => {
-      combined.set(key, (combined.get(key) ?? 0) + value);
-    });
-    return combined;
-  }, [persistedDailyMinutes, habitDailyMinutes]);
-
-  const overloadedDayKeys = useMemo(() => {
-    const keys = new Set<string>();
-    combinedDailyMinutes.forEach((minutes, key) => {
-      if (minutes > TASK_DAILY_MINUTES_LIMIT) {
-        keys.add(key);
-      }
-    });
-    return keys;
-  }, [combinedDailyMinutes]);
-
-  const getBaselineMinutesForDay = useCallback(
-    (dayKey: string, excludeEventId?: string | null) => {
-      let baseline = combinedDailyMinutes.get(dayKey) ?? 0;
-      if (excludeEventId) {
-        const match = events.find((evt) => evt.id === excludeEventId);
-        if (match && dateKeyFromISO(match.startISO) === dayKey) {
-          baseline -= eventDurationMinutes(match);
-        }
-      }
-      return baseline;
-    },
-    [combinedDailyMinutes, events],
-  );
-
-  const confirmDailyOverload = useCallback(
-    (dayKey: string, minutes: number, excludeEventId?: string | null) => {
-      const baseline = getBaselineMinutesForDay(dayKey, excludeEventId);
-      if (baseline + minutes <= TASK_DAILY_MINUTES_LIMIT) {
-        return true;
-      }
-      const hours = (baseline / 60).toFixed(1);
-      return window.confirm(
-        `This day already has ~${hours}h planned. Add more time?`,
-      );
-    },
-    [getBaselineMinutesForDay],
-  );
-
   const toggleCalendarVisibility = useCallback(
     async (calendar: TaskCalendar) => {
       if (calendarActionId === calendar.id) return;
@@ -549,6 +471,32 @@ export default function TaskSchedulerCalendar({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [openCalendarMenuId]);
+
+  useEffect(() => {
+    if (!calendarSelectOpen) return;
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (calendarSelectRef.current?.contains(target)) return;
+      setCalendarSelectOpen(false);
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setCalendarSelectOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [calendarSelectOpen]);
+
+  useEffect(() => {
+    if (!editorState || calendars.length === 0 || calendarsLoading) {
+      setCalendarSelectOpen(false);
+    }
+  }, [calendars.length, calendarsLoading, editorState]);
 
   useEffect(() => {
     if (
@@ -1111,14 +1059,6 @@ export default function TaskSchedulerCalendar({
       alert("End time must be after the start time.");
       return;
     }
-    const dayKey = dateKeyFromISO(start.toISOString());
-    const durationMinutes = Math.max(
-      0,
-      Math.round((end.getTime() - start.getTime()) / 60000),
-    );
-    if (!confirmDailyOverload(dayKey, durationMinutes, id)) {
-      return;
-    }
     const payload: CalendarEventInput = {
       title: title.trim() || "Untitled block",
       start: start.toISOString(),
@@ -1170,7 +1110,7 @@ export default function TaskSchedulerCalendar({
     : null;
   const editorCalendarColor = editorCalendar?.color ?? defaultCalendarColor;
 
-  function EventDetailsPanel() {
+  function renderEventDetailsPanel() {
     const panelDisabled = !editorState;
     const startDate = editorState ? new Date(editorState.startISO) : null;
     const endDate = editorState ? new Date(editorState.endISO) : null;
@@ -1200,6 +1140,17 @@ export default function TaskSchedulerCalendar({
     const calendarSelectValue =
       calendars.length === 0 ? "" : editorState?.calendarId ?? "";
     const emptyCalendarLabel = editorState ? "No calendar" : "Select calendar";
+    const selectedCalendar = editorState?.calendarId
+      ? calendars.find((calendar) => calendar.id === editorState.calendarId) ??
+        null
+      : null;
+    const calendarLabel = calendarsLoading
+      ? "Loading calendars…"
+      : calendars.length === 0
+        ? "No calendars yet"
+        : selectedCalendar?.name ?? emptyCalendarLabel;
+    const calendarDropdownDisabled =
+      panelDisabled || calendarsLoading || calendars.length === 0;
     const canEditTaskLink = !!editorState && editorState.id === null;
     const taskLabel = editorState?.taskId
       ? taskById.get(editorState.taskId)?.title ?? "Linked task"
@@ -1251,32 +1202,73 @@ export default function TaskSchedulerCalendar({
                   : { backgroundColor: editorCalendarColor }
               }
             />
-            <select
-              value={calendarSelectValue}
-              onChange={(event) =>
-                updateEditorField(
-                  "calendarId",
-                  event.target.value ? event.target.value : null,
-                )
-              }
-              disabled={panelDisabled || calendars.length === 0}
-              className="w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/90 outline-none transition focus:border-white/30 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {calendars.length === 0 ? (
-                <option value="">No calendars yet</option>
-              ) : (
-                <>
+            <div className="relative w-full" ref={calendarSelectRef}>
+              <button
+                type="button"
+                onClick={() => setCalendarSelectOpen((prev) => !prev)}
+                disabled={calendarDropdownDisabled}
+                aria-haspopup="listbox"
+                aria-expanded={calendarSelectOpen}
+                className="flex w-full items-center justify-between rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/90 outline-none transition focus:border-white/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span className="truncate">{calendarLabel}</span>
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-white/60 transition ${
+                    calendarSelectOpen ? "rotate-180" : ""
+                  }`}
+                  aria-hidden
+                />
+              </button>
+              {calendarSelectOpen && !calendarDropdownDisabled && (
+                <div
+                  role="listbox"
+                  aria-label="Select calendar"
+                  className="absolute z-30 mt-2 w-full rounded-md border border-white/10 bg-[#0b0b0f] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+                >
                   {calendarSelectValue === "" && (
-                    <option value="">{emptyCalendarLabel}</option>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={calendarSelectValue === ""}
+                      onClick={() => {
+                        updateEditorField("calendarId", null);
+                        setCalendarSelectOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] text-white/70 transition hover:bg-white/10"
+                    >
+                      <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
+                      <span className="truncate">{emptyCalendarLabel}</span>
+                    </button>
                   )}
-                  {calendars.map((calendar) => (
-                    <option key={calendar.id} value={calendar.id}>
-                      {calendar.name}
-                    </option>
-                  ))}
-                </>
+                  {calendars.map((calendar) => {
+                    const isSelected = calendar.id === calendarSelectValue;
+                    return (
+                      <button
+                        key={calendar.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => {
+                          updateEditorField("calendarId", calendar.id);
+                          setCalendarSelectOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] transition ${
+                          isSelected
+                            ? "bg-white/10 text-white"
+                            : "text-white/70 hover:bg-white/10 hover:text-white"
+                        }`}
+                      >
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: calendar.color }}
+                        />
+                        <span className="truncate">{calendar.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
-            </select>
+            </div>
           </div>
         </div>
 
@@ -1431,9 +1423,6 @@ export default function TaskSchedulerCalendar({
                         }`}
                       >
                         {week.map((day) => {
-                          const miniDateKey = day.toISOString().slice(0, 10);
-                          const overloadedMini =
-                            overloadedDayKeys.has(miniDateKey);
                           const isCurrentMonth =
                             day.getMonth() === monthReference.getMonth();
                           const isSelected = isSameDay(day, selectedDate);
@@ -1462,9 +1451,6 @@ export default function TaskSchedulerCalendar({
                               >
                                 {day.getDate()}
                               </span>
-                              {overloadedMini && (
-                                <span className="absolute -bottom-0.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-rose-400" />
-                              )}
                             </button>
                           );
                         })}
@@ -2111,7 +2097,7 @@ export default function TaskSchedulerCalendar({
           </section>
 
           <aside className="order-3 min-h-0 overflow-y-auto hide-scrollbar border-t border-white/10 bg-[#0f0f10] lg:border-t-0 lg:border-l">
-            <EventDetailsPanel />
+            {renderEventDetailsPanel()}
           </aside>
         </div>
       </div>
