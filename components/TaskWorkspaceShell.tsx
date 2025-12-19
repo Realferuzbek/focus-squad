@@ -497,6 +497,7 @@ export default function TaskWorkspaceShell() {
           return false;
         }
         if (
+          event.taskId &&
           event.eventKind === "manual" &&
           existing.eventKind === "manual" &&
           existing.taskId === event.taskId
