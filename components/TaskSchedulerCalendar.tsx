@@ -35,6 +35,9 @@ const GRID_COLUMNS_STYLE: React.CSSProperties = {
   gridTemplateColumns: GRID_TEMPLATE_COLUMNS,
 };
 const MIN_DURATION_MINUTES = 30;
+const GRID_SNAP_MINUTES = 15;
+const QUICK_CREATE_DURATION_MINUTES = 60;
+const QUICK_CREATE_MAX_LOOKAHEAD_DAYS = 30;
 const WEEKDAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 const EVENT_COLORS = ["#9b7bff", "#f472b6", "#22d3ee", "#34d399", "#facc15"];
 const DEFAULT_CALENDAR_COLOR = EVENT_COLORS[0];
@@ -51,12 +54,18 @@ type CalendarEvent = {
   description: string | null;
   eventKind: PersistedEvent["eventKind"] | "habit";
   readOnly?: boolean;
+  isDraft?: boolean;
   isVirtual?: boolean;
 };
 
 type TimedRange = {
   startISO: string;
   endISO: string;
+};
+
+type MinuteRange = {
+  start: number;
+  end: number;
 };
 
 type EditorState = {
@@ -181,8 +190,12 @@ function clampMinutes(value: number) {
   return Math.max(START_MINUTES, Math.min(END_MINUTES, value));
 }
 
-function snapToIncrement(minutes: number, increment = 15) {
+function snapToIncrement(minutes: number, increment = GRID_SNAP_MINUTES) {
   return Math.round(minutes / increment) * increment;
+}
+
+function ceilToIncrement(minutes: number, increment = GRID_SNAP_MINUTES) {
+  return Math.ceil(minutes / increment) * increment;
 }
 
 function minutesToPixels(minutes: number) {
@@ -214,6 +227,87 @@ function formatDurationLabel(totalMinutes: number) {
     return `${hours}h`;
   }
   return `${remaining}min`;
+}
+
+function mergeMinuteRanges(ranges: MinuteRange[]) {
+  if (ranges.length <= 1) return ranges;
+  const merged: MinuteRange[] = [];
+  ranges.forEach((range) => {
+    const last = merged[merged.length - 1];
+    if (!last || range.start > last.end) {
+      merged.push({ ...range });
+      return;
+    }
+    last.end = Math.max(last.end, range.end);
+  });
+  return merged;
+}
+
+function buildMergedTimedRangesForDay(events: CalendarEvent[], day: Date) {
+  const dayStart = startOfDay(day);
+  const dayEnd = addDays(dayStart, 1);
+  const ranges: MinuteRange[] = [];
+
+  events.forEach((eventItem) => {
+    if (eventItem.isAllDay) return;
+    const start = new Date(eventItem.startISO);
+    const end = new Date(eventItem.endISO);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+    if (end <= dayStart || start >= dayEnd) return;
+    const startMinutes = clampMinutes(
+      isSameDay(start, day) ? getMinutesFromDate(start) : START_MINUTES,
+    );
+    const endMinutes = clampMinutes(
+      isSameDay(end, day) ? getMinutesFromDate(end) : END_MINUTES,
+    );
+    if (endMinutes <= startMinutes) return;
+    ranges.push({ start: startMinutes, end: endMinutes });
+  });
+
+  ranges.sort((a, b) => a.start - b.start);
+  return mergeMinuteRanges(ranges);
+}
+
+function findNextAvailableSlot(
+  events: CalendarEvent[],
+  from: Date,
+  durationMinutes: number,
+  maxLookaheadDays = QUICK_CREATE_MAX_LOOKAHEAD_DAYS,
+) {
+  const baseDay = startOfDay(from);
+  const initialCursor = clampMinutes(
+    ceilToIncrement(getMinutesFromDate(from), GRID_SNAP_MINUTES),
+  );
+
+  for (let offset = 0; offset <= maxLookaheadDays; offset += 1) {
+    const day = addDays(baseDay, offset);
+    const ranges = buildMergedTimedRangesForDay(events, day);
+    let cursor = offset === 0 ? initialCursor : START_MINUTES;
+    cursor = clampMinutes(cursor);
+    if (cursor + durationMinutes > END_MINUTES) {
+      continue;
+    }
+
+    for (const range of ranges) {
+      if (range.end <= cursor) continue;
+      if (range.start - cursor >= durationMinutes) {
+        return { day, startMinutes: cursor };
+      }
+      cursor = range.end;
+      if (cursor + durationMinutes > END_MINUTES) {
+        break;
+      }
+    }
+
+    if (END_MINUTES - cursor >= durationMinutes) {
+      return { day, startMinutes: cursor };
+    }
+  }
+
+  return {
+    day: addDays(baseDay, maxLookaheadDays + 1),
+    startMinutes: START_MINUTES,
+  };
 }
 
 function buildMonthMatrix(monthReference: Date) {
@@ -362,6 +456,7 @@ export default function TaskSchedulerCalendar({
     () => calendars[0] ?? null,
     [calendars],
   );
+  const quickCreateCalendar = defaultCalendar ?? fallbackCalendar;
   const visibleCalendars = useMemo(
     () => calendars.filter((calendar) => calendar.isVisible),
     [calendars],
@@ -453,10 +548,42 @@ export default function TaskSchedulerCalendar({
     );
   }, [events, visibleCalendarIds]);
 
-  const renderedEvents = useMemo(
-    () => [...visibleEvents, ...habitEvents],
-    [visibleEvents, habitEvents],
-  );
+  const draftEvent = useMemo(() => {
+    if (!editorState || editorState.id !== null) return null;
+    const start = new Date(editorState.startISO);
+    const end = new Date(editorState.endISO);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return null;
+    }
+    const color =
+      (editorState.calendarId
+        ? calendarColorById.get(editorState.calendarId)
+        : null) ?? defaultCalendarColor;
+    return {
+      id: "__draft__",
+      title: editorState.title.trim() ? editorState.title : "Untitled block",
+      startISO: editorState.startISO,
+      endISO: editorState.endISO,
+      isAllDay: editorState.isAllDay,
+      color,
+      taskId: editorState.taskId,
+      calendarId: editorState.calendarId,
+      description: editorState.description.trim()
+        ? editorState.description
+        : null,
+      eventKind: "manual" as const,
+      readOnly: true,
+      isDraft: true,
+    };
+  }, [calendarColorById, defaultCalendarColor, editorState]);
+
+  const renderedEvents = useMemo(() => {
+    const next = [...visibleEvents, ...habitEvents];
+    if (draftEvent) {
+      next.push(draftEvent);
+    }
+    return next;
+  }, [draftEvent, habitEvents, visibleEvents]);
   const timedEvents = useMemo(
     () => renderedEvents.filter((event) => !event.isAllDay),
     [renderedEvents],
@@ -1166,6 +1293,65 @@ export default function TaskSchedulerCalendar({
     [taskById],
   );
 
+  const ensureDraftEventFromQuickInput = useCallback(
+    (seed: { title?: string; description?: string }) => {
+      if (!quickCreateCalendar) return null;
+      const now = new Date();
+      const slot = findNextAvailableSlot(
+        [...eventsRef.current, ...habitEvents],
+        now,
+        QUICK_CREATE_DURATION_MINUTES,
+        QUICK_CREATE_MAX_LOOKAHEAD_DAYS,
+      );
+      const startDate = createDateWithMinutes(slot.day, slot.startMinutes);
+      const endDate = createDateWithMinutes(
+        slot.day,
+        slot.startMinutes + QUICK_CREATE_DURATION_MINUTES,
+      );
+      return {
+        id: null,
+        title: seed.title ?? "",
+        startISO: startDate.toISOString(),
+        endISO: endDate.toISOString(),
+        isAllDay: false,
+        position: { x: 16, y: 16 },
+        taskId: null,
+        calendarId: quickCreateCalendar.id,
+        description: seed.description ?? "",
+        lastTimedRange: {
+          startISO: startDate.toISOString(),
+          endISO: endDate.toISOString(),
+        },
+      };
+    },
+    [habitEvents, quickCreateCalendar],
+  );
+
+  const handleQuickInputChange = useCallback(
+    (field: "title" | "description", value: string) => {
+      const trimmed = value.trim();
+      setEditorState((prev) => {
+        if (!prev) {
+          if (!trimmed) return prev;
+          const draft = ensureDraftEventFromQuickInput(
+            field === "title" ? { title: value } : { description: value },
+          );
+          return draft ?? prev;
+        }
+        const next = { ...prev, [field]: value };
+        if (
+          prev.id === null &&
+          !next.title.trim() &&
+          !next.description.trim()
+        ) {
+          return null;
+        }
+        return next;
+      });
+    },
+    [ensureDraftEventFromQuickInput],
+  );
+
   async function handleSaveEvent() {
     if (!editorState) return;
     const {
@@ -1236,6 +1422,7 @@ export default function TaskSchedulerCalendar({
     : null;
   const editorCalendarColor = editorCalendar?.color ?? defaultCalendarColor;
   const panelDisabled = !editorState;
+  const quickInputDisabled = !editorState && !quickCreateCalendar;
   const calendarSelectValue =
     calendars.length === 0 ? "" : editorState?.calendarId ?? "";
   const emptyCalendarLabel = editorState ? "No calendar" : "Select calendar";
@@ -1372,8 +1559,10 @@ export default function TaskSchedulerCalendar({
       <div className="flex min-h-0 flex-col gap-4 px-4 pb-6 pt-3">
         <input
           value={editorState?.title ?? ""}
-          onChange={(event) => updateEditorField("title", event.target.value)}
-          disabled={panelDisabled || !!editorState?.taskId}
+          onChange={(event) =>
+            handleQuickInputChange("title", event.target.value)
+          }
+          disabled={quickInputDisabled || !!editorState?.taskId}
           className="w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[15px] text-white/90 outline-none transition placeholder:text-white/35 focus:border-white/30 disabled:cursor-not-allowed disabled:opacity-60"
           placeholder="Title"
         />
@@ -1570,9 +1759,9 @@ export default function TaskSchedulerCalendar({
           <textarea
             value={editorState?.description ?? ""}
             onChange={(event) =>
-              updateEditorField("description", event.target.value)
+              handleQuickInputChange("description", event.target.value)
             }
-            disabled={panelDisabled}
+            disabled={quickInputDisabled}
             rows={4}
             className="mt-2 w-full resize-none rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/90 outline-none transition placeholder:text-white/35 focus:border-white/30 disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Add notes"
@@ -2160,6 +2349,7 @@ export default function TaskSchedulerCalendar({
                           {dayEvents.map((eventItem) => {
                             const isHighlighted =
                               highlightedEventId === eventItem.id;
+                            const isDraft = !!eventItem.isDraft;
                             return (
                               <button
                                 key={eventItem.id}
@@ -2170,7 +2360,7 @@ export default function TaskSchedulerCalendar({
                                 }
                                 className={`group flex items-center rounded-md px-2 text-[11px] font-medium text-white/90 transition hover:text-white ${
                                   isHighlighted ? "ring-2 ring-white" : ""
-                                }`}
+                                } ${isDraft ? "border border-dashed border-white/40 opacity-80" : ""}`}
                                 style={{
                                   height: ALLDAY_PILL_H,
                                   backgroundImage: `linear-gradient(135deg, ${eventItem.color}, rgba(0,0,0,0.35))`,
@@ -2316,17 +2506,20 @@ export default function TaskSchedulerCalendar({
                           minutesToPixels(getMinutesFromDate(end)) - top;
                         const isLinked = !!eventItem.taskId;
                         const isHighlighted = highlightedEventId === eventItem.id;
-                        const readOnly = eventItem.eventKind === "habit";
+                        const isHabit = eventItem.eventKind === "habit";
+                        const isDraft = !!eventItem.isDraft;
+                        const isReadOnly =
+                          isHabit || !!eventItem.readOnly || isDraft;
                         const autoplan = eventItem.eventKind === "auto_plan";
                         return (
                           <div
                             key={eventItem.id}
                             data-event-block
                             className={`group absolute inset-x-2 rounded-md border border-white/10 px-2 py-2 text-[12px] text-white/95 transition-colors ${
-                              isLinked && !readOnly ? "border-white/30" : ""
+                              isLinked && !isReadOnly ? "border-white/30" : ""
                             } ${isHighlighted ? "ring-2 ring-white" : ""} ${
-                              readOnly ? "opacity-80" : ""
-                            } hover:border-white/20`}
+                              isReadOnly ? "opacity-80" : ""
+                            } ${isDraft ? "border-dashed border-white/40" : ""} hover:border-white/20`}
                             style={{
                               top,
                               height: Math.max(
@@ -2339,10 +2532,10 @@ export default function TaskSchedulerCalendar({
                               handleEventClick(event, eventItem)
                             }
                           >
-                            {isLinked && !readOnly && (
+                            {isLinked && !isReadOnly && (
                               <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-white/70" />
                             )}
-                            {!readOnly && (
+                            {!isReadOnly && (
                               <>
                                 <div
                                   className="absolute left-3 right-3 top-1 h-0.5 cursor-ns-resize rounded-full bg-white/70 opacity-0 transition-opacity group-hover:opacity-100"
@@ -2368,9 +2561,9 @@ export default function TaskSchedulerCalendar({
                                 />
                               </>
                             )}
-                            {(autoplan || readOnly) && (
+                            {(autoplan || isHabit) && (
                               <p className="text-[10px] uppercase tracking-[0.3em] text-white/80">
-                                {readOnly ? "Habit" : "Auto plan"}
+                                {isHabit ? "Habit" : "Auto plan"}
                               </p>
                             )}
                             <p className="text-[11px] opacity-90">
