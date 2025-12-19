@@ -5,6 +5,8 @@ import type {
   StudentTask,
   TaskCalendar,
   TaskCalendarEvent as PersistedEvent,
+  TaskCalendarRecurrence,
+  TaskCalendarRecurrenceFrequency,
 } from "@/lib/taskSchedulerTypes";
 import {
   Calendar as CalendarIcon,
@@ -39,8 +41,28 @@ const GRID_SNAP_MINUTES = 15;
 const QUICK_CREATE_DURATION_MINUTES = 60;
 const QUICK_CREATE_MAX_LOOKAHEAD_DAYS = 30;
 const WEEKDAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const WEEKDAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAY_CHIPS = [
+  { label: "Mo", value: 1 },
+  { label: "Tu", value: 2 },
+  { label: "We", value: 3 },
+  { label: "Th", value: 4 },
+  { label: "Fr", value: 5 },
+  { label: "Sa", value: 6 },
+  { label: "Su", value: 0 },
+];
+const RECURRENCE_UNITS: Array<{
+  value: TaskCalendarRecurrenceFrequency;
+  label: string;
+}> = [
+  { value: "daily", label: "day" },
+  { value: "weekly", label: "week" },
+  { value: "monthly", label: "month" },
+  { value: "yearly", label: "year" },
+];
 const EVENT_COLORS = ["#9b7bff", "#f472b6", "#22d3ee", "#34d399", "#facc15"];
 const DEFAULT_CALENDAR_COLOR = EVENT_COLORS[0];
+const MAX_RECURRING_OCCURRENCES = 200;
 
 type CalendarEvent = {
   id: string;
@@ -53,9 +75,11 @@ type CalendarEvent = {
   calendarId: string | null;
   description: string | null;
   eventKind: PersistedEvent["eventKind"] | "habit";
+  recurrence: TaskCalendarRecurrence | null;
   readOnly?: boolean;
   isDraft?: boolean;
   isVirtual?: boolean;
+  seriesId?: string | null;
 };
 
 type TimedRange = {
@@ -79,6 +103,7 @@ type EditorState = {
   calendarId: string | null;
   description: string;
   lastTimedRange: TimedRange | null;
+  recurrence: TaskCalendarRecurrence | null;
 };
 
 type CalendarEventInput = {
@@ -89,6 +114,7 @@ type CalendarEventInput = {
   taskId: string | null;
   calendarId?: string | null;
   description?: string | null;
+  recurrence?: TaskCalendarRecurrence | null;
 };
 
 type CalendarCreatePayload = {
@@ -101,6 +127,24 @@ type CalendarPatchPayload = Partial<
 >;
 
 type SurfaceView = "planner" | "calendar";
+
+type RecurrenceDraft = {
+  freq: TaskCalendarRecurrenceFrequency;
+  interval: number;
+  byweekday: number[];
+  bymonthday: number[] | null;
+  bysetpos: number | null;
+  endMode: "never" | "on" | "after";
+  until: string;
+  count: number;
+};
+
+type RepeatOption = {
+  id: string;
+  label: string;
+  recurrence: TaskCalendarRecurrence | null;
+  isCustom?: boolean;
+};
 
 type TaskSchedulerCalendarProps = {
   events: PersistedEvent[];
@@ -229,6 +273,617 @@ function formatDurationLabel(totalMinutes: number) {
   return `${remaining}min`;
 }
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function formatDateInput(value: string | null | undefined) {
+  if (!value) return "";
+  if (DATE_ONLY_RE.test(value)) return value;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function formatOrdinal(value: number) {
+  const abs = Math.abs(Math.trunc(value));
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 13) {
+    return `${abs}th`;
+  }
+  switch (abs % 10) {
+    case 1:
+      return `${abs}st`;
+    case 2:
+      return `${abs}nd`;
+    case 3:
+      return `${abs}rd`;
+    default:
+      return `${abs}th`;
+  }
+}
+
+function getNthWeekdayInMonth(date: Date) {
+  return Math.floor((date.getDate() - 1) / 7) + 1;
+}
+
+function getWeekdayLabel(dayIndex: number) {
+  return WEEKDAY_NAMES_SHORT[dayIndex] ?? "";
+}
+
+function formatMonthDayLabel(date: Date) {
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function normalizeRecurrenceWeekdays(
+  recurrence: TaskCalendarRecurrence | null,
+  startDate: Date | null,
+) {
+  const fallback =
+    startDate && !Number.isNaN(startDate.getTime())
+      ? [startDate.getDay()]
+      : [1];
+  const days = recurrence?.byweekday?.slice() ?? [];
+  const normalized = Array.from(new Set(days))
+    .map((day) => Math.max(0, Math.min(6, Math.trunc(day))))
+    .sort((a, b) => a - b);
+  return normalized.length ? normalized : fallback;
+}
+
+function buildRecurrenceSummary(
+  recurrence: TaskCalendarRecurrence | null,
+  startDate: Date | null,
+) {
+  if (!recurrence) return "Never";
+  const interval = Math.max(1, recurrence.interval || 1);
+  const start = startDate && !Number.isNaN(startDate.getTime())
+    ? startDate
+    : null;
+  if (recurrence.freq === "daily") {
+    return interval === 1 ? "Every day" : `Every ${interval} days`;
+  }
+  if (recurrence.freq === "weekly") {
+    const days = normalizeRecurrenceWeekdays(recurrence, start);
+    const isWeekdaySet =
+      days.length === 5 &&
+      [1, 2, 3, 4, 5].every((day, index) => days[index] === day);
+    if (interval === 1 && isWeekdaySet) {
+      return "Every weekday";
+    }
+    const label = days.length
+      ? days.map((day) => getWeekdayLabel(day)).join(", ")
+      : "week";
+    if (interval === 1 && days.length === 1) {
+      return `Every week on ${label}`;
+    }
+    if (interval === 2 && days.length === 1) {
+      return `Every 2 weeks on ${label}`;
+    }
+    return interval === 1
+      ? `Every week on ${label}`
+      : `Every ${interval} weeks on ${label}`;
+  }
+  if (recurrence.freq === "monthly") {
+    const monthDays = recurrence.bymonthday ?? [];
+    if (monthDays.length) {
+      const label = formatOrdinal(monthDays[0]);
+      return interval === 1
+        ? `Every month on the ${label}`
+        : `Every ${interval} months on the ${label}`;
+    }
+    if (recurrence.bysetpos && recurrence.byweekday?.length) {
+      const weekday = getWeekdayLabel(recurrence.byweekday[0]);
+      const ordinal = formatOrdinal(recurrence.bysetpos);
+      return interval === 1
+        ? `Every month on the ${ordinal} ${weekday}`
+        : `Every ${interval} months on the ${ordinal} ${weekday}`;
+    }
+    if (start) {
+      const label = formatOrdinal(start.getDate());
+      return interval === 1
+        ? `Every month on the ${label}`
+        : `Every ${interval} months on the ${label}`;
+    }
+    return interval === 1 ? "Every month" : `Every ${interval} months`;
+  }
+  if (recurrence.freq === "yearly") {
+    const label = start ? formatMonthDayLabel(start) : "that day";
+    return interval === 1
+      ? `Every year on ${label}`
+      : `Every ${interval} years on ${label}`;
+  }
+  return "Never";
+}
+
+function normalizeNumberArray(value?: number[] | null) {
+  if (!value?.length) return [];
+  return Array.from(new Set(value.map((entry) => Math.trunc(entry)))).sort(
+    (a, b) => a - b,
+  );
+}
+
+function isSameNumberArray(a?: number[] | null, b?: number[] | null) {
+  const left = normalizeNumberArray(a);
+  const right = normalizeNumberArray(b);
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+}
+
+function isSameRecurrenceShape(
+  left: TaskCalendarRecurrence | null,
+  right: TaskCalendarRecurrence | null,
+) {
+  if (!left && !right) return true;
+  if (!left || !right) return false;
+  return (
+    left.freq === right.freq &&
+    (left.interval || 1) === (right.interval || 1) &&
+    (left.bysetpos ?? null) === (right.bysetpos ?? null) &&
+    isSameNumberArray(left.byweekday, right.byweekday) &&
+    isSameNumberArray(left.bymonthday, right.bymonthday)
+  );
+}
+
+function buildRepeatOptions(startDate: Date | null): RepeatOption[] {
+  const base = startDate && !Number.isNaN(startDate.getTime())
+    ? startDate
+    : new Date();
+  const weekday = base.getDay();
+  const weekdayLabel = getWeekdayLabel(weekday);
+  const dayOfMonth = base.getDate();
+  const monthDayOrdinal = formatOrdinal(dayOfMonth);
+  const nth = getNthWeekdayInMonth(base);
+  const nthOrdinal = formatOrdinal(nth);
+  const monthDayLabel = formatMonthDayLabel(base);
+
+  return [
+    { id: "none", label: "Never", recurrence: null },
+    {
+      id: "daily",
+      label: "Every day",
+      recurrence: { freq: "daily", interval: 1 },
+    },
+    {
+      id: "weekdays",
+      label: "Every weekday",
+      recurrence: {
+        freq: "weekly",
+        interval: 1,
+        byweekday: [1, 2, 3, 4, 5],
+      },
+    },
+    {
+      id: "weekly",
+      label: `Every week on ${weekdayLabel}`,
+      recurrence: {
+        freq: "weekly",
+        interval: 1,
+        byweekday: [weekday],
+      },
+    },
+    {
+      id: "biweekly",
+      label: `Every 2 weeks on ${weekdayLabel}`,
+      recurrence: {
+        freq: "weekly",
+        interval: 2,
+        byweekday: [weekday],
+      },
+    },
+    {
+      id: "monthly-day",
+      label: `Every month on the ${monthDayOrdinal}`,
+      recurrence: {
+        freq: "monthly",
+        interval: 1,
+        bymonthday: [dayOfMonth],
+      },
+    },
+    {
+      id: "monthly-nth",
+      label: `Every month on the ${nthOrdinal} ${weekdayLabel}`,
+      recurrence: {
+        freq: "monthly",
+        interval: 1,
+        byweekday: [weekday],
+        bysetpos: nth,
+      },
+    },
+    {
+      id: "yearly",
+      label: `Every year on ${monthDayLabel}`,
+      recurrence: {
+        freq: "yearly",
+        interval: 1,
+        bymonthday: [dayOfMonth],
+      },
+    },
+    { id: "custom", label: "Custom...", recurrence: null, isCustom: true },
+  ];
+}
+
+function buildRepeatDraft(
+  startDate: Date | null,
+  recurrence: TaskCalendarRecurrence | null,
+): RecurrenceDraft {
+  const base = startDate && !Number.isNaN(startDate.getTime())
+    ? startDate
+    : new Date();
+  const baseWeekday = base.getDay();
+  const baseMonthday = base.getDate();
+  const byweekday = normalizeNumberArray(recurrence?.byweekday);
+  const bymonthday = normalizeNumberArray(recurrence?.bymonthday);
+
+  let endMode: RecurrenceDraft["endMode"] = "never";
+  let until = "";
+  let count = 1;
+  if (recurrence?.count) {
+    endMode = "after";
+    count = recurrence.count;
+  } else if (recurrence?.until) {
+    endMode = "on";
+    until = formatDateInput(recurrence.until);
+  }
+
+  return {
+    freq: recurrence?.freq ?? "weekly",
+    interval: recurrence?.interval ?? 1,
+    byweekday: byweekday.length ? byweekday : [baseWeekday],
+    bymonthday: bymonthday.length ? bymonthday : [baseMonthday],
+    bysetpos: recurrence?.bysetpos ?? null,
+    endMode,
+    until,
+    count,
+  };
+}
+
+function buildRecurrenceFromDraft(
+  draft: RecurrenceDraft,
+  startDate: Date | null,
+): TaskCalendarRecurrence {
+  const base = startDate && !Number.isNaN(startDate.getTime())
+    ? startDate
+    : new Date();
+  const interval = Math.max(1, Math.round(draft.interval || 1));
+  const recurrence: TaskCalendarRecurrence = {
+    freq: draft.freq,
+    interval,
+  };
+
+  if (draft.freq === "weekly") {
+    const days = normalizeNumberArray(draft.byweekday);
+    recurrence.byweekday = days.length ? days : [base.getDay()];
+  }
+
+  if (draft.freq === "monthly") {
+    const days = normalizeNumberArray(draft.byweekday);
+    if (draft.bysetpos) {
+      recurrence.byweekday = days.length ? days : [base.getDay()];
+      recurrence.bysetpos = draft.bysetpos;
+    } else {
+      const monthDays = normalizeNumberArray(draft.bymonthday);
+      recurrence.bymonthday = monthDays.length
+        ? monthDays
+        : [base.getDate()];
+    }
+  }
+
+  if (draft.freq === "yearly") {
+    const monthDays = normalizeNumberArray(draft.bymonthday);
+    recurrence.bymonthday = monthDays.length
+      ? monthDays
+      : [base.getDate()];
+  }
+
+  if (draft.endMode === "on" && draft.until) {
+    recurrence.until = draft.until;
+  } else if (draft.endMode === "after") {
+    recurrence.count = Math.max(1, Math.round(draft.count || 1));
+  }
+
+  return recurrence;
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function getUtcDayNumber(date: Date) {
+  return Math.floor(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / MS_PER_DAY,
+  );
+}
+
+function applyTimeToDate(date: Date, timeSource: Date) {
+  const next = new Date(date);
+  next.setHours(
+    timeSource.getHours(),
+    timeSource.getMinutes(),
+    timeSource.getSeconds(),
+    timeSource.getMilliseconds(),
+  );
+  return next;
+}
+
+function parseUntilDate(value?: string | null) {
+  if (!value) return null;
+  if (DATE_ONLY_RE.test(value)) {
+    const [year, month, day] = value.split("-").map(Number);
+    return new Date(year, month - 1, day, 23, 59, 59, 999);
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function getDailyOccurrenceIndex(
+  baseStart: Date,
+  candidateStart: Date,
+  interval: number,
+) {
+  const diffDays = getUtcDayNumber(candidateStart) - getUtcDayNumber(baseStart);
+  if (diffDays < 0 || diffDays % interval !== 0) return null;
+  return diffDays / interval + 1;
+}
+
+function getWeeklyOccurrenceIndex(
+  baseStart: Date,
+  candidateStart: Date,
+  interval: number,
+  weekdays: number[],
+) {
+  const weekStartBase = getStartOfWeek(baseStart);
+  const weekStartCandidate = getStartOfWeek(candidateStart);
+  const weekDiff =
+    (getUtcDayNumber(weekStartCandidate) - getUtcDayNumber(weekStartBase)) / 7;
+  if (weekDiff < 0 || weekDiff % interval !== 0) return null;
+
+  const sortedWeekdays = normalizeNumberArray(weekdays);
+  if (!sortedWeekdays.length) return null;
+  const candidateWeekday = candidateStart.getDay();
+  if (!sortedWeekdays.includes(candidateWeekday)) return null;
+
+  const weekIndex = weekDiff / interval;
+  const baseWeekday = baseStart.getDay();
+  const startWeekDays = sortedWeekdays.filter((day) => day >= baseWeekday);
+
+  if (weekIndex === 0) {
+    const indexInWeek = startWeekDays.indexOf(candidateWeekday);
+    return indexInWeek >= 0 ? indexInWeek + 1 : null;
+  }
+
+  const startWeekCount = startWeekDays.length;
+  const daysBefore = sortedWeekdays.filter(
+    (day) => day < candidateWeekday,
+  ).length;
+  return startWeekCount + (weekIndex - 1) * sortedWeekdays.length + daysBefore + 1;
+}
+
+function getMonthlyMonthdayOccurrenceIndex(
+  baseStart: Date,
+  candidateStart: Date,
+  interval: number,
+  monthdays: number[],
+) {
+  const baseMonthIndex = baseStart.getFullYear() * 12 + baseStart.getMonth();
+  const candidateMonthIndex =
+    candidateStart.getFullYear() * 12 + candidateStart.getMonth();
+  const monthDiff = candidateMonthIndex - baseMonthIndex;
+  if (monthDiff < 0 || monthDiff % interval !== 0) return null;
+
+  const sortedDays = normalizeNumberArray(monthdays);
+  if (!sortedDays.length) return null;
+  const candidateDay = candidateStart.getDate();
+  if (!sortedDays.includes(candidateDay)) return null;
+
+  const monthIndex = monthDiff / interval;
+  const baseDay = baseStart.getDate();
+  const startMonthDays = sortedDays.filter((day) => day >= baseDay);
+
+  if (monthIndex === 0) {
+    const indexInMonth = startMonthDays.indexOf(candidateDay);
+    return indexInMonth >= 0 ? indexInMonth + 1 : null;
+  }
+
+  const startMonthCount = startMonthDays.length;
+  const daysBefore = sortedDays.filter((day) => day < candidateDay).length;
+  return startMonthCount + (monthIndex - 1) * sortedDays.length + daysBefore + 1;
+}
+
+function getNthWeekdayDate(
+  year: number,
+  month: number,
+  weekday: number,
+  nth: number,
+) {
+  const firstOfMonth = new Date(year, month, 1);
+  const firstWeekday = firstOfMonth.getDay();
+  const offset = (weekday - firstWeekday + 7) % 7;
+  const day = 1 + offset + (nth - 1) * 7;
+  const candidate = new Date(year, month, day);
+  if (candidate.getMonth() !== month) return null;
+  return candidate;
+}
+
+function getMonthlyBysetposOccurrenceIndex(
+  baseStart: Date,
+  candidateStart: Date,
+  interval: number,
+  weekday: number,
+  setpos: number,
+) {
+  const baseMonthIndex = baseStart.getFullYear() * 12 + baseStart.getMonth();
+  const candidateMonthIndex =
+    candidateStart.getFullYear() * 12 + candidateStart.getMonth();
+  const monthDiff = candidateMonthIndex - baseMonthIndex;
+  if (monthDiff < 0 || monthDiff % interval !== 0) return null;
+
+  const candidateDate = getNthWeekdayDate(
+    candidateStart.getFullYear(),
+    candidateStart.getMonth(),
+    weekday,
+    setpos,
+  );
+  if (!candidateDate) return null;
+  if (
+    candidateDate.getFullYear() !== candidateStart.getFullYear() ||
+    candidateDate.getMonth() !== candidateStart.getMonth() ||
+    candidateDate.getDate() !== candidateStart.getDate()
+  ) {
+    return null;
+  }
+
+  const baseDate = getNthWeekdayDate(
+    baseStart.getFullYear(),
+    baseStart.getMonth(),
+    weekday,
+    setpos,
+  );
+  const firstOffset =
+    baseDate && baseDate.getTime() >= baseStart.getTime() ? 0 : 1;
+
+  const monthIndex = monthDiff / interval;
+  if (monthIndex < firstOffset) return null;
+  return monthIndex - firstOffset + 1;
+}
+
+function getYearlyOccurrenceIndex(
+  baseStart: Date,
+  candidateStart: Date,
+  interval: number,
+  monthdays: number[],
+) {
+  if (candidateStart.getMonth() !== baseStart.getMonth()) return null;
+  const yearDiff = candidateStart.getFullYear() - baseStart.getFullYear();
+  if (yearDiff < 0 || yearDiff % interval !== 0) return null;
+
+  const sortedDays = normalizeNumberArray(monthdays);
+  if (!sortedDays.length) return null;
+  const candidateDay = candidateStart.getDate();
+  if (!sortedDays.includes(candidateDay)) return null;
+
+  const yearIndex = yearDiff / interval;
+  const baseDay = baseStart.getDate();
+  const startYearDays = sortedDays.filter((day) => day >= baseDay);
+
+  if (yearIndex === 0) {
+    const indexInYear = startYearDays.indexOf(candidateDay);
+    return indexInYear >= 0 ? indexInYear + 1 : null;
+  }
+
+  const startYearCount = startYearDays.length;
+  const daysBefore = sortedDays.filter((day) => day < candidateDay).length;
+  return startYearCount + (yearIndex - 1) * sortedDays.length + daysBefore + 1;
+}
+
+function expandRecurringEventsForWeek(
+  events: CalendarEvent[],
+  weekDays: Date[],
+  maxOccurrences: number,
+) {
+  const expanded: CalendarEvent[] = [];
+  let remaining = maxOccurrences;
+
+  events.forEach((eventItem) => {
+    if (!eventItem.recurrence) {
+      expanded.push(eventItem);
+      return;
+    }
+    if (remaining <= 0) return;
+
+    const baseStart = new Date(eventItem.startISO);
+    const baseEnd = new Date(eventItem.endISO);
+    if (
+      Number.isNaN(baseStart.getTime()) ||
+      Number.isNaN(baseEnd.getTime())
+    ) {
+      return;
+    }
+    const durationMs = baseEnd.getTime() - baseStart.getTime();
+    if (durationMs <= 0) return;
+
+    const recurrence = eventItem.recurrence;
+    const interval = Math.max(1, recurrence.interval || 1);
+    const until = parseUntilDate(recurrence.until);
+    const weekdays = normalizeRecurrenceWeekdays(recurrence, baseStart);
+    const monthdays = normalizeNumberArray(recurrence.bymonthday);
+
+    weekDays.forEach((day) => {
+      if (remaining <= 0) return;
+      const dayStart = startOfDay(day);
+      const candidateStart = eventItem.isAllDay
+        ? dayStart
+        : applyTimeToDate(dayStart, baseStart);
+      if (candidateStart.getTime() < baseStart.getTime()) return;
+      if (until && candidateStart.getTime() > until.getTime()) return;
+
+      let occurrenceIndex: number | null = null;
+      if (recurrence.freq === "daily") {
+        occurrenceIndex = getDailyOccurrenceIndex(
+          baseStart,
+          candidateStart,
+          interval,
+        );
+      } else if (recurrence.freq === "weekly") {
+        occurrenceIndex = getWeeklyOccurrenceIndex(
+          baseStart,
+          candidateStart,
+          interval,
+          weekdays,
+        );
+      } else if (recurrence.freq === "monthly") {
+        if (recurrence.bysetpos && weekdays.length) {
+          occurrenceIndex = getMonthlyBysetposOccurrenceIndex(
+            baseStart,
+            candidateStart,
+            interval,
+            weekdays[0],
+            recurrence.bysetpos,
+          );
+        } else {
+          const monthDays = monthdays.length
+            ? monthdays
+            : [baseStart.getDate()];
+          occurrenceIndex = getMonthlyMonthdayOccurrenceIndex(
+            baseStart,
+            candidateStart,
+            interval,
+            monthDays,
+          );
+        }
+      } else if (recurrence.freq === "yearly") {
+        const yearDays = monthdays.length
+          ? monthdays
+          : [baseStart.getDate()];
+        occurrenceIndex = getYearlyOccurrenceIndex(
+          baseStart,
+          candidateStart,
+          interval,
+          yearDays,
+        );
+      }
+
+      if (!occurrenceIndex) return;
+      if (recurrence.count && occurrenceIndex > recurrence.count) return;
+
+      const occurrenceEnd = new Date(
+        candidateStart.getTime() + durationMs,
+      );
+      expanded.push({
+        ...eventItem,
+        id: `${eventItem.id}__${formatDateKey(candidateStart)}__${occurrenceIndex}`,
+        startISO: candidateStart.toISOString(),
+        endISO: occurrenceEnd.toISOString(),
+        readOnly: true,
+        isVirtual: true,
+        seriesId: eventItem.id,
+      });
+      remaining -= 1;
+    });
+  });
+
+  return expanded;
+}
+
 function mergeMinuteRanges(ranges: MinuteRange[]) {
   if (ranges.length <= 1) return ranges;
   const merged: MinuteRange[] = [];
@@ -354,6 +1009,7 @@ function mapPersistedEvent(
     calendarId,
     description: event.description ?? null,
     eventKind: event.eventKind,
+    recurrence: event.recurrence ?? null,
   };
 }
 
@@ -366,6 +1022,7 @@ function buildEventInput(event: CalendarEvent): CalendarEventInput {
     taskId: event.taskId,
     calendarId: event.calendarId,
     description: event.description,
+    recurrence: event.recurrence ?? null,
   };
 }
 
@@ -420,6 +1077,12 @@ export default function TaskSchedulerCalendar({
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const [calendarSelectOpen, setCalendarSelectOpen] = useState(false);
   const [calendarSelectActiveIndex, setCalendarSelectActiveIndex] = useState(0);
+  const [repeatMenuOpen, setRepeatMenuOpen] = useState(false);
+  const [repeatMenuActiveIndex, setRepeatMenuActiveIndex] = useState(0);
+  const [customRepeatOpen, setCustomRepeatOpen] = useState(false);
+  const [repeatDraft, setRepeatDraft] = useState<RecurrenceDraft | null>(null);
+  const [repeatUnitOpen, setRepeatUnitOpen] = useState(false);
+  const [repeatUnitActiveIndex, setRepeatUnitActiveIndex] = useState(0);
   const [selectionState, setSelectionState] = useState<SelectionState | null>(
     null,
   );
@@ -432,6 +1095,13 @@ export default function TaskSchedulerCalendar({
     null,
   );
   const [surfaceTabsReady, setSurfaceTabsReady] = useState(false);
+  const weekDays = useMemo(() => {
+    return Array.from({ length: 7 }, (_, index) => {
+      const day = addDays(visibleWeekStart, index);
+      day.setHours(0, 0, 0, 0);
+      return day;
+    });
+  }, [visibleWeekStart]);
   const columnRefs = useRef<Array<HTMLDivElement | null>>([]);
   const surfaceButtonsRef = useRef<
     Record<SurfaceView, HTMLButtonElement | null>
@@ -442,6 +1112,9 @@ export default function TaskSchedulerCalendar({
   const calendarMenuRef = useRef<HTMLDivElement | null>(null);
   const calendarMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const calendarSelectRef = useRef<HTMLDivElement | null>(null);
+  const repeatMenuRef = useRef<HTMLDivElement | null>(null);
+  const repeatMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const repeatUnitRef = useRef<HTMLDivElement | null>(null);
 
   const activeCalendar = useMemo(
     () =>
@@ -536,6 +1209,7 @@ export default function TaskSchedulerCalendar({
         calendarId: null,
         description: null,
         eventKind: "habit" as const,
+        recurrence: null,
         readOnly: true,
         isVirtual: true,
       })),
@@ -547,6 +1221,15 @@ export default function TaskSchedulerCalendar({
       (event) => !event.calendarId || visibleCalendarIds.has(event.calendarId),
     );
   }, [events, visibleCalendarIds]);
+  const expandedEvents = useMemo(
+    () =>
+      expandRecurringEventsForWeek(
+        visibleEvents,
+        weekDays,
+        MAX_RECURRING_OCCURRENCES,
+      ),
+    [visibleEvents, weekDays],
+  );
 
   const draftEvent = useMemo(() => {
     if (!editorState || editorState.id !== null) return null;
@@ -572,18 +1255,19 @@ export default function TaskSchedulerCalendar({
         ? editorState.description
         : null,
       eventKind: "manual" as const,
+      recurrence: editorState.recurrence ?? null,
       readOnly: true,
       isDraft: true,
     };
   }, [calendarColorById, defaultCalendarColor, editorState]);
 
   const renderedEvents = useMemo(() => {
-    const next = [...visibleEvents, ...habitEvents];
+    const next = [...expandedEvents, ...habitEvents];
     if (draftEvent) {
       next.push(draftEvent);
     }
     return next;
-  }, [draftEvent, habitEvents, visibleEvents]);
+  }, [draftEvent, expandedEvents, habitEvents]);
   const timedEvents = useMemo(
     () => renderedEvents.filter((event) => !event.isAllDay),
     [renderedEvents],
@@ -672,10 +1356,59 @@ export default function TaskSchedulerCalendar({
   }, [calendarSelectOpen]);
 
   useEffect(() => {
+    if (!repeatMenuOpen) return;
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (repeatMenuRef.current?.contains(target)) return;
+      if (repeatMenuButtonRef.current?.contains(target)) return;
+      setRepeatMenuOpen(false);
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setRepeatMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [repeatMenuOpen]);
+
+  useEffect(() => {
+    if (!repeatUnitOpen) return;
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (repeatUnitRef.current?.contains(target)) return;
+      setRepeatUnitOpen(false);
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setRepeatUnitOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [repeatUnitOpen]);
+
+  useEffect(() => {
     if (!editorState || calendars.length === 0 || calendarsLoading) {
       setCalendarSelectOpen(false);
     }
   }, [calendars.length, calendarsLoading, editorState]);
+
+  useEffect(() => {
+    if (!editorState) {
+      setRepeatMenuOpen(false);
+      setCustomRepeatOpen(false);
+      setRepeatUnitOpen(false);
+    }
+  }, [editorState]);
 
   useEffect(() => {
     if (
@@ -857,13 +1590,6 @@ export default function TaskSchedulerCalendar({
     setEditError(null);
   }
 
-  const weekDays = useMemo(() => {
-    return Array.from({ length: 7 }, (_, index) => {
-      const day = addDays(visibleWeekStart, index);
-      day.setHours(0, 0, 0, 0);
-      return day;
-    });
-  }, [visibleWeekStart]);
   const allDayRowHeight = useMemo(() => {
     const maxCount = weekDays.reduce((max, day) => {
       const count = allDayEventsByDate.get(formatDateKey(day))?.length ?? 0;
@@ -1087,6 +1813,7 @@ export default function TaskSchedulerCalendar({
           startISO: startDate.toISOString(),
           endISO: endDate.toISOString(),
         },
+        recurrence: null,
       });
     },
     [draftCalendar],
@@ -1205,24 +1932,32 @@ export default function TaskSchedulerCalendar({
       setResizeState(null);
       return;
     }
-    if (calendarEvent.readOnly) return;
+    const isOccurrence = !!calendarEvent.seriesId;
+    if (calendarEvent.readOnly && !isOccurrence) return;
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const sourceEvent = isOccurrence
+      ? eventsRef.current.find((evt) => evt.id === calendarEvent.seriesId) ??
+        null
+      : calendarEvent;
+    if (!sourceEvent) return;
+    // Occurrence clicks edit the full series; individual overrides are not supported.
     openEditor({
-      id: calendarEvent.id,
-      title: calendarEvent.title,
-      startISO: calendarEvent.startISO,
-      endISO: calendarEvent.endISO,
-      isAllDay: calendarEvent.isAllDay,
+      id: sourceEvent.id,
+      title: sourceEvent.title,
+      startISO: sourceEvent.startISO,
+      endISO: sourceEvent.endISO,
+      isAllDay: sourceEvent.isAllDay,
       position: { x: rect.right + 12, y: rect.top },
-      taskId: calendarEvent.taskId,
-      calendarId: calendarEvent.calendarId,
-      description: calendarEvent.description ?? "",
-      lastTimedRange: calendarEvent.isAllDay
+      taskId: sourceEvent.taskId,
+      calendarId: sourceEvent.calendarId,
+      description: sourceEvent.description ?? "",
+      lastTimedRange: sourceEvent.isAllDay
         ? null
         : {
-            startISO: calendarEvent.startISO,
-            endISO: calendarEvent.endISO,
+            startISO: sourceEvent.startISO,
+            endISO: sourceEvent.endISO,
           },
+      recurrence: sourceEvent.recurrence ?? null,
     });
   }
 
@@ -1322,6 +2057,7 @@ export default function TaskSchedulerCalendar({
           startISO: startDate.toISOString(),
           endISO: endDate.toISOString(),
         },
+        recurrence: null,
       };
     },
     [habitEvents, quickCreateCalendar],
@@ -1363,6 +2099,7 @@ export default function TaskSchedulerCalendar({
       calendarId,
       description,
       isAllDay,
+      recurrence,
     } = editorState;
     const start = new Date(startISO);
     const end = new Date(endISO);
@@ -1378,6 +2115,7 @@ export default function TaskSchedulerCalendar({
       taskId,
       calendarId,
       description: description.trim() ? description.trim() : null,
+      recurrence: recurrence ?? null,
     };
     setSavingEvent(true);
     try {
@@ -1491,6 +2229,7 @@ export default function TaskSchedulerCalendar({
       !!startDate && !Number.isNaN(startDate.getTime());
     const hasValidEnd = !!endDate && !Number.isNaN(endDate.getTime());
     const hasValidDates = hasValidStart && hasValidEnd;
+    const safeStartDate = hasValidStart ? startDate : null;
     const durationMinutes =
       hasValidDates && startDate && endDate
         ? Math.max(
@@ -1515,6 +2254,19 @@ export default function TaskSchedulerCalendar({
     const taskLabel = editorState?.taskId
       ? taskById.get(editorState.taskId)?.title ?? "Linked task"
       : "No task linked";
+    const repeatOptions = buildRepeatOptions(safeStartDate);
+    const repeatSummary = buildRecurrenceSummary(
+      editorState?.recurrence ?? null,
+      safeStartDate,
+    );
+    const repeatSelectedIndex = repeatOptions.findIndex(
+      (option) =>
+        !option.isCustom &&
+        isSameRecurrenceShape(option.recurrence, editorState?.recurrence ?? null),
+    );
+    const repeatActiveIndex =
+      repeatSelectedIndex >= 0 ? repeatSelectedIndex : 0;
+    const fallbackWeekday = safeStartDate?.getDay() ?? 1;
     function handleCalendarSelectKeyDown(
       event: React.KeyboardEvent<HTMLDivElement>,
     ) {
@@ -1552,6 +2304,69 @@ export default function TaskSchedulerCalendar({
       }
       if (event.key === "Escape") {
         setCalendarSelectOpen(false);
+      }
+    }
+
+    function openCustomRepeatModal() {
+      if (!editorState) return;
+      setRepeatDraft(buildRepeatDraft(safeStartDate, editorState.recurrence));
+      setCustomRepeatOpen(true);
+      setRepeatMenuOpen(false);
+      setRepeatUnitOpen(false);
+      setRepeatUnitActiveIndex(
+        Math.max(
+          0,
+          RECURRENCE_UNITS.findIndex(
+            (unit) =>
+              unit.value ===
+              (editorState.recurrence?.freq ?? "weekly"),
+          ),
+        ),
+      );
+    }
+
+    function applyRepeatOption(option: RepeatOption) {
+      if (!editorState) return;
+      if (option.isCustom) {
+        openCustomRepeatModal();
+        return;
+      }
+      updateEditorField("recurrence", option.recurrence);
+      setRepeatMenuOpen(false);
+    }
+
+    function handleRepeatMenuKeyDown(
+      event: React.KeyboardEvent<HTMLDivElement>,
+    ) {
+      if (!editorState) return;
+      if (!repeatMenuOpen) {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          setRepeatMenuOpen(true);
+          setRepeatMenuActiveIndex(repeatActiveIndex);
+        }
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        setRepeatMenuActiveIndex((prev) => {
+          const count = repeatOptions.length;
+          if (count === 0) return prev;
+          const next = (prev + direction + count) % count;
+          return next;
+        });
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const option = repeatOptions[repeatMenuActiveIndex];
+        if (!option) return;
+        applyRepeatOption(option);
+        return;
+      }
+      if (event.key === "Escape") {
+        setRepeatMenuOpen(false);
       }
     }
 
@@ -1621,6 +2436,83 @@ export default function TaskSchedulerCalendar({
           }`}
         >
           {hasValidDates ? dateLabel : "Date"}
+        </div>
+
+        <div
+          className={`flex items-center justify-between rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] ${
+            panelDisabled ? "text-white/35" : "text-white/80"
+          }`}
+        >
+          <span className="font-medium">Repeat</span>
+          <div
+            className="relative"
+            ref={repeatMenuRef}
+            onKeyDown={handleRepeatMenuKeyDown}
+          >
+            <button
+              ref={repeatMenuButtonRef}
+              type="button"
+              onClick={() =>
+                setRepeatMenuOpen((prev) => {
+                  const next = !prev;
+                  if (next) {
+                    setRepeatMenuActiveIndex(repeatActiveIndex);
+                  }
+                  return next;
+                })
+              }
+              disabled={panelDisabled}
+              aria-haspopup="listbox"
+              aria-expanded={repeatMenuOpen}
+              className="flex min-w-[140px] items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/90 outline-none transition focus:border-white/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="truncate">{repeatSummary}</span>
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 text-white/60 transition ${
+                  repeatMenuOpen ? "rotate-180" : ""
+                }`}
+                aria-hidden
+              />
+            </button>
+            {repeatMenuOpen && !panelDisabled && (
+              <div
+                role="listbox"
+                aria-label="Repeat options"
+                className="absolute right-0 z-30 mt-2 w-64 overflow-hidden rounded-md border border-white/10 bg-[#0b0b0f] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+              >
+                {repeatOptions.map((option, optionIndex) => {
+                  const isSelected =
+                    !option.isCustom &&
+                    isSameRecurrenceShape(
+                      option.recurrence,
+                      editorState?.recurrence ?? null,
+                    );
+                  const isHighlighted =
+                    optionIndex === repeatMenuActiveIndex;
+                  const isActive = isSelected || isHighlighted;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onMouseEnter={() =>
+                        setRepeatMenuActiveIndex(optionIndex)
+                      }
+                      onClick={() => applyRepeatOption(option)}
+                      className={`flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-[13px] transition ${
+                        isActive
+                          ? "bg-white/10 text-white"
+                          : "text-white/70 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <span className="truncate">{option.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         <div>
@@ -1785,6 +2677,292 @@ export default function TaskSchedulerCalendar({
           >
             {savingEvent ? "Saving…" : "Save"}
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderRepeatModal() {
+    if (!customRepeatOpen || !repeatDraft) return null;
+    const startDate = editorState ? new Date(editorState.startISO) : null;
+    const safeStartDate =
+      startDate && !Number.isNaN(startDate.getTime()) ? startDate : null;
+    const fallbackWeekday = safeStartDate?.getDay() ?? 1;
+    const unitIndex = Math.max(
+      0,
+      RECURRENCE_UNITS.findIndex(
+        (unit) => unit.value === repeatDraft.freq,
+      ),
+    );
+    const unitBaseLabel =
+      RECURRENCE_UNITS[unitIndex]?.label ?? "week";
+    const unitLabel =
+      repeatDraft.interval === 1 ? unitBaseLabel : `${unitBaseLabel}s`;
+
+    function toggleWeekday(value: number) {
+      setRepeatDraft((prev) => {
+        if (!prev) return prev;
+        const exists = prev.byweekday.includes(value);
+        let nextDays = exists
+          ? prev.byweekday.filter((day) => day !== value)
+          : [...prev.byweekday, value];
+        nextDays = normalizeNumberArray(nextDays);
+        if (!nextDays.length) {
+          nextDays = [fallbackWeekday];
+        }
+        return { ...prev, byweekday: nextDays };
+      });
+    }
+
+    function closeModal() {
+      setCustomRepeatOpen(false);
+      setRepeatUnitOpen(false);
+    }
+
+    function handleDone() {
+      if (!editorState || !repeatDraft) {
+        closeModal();
+        return;
+      }
+      const nextRecurrence = buildRecurrenceFromDraft(
+        repeatDraft,
+        safeStartDate,
+      );
+      updateEditorField("recurrence", nextRecurrence);
+      closeModal();
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b0b16] p-6 text-sm text-white shadow-[0_20px_50px_rgba(0,0,0,0.4)]">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Repeat</h3>
+            <button
+              type="button"
+              onClick={closeModal}
+              className="text-white/60 hover:text-white"
+            >
+              X
+            </button>
+          </div>
+          <div className="mt-4 space-y-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-white/40">
+                Every
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={repeatDraft.interval}
+                  onChange={(event) =>
+                    setRepeatDraft((prev) => {
+                      if (!prev) return prev;
+                      const nextValue = Math.max(
+                        1,
+                        Math.round(Number(event.target.value) || 1),
+                      );
+                      return { ...prev, interval: nextValue };
+                    })
+                  }
+                  className="w-20 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-white/30"
+                />
+                <div className="relative" ref={repeatUnitRef}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRepeatUnitOpen((prev) => {
+                        const next = !prev;
+                        if (next) {
+                          setRepeatUnitActiveIndex(unitIndex);
+                        }
+                        return next;
+                      })
+                    }
+                    className="flex min-w-[120px] items-center justify-between rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/90 outline-none transition focus:border-white/30"
+                  >
+                    <span className="capitalize">{unitLabel}</span>
+                    <ChevronDown
+                      className={`h-4 w-4 text-white/60 transition ${
+                        repeatUnitOpen ? "rotate-180" : ""
+                      }`}
+                      aria-hidden
+                    />
+                  </button>
+                  {repeatUnitOpen && (
+                    <div className="absolute z-40 mt-2 w-full overflow-hidden rounded-md border border-white/10 bg-[#0b0b0f] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+                      {RECURRENCE_UNITS.map((unit, index) => {
+                        const isSelected = unit.value === repeatDraft.freq;
+                        const isHighlighted = index === repeatUnitActiveIndex;
+                        const isActive = isSelected || isHighlighted;
+                        return (
+                          <button
+                            key={unit.value}
+                            type="button"
+                            onMouseEnter={() =>
+                              setRepeatUnitActiveIndex(index)
+                            }
+                            onClick={() => {
+                              setRepeatDraft((prev) => {
+                                if (!prev) return prev;
+                                const nextWeekdays = prev.byweekday.length
+                                  ? prev.byweekday
+                                  : [fallbackWeekday];
+                                return {
+                                  ...prev,
+                                  freq: unit.value,
+                                  byweekday: nextWeekdays,
+                                };
+                              });
+                              setRepeatUnitOpen(false);
+                            }}
+                            className={`flex w-full items-center rounded-md px-2 py-2 text-left text-sm transition ${
+                              isActive
+                                ? "bg-white/10 text-white"
+                                : "text-white/70 hover:bg-white/10 hover:text-white"
+                            }`}
+                          >
+                            {unit.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {repeatDraft.freq === "weekly" && (
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-white/40">
+                  On
+                </p>
+                <div className="mt-2 grid grid-cols-7 gap-2">
+                  {WEEKDAY_CHIPS.map((day) => {
+                    const isSelected = repeatDraft.byweekday.includes(day.value);
+                    return (
+                      <button
+                        key={day.label}
+                        type="button"
+                        onClick={() => toggleWeekday(day.value)}
+                        className={`rounded-lg border px-2 py-1 text-xs transition ${
+                          isSelected
+                            ? "border-white/70 bg-white/10 text-white"
+                            : "border-white/10 text-white/50 hover:border-white/30"
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-white/40">
+                Ends
+              </p>
+              <div className="mt-2 space-y-2 text-[13px] text-white/80">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="repeat-ends"
+                    checked={repeatDraft.endMode === "never"}
+                    onChange={() =>
+                      setRepeatDraft((prev) =>
+                        prev ? { ...prev, endMode: "never" } : prev,
+                      )
+                    }
+                    className="h-4 w-4 rounded-full border border-white/30 bg-transparent"
+                  />
+                  Never
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="repeat-ends"
+                    checked={repeatDraft.endMode === "on"}
+                    onChange={() =>
+                      setRepeatDraft((prev) =>
+                        prev ? { ...prev, endMode: "on" } : prev,
+                      )
+                    }
+                    className="h-4 w-4 rounded-full border border-white/30 bg-transparent"
+                  />
+                  On
+                  <input
+                    type="date"
+                    value={repeatDraft.until}
+                    onChange={(event) =>
+                      setRepeatDraft((prev) => {
+                        if (!prev) return prev;
+                        return {
+                          ...prev,
+                          endMode: "on",
+                          until: event.target.value,
+                        };
+                      })
+                    }
+                    disabled={repeatDraft.endMode !== "on"}
+                    className="ml-2 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-xs text-white/90 outline-none focus:border-white/30 disabled:opacity-50"
+                  />
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="repeat-ends"
+                    checked={repeatDraft.endMode === "after"}
+                    onChange={() =>
+                      setRepeatDraft((prev) =>
+                        prev ? { ...prev, endMode: "after" } : prev,
+                      )
+                    }
+                    className="h-4 w-4 rounded-full border border-white/30 bg-transparent"
+                  />
+                  After
+                  <input
+                    type="number"
+                    min={1}
+                    value={repeatDraft.count}
+                    onChange={(event) =>
+                      setRepeatDraft((prev) => {
+                        if (!prev) return prev;
+                        return {
+                          ...prev,
+                          endMode: "after",
+                          count: Math.max(
+                            1,
+                            Math.round(Number(event.target.value) || 1),
+                          ),
+                        };
+                      })
+                    }
+                    disabled={repeatDraft.endMode !== "after"}
+                    className="ml-2 w-20 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-xs text-white/90 outline-none focus:border-white/30 disabled:opacity-50"
+                  />
+                  times
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={closeModal}
+              className="text-white/60 hover:text-white"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDone}
+              className="rounded-md border border-white/10 bg-white/10 px-4 py-2 font-semibold text-white transition hover:bg-white/15"
+            >
+              Done
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -2507,9 +3685,10 @@ export default function TaskSchedulerCalendar({
                         const isLinked = !!eventItem.taskId;
                         const isHighlighted = highlightedEventId === eventItem.id;
                         const isHabit = eventItem.eventKind === "habit";
+                        const isOccurrence = !!eventItem.seriesId;
                         const isDraft = !!eventItem.isDraft;
                         const isReadOnly =
-                          isHabit || !!eventItem.readOnly || isDraft;
+                          isHabit || !!eventItem.readOnly || isDraft || isOccurrence;
                         const autoplan = eventItem.eventKind === "auto_plan";
                         return (
                           <div
@@ -2587,6 +3766,7 @@ export default function TaskSchedulerCalendar({
           </aside>
         </div>
       </div>
+      {renderRepeatModal()}
     </div>
   );
 }

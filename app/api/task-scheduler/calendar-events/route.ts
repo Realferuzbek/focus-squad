@@ -19,6 +19,7 @@ import {
   normalizeOptionalString,
   normalizeBoolean,
   validateScheduleInput,
+  normalizeRecurrenceInput,
 } from "@/lib/taskSchedulerValidation";
 
 async function requireUserId() {
@@ -92,6 +93,16 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+  }
+  const hasRecurrence = hasProp(body, "recurrence");
+  const recurrenceValue = hasRecurrence
+    ? normalizeRecurrenceInput(body?.recurrence)
+    : null;
+  if (hasRecurrence && recurrenceValue === undefined) {
+    return NextResponse.json(
+      { error: "Invalid recurrence" },
+      { status: 400 },
+    );
   }
   const schedule = validateScheduleInput(body?.start, body?.end);
   if (!schedule.start || !schedule.end) {
@@ -169,6 +180,9 @@ export async function POST(req: NextRequest) {
     if (hasIsAllDay) {
       syncOptions.isAllDay = isAllDayValue ?? false;
     }
+    if (hasRecurrence) {
+      syncOptions.recurrence = recurrenceValue ?? null;
+    }
 
     const event = await syncTaskCalendarEvent(sb, syncOptions);
 
@@ -205,6 +219,7 @@ export async function POST(req: NextRequest) {
       end_at: schedule.end,
       is_all_day: isAllDay,
       color,
+      recurrence: recurrenceValue ?? null,
     })
     .select(TASK_CALENDAR_EVENT_COLUMNS)
     .maybeSingle();

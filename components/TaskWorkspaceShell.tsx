@@ -13,6 +13,7 @@ import {
   StudentTaskStatus,
   TaskCalendar,
   TaskCalendarEvent,
+  TaskCalendarRecurrence,
   TaskPrivateItem,
   TaskPrivateItemKind,
   TASK_CATEGORIES,
@@ -67,6 +68,7 @@ type CalendarEventInput = {
   calendarId?: string | null;
   description?: string | null;
   color?: string | null;
+  recurrence?: TaskCalendarRecurrence | null;
 };
 
 type CalendarCreatePayload = {

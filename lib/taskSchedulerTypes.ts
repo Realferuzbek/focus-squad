@@ -30,6 +30,25 @@ export type StudentHabitRepeatRule = (typeof TASK_REPEAT_RULES)[number];
 
 export type TaskCalendarEventKind = "manual" | "auto_plan";
 
+export const TASK_RECURRENCE_FREQS = [
+  "daily",
+  "weekly",
+  "monthly",
+  "yearly",
+] as const;
+export type TaskCalendarRecurrenceFrequency =
+  (typeof TASK_RECURRENCE_FREQS)[number];
+
+export type TaskCalendarRecurrence = {
+  freq: TaskCalendarRecurrenceFrequency;
+  interval: number;
+  byweekday?: number[];
+  bymonthday?: number[];
+  bysetpos?: number;
+  until?: string | null;
+  count?: number | null;
+};
+
 export type TaskPrivateItem = {
   id: string;
   title: string;
@@ -73,6 +92,7 @@ export type TaskCalendarEvent = {
   description?: string | null;
   taskId: string | null;
   eventKind: TaskCalendarEventKind;
+  recurrence?: TaskCalendarRecurrence | null;
   createdAt: string;
   updatedAt: string;
 };

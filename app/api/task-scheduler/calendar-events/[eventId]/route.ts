@@ -20,6 +20,7 @@ import {
   normalizeOptionalString,
   normalizeBoolean,
   validateScheduleInput,
+  normalizeRecurrenceInput,
 } from "@/lib/taskSchedulerValidation";
 
 async function requireUserId() {
@@ -79,6 +80,16 @@ export async function PATCH(
       );
     }
   }
+  const hasRecurrence = hasProp(body, "recurrence");
+  const recurrenceValue = hasRecurrence
+    ? normalizeRecurrenceInput(body?.recurrence)
+    : null;
+  if (hasRecurrence && recurrenceValue === undefined) {
+    return NextResponse.json(
+      { error: "Invalid recurrence" },
+      { status: 400 },
+    );
+  }
   const hasCalendarId = hasProp(body, "calendarId");
   let calendarIdValue: string | null | undefined;
   if (hasCalendarId) {
@@ -121,6 +132,9 @@ export async function PATCH(
     }
     if (hasIsAllDay) {
       eventUpdates.is_all_day = isAllDayValue ?? false;
+    }
+    if (hasRecurrence) {
+      eventUpdates.recurrence = recurrenceValue ?? null;
     }
 
     if (hasProp(body, "title")) {
@@ -226,6 +240,9 @@ export async function PATCH(
     if (hasIsAllDay) {
       syncOptions.isAllDay = isAllDayValue ?? false;
     }
+    if (hasRecurrence) {
+      syncOptions.recurrence = recurrenceValue ?? null;
+    }
 
     const event = await syncTaskCalendarEvent(sb, syncOptions);
 
@@ -241,6 +258,9 @@ export async function PATCH(
   }
   if (hasIsAllDay) {
     eventUpdates.is_all_day = isAllDayValue ?? false;
+  }
+  if (hasRecurrence) {
+    eventUpdates.recurrence = recurrenceValue ?? null;
   }
 
   if (hasProp(body, "title")) {

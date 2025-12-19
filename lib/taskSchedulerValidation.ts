@@ -1,6 +1,10 @@
-﻿const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+import type { TaskCalendarRecurrence } from "@/lib/taskSchedulerTypes";
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+const RECURRENCE_FREQS = ["daily", "weekly", "monthly", "yearly"] as const;
 
 export function normalizeDateInput(value: unknown) {
   if (typeof value !== "string") return null;
@@ -97,6 +101,110 @@ export function normalizeWeekdayArray(value: unknown) {
   return unique;
 }
 
+function normalizePositiveInt(value: unknown, min: number, max: number) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const rounded = Math.round(value);
+    return rounded >= min && rounded <= max ? rounded : null;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      const rounded = Math.round(parsed);
+      return rounded >= min && rounded <= max ? rounded : null;
+    }
+  }
+  return null;
+}
+
+function normalizeMonthdayArray(value: unknown) {
+  if (!value) return null;
+  const days = Array.isArray(value) ? value : [];
+  const normalized = days
+    .map((entry) => {
+      if (typeof entry === "number" && Number.isInteger(entry)) {
+        return entry;
+      }
+      if (typeof entry === "string" && entry.trim() !== "") {
+        const parsed = Number(entry);
+        if (!Number.isNaN(parsed)) {
+          return Math.trunc(parsed);
+        }
+      }
+      return null;
+    })
+    .filter((entry): entry is number => entry !== null)
+    .map((entry) => Math.max(1, Math.min(31, entry)));
+  if (!normalized.length) return null;
+  const unique = Array.from(new Set(normalized)).sort((a, b) => a - b);
+  return unique;
+}
+
+function normalizeUntilInput(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (ISO_DATE_RE.test(trimmed)) return trimmed;
+  return normalizeTimestampInput(trimmed);
+}
+
+export function normalizeRecurrenceInput(
+  value: unknown,
+): TaskCalendarRecurrence | null | undefined {
+  if (value === null) return null;
+  if (!value || typeof value !== "object") return undefined;
+
+  const input = value as Record<string, unknown>;
+  const freq = normalizeEnum(input.freq, RECURRENCE_FREQS);
+  if (!freq) return undefined;
+
+  const interval = normalizePositiveInt(input.interval ?? 1, 1, 365);
+  if (!interval) return undefined;
+
+  const hasByweekday = Object.prototype.hasOwnProperty.call(
+    input,
+    "byweekday",
+  );
+  const byweekday = hasByweekday
+    ? normalizeWeekdayArray(input.byweekday)
+    : null;
+  if (hasByweekday && !byweekday) return undefined;
+
+  const hasMonthday = Object.prototype.hasOwnProperty.call(
+    input,
+    "bymonthday",
+  );
+  const bymonthday = hasMonthday
+    ? normalizeMonthdayArray(input.bymonthday)
+    : null;
+  if (hasMonthday && !bymonthday) return undefined;
+
+  const hasSetpos = Object.prototype.hasOwnProperty.call(input, "bysetpos");
+  const bysetpos = hasSetpos
+    ? normalizePositiveInt(input.bysetpos, 1, 5)
+    : null;
+  if (hasSetpos && !bysetpos) return undefined;
+
+  const hasUntil = Object.prototype.hasOwnProperty.call(input, "until");
+  const until = hasUntil ? normalizeUntilInput(input.until) : null;
+  if (hasUntil && until === null) return undefined;
+
+  const hasCount = Object.prototype.hasOwnProperty.call(input, "count");
+  const count = hasCount ? normalizePositiveInt(input.count, 1, 1000) : null;
+  if (hasCount && count === null) return undefined;
+
+  const recurrence: TaskCalendarRecurrence = {
+    freq,
+    interval,
+  };
+  if (byweekday) recurrence.byweekday = byweekday;
+  if (bymonthday) recurrence.bymonthday = bymonthday;
+  if (bysetpos) recurrence.bysetpos = bysetpos;
+  if (until) recurrence.until = until;
+  if (count) recurrence.count = count;
+
+  return recurrence;
+}
+
 export type NormalizedScheduleResult = {
   start: string | null;
   end: string | null;
@@ -124,3 +232,4 @@ export function validateScheduleInput(
   }
   return { start: null, end: null };
 }
+
