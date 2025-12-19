@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   StudentTask,
+  TaskCalendar,
   TaskCalendarEvent as PersistedEvent,
 } from "@/lib/taskSchedulerTypes";
 import {
@@ -41,48 +42,6 @@ const WEEKDAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 const EVENT_COLORS = ["#9b7bff", "#f472b6", "#22d3ee", "#34d399", "#facc15"];
 const DEFAULT_CALENDAR_COLOR = EVENT_COLORS[0];
 
-type CalendarSource = {
-  id: string;
-  name: string;
-  color: string;
-  isDefault?: boolean;
-  isVisible: boolean;
-};
-
-const INITIAL_CALENDARS: CalendarSource[] = [
-  {
-    id: "ielts",
-    name: "Ielts",
-    color: DEFAULT_CALENDAR_COLOR,
-    isDefault: true,
-    isVisible: true,
-  },
-  {
-    id: "ai-learning",
-    name: "AI Learning",
-    color: EVENT_COLORS[1],
-    isVisible: true,
-  },
-  {
-    id: "sport",
-    name: "Sport",
-    color: EVENT_COLORS[2],
-    isVisible: true,
-  },
-  {
-    id: "startup-project",
-    name: "Startup Project",
-    color: EVENT_COLORS[3],
-    isVisible: true,
-  },
-  {
-    id: "content-studio",
-    name: "Content Studio",
-    color: EVENT_COLORS[4],
-    isVisible: true,
-  },
-];
-
 type CalendarEvent = {
   id: string;
   title: string;
@@ -113,12 +72,31 @@ type CalendarEventInput = {
   color?: string | null;
 };
 
+type CalendarCreatePayload = {
+  name: string;
+  color: string;
+};
+
+type CalendarPatchPayload = Partial<
+  Pick<TaskCalendar, "name" | "color" | "isDefault" | "isVisible" | "sortOrder">
+>;
+
 type SurfaceView = "planner" | "calendar";
 
 type TaskSchedulerCalendarProps = {
   events: PersistedEvent[];
   tasks: StudentTask[];
   loading?: boolean;
+  calendars: TaskCalendar[];
+  calendarsLoading?: boolean;
+  onCreateCalendar: (input: CalendarCreatePayload) => Promise<void>;
+  onUpdateCalendar: (
+    calendarId: string,
+    patch: CalendarPatchPayload,
+  ) => Promise<void>;
+  onDeleteCalendar: (calendarId: string) => Promise<void>;
+  activeCalendarId?: string | null;
+  onActiveCalendarChange?: (calendarId: string | null) => void;
   onCreateEvent: (input: CalendarEventInput) => Promise<void>;
   onUpdateEvent: (eventId: string, input: CalendarEventInput) => Promise<void>;
   onDeleteEvent: (eventId: string) => Promise<void>;
@@ -250,13 +228,16 @@ function buildMonthMatrix(monthReference: Date) {
   return weeks;
 }
 
-function mapPersistedEvent(event: PersistedEvent): CalendarEvent {
+function mapPersistedEvent(
+  event: PersistedEvent,
+  fallbackColor: string,
+): CalendarEvent {
   return {
     id: event.id,
     title: event.title,
     startISO: event.start,
     endISO: event.end,
-    color: event.color ?? DEFAULT_CALENDAR_COLOR,
+    color: event.color ?? fallbackColor,
     taskId: event.taskId ?? null,
     eventKind: event.eventKind,
   };
@@ -284,10 +265,21 @@ function computeDailyMinutes(eventsList: CalendarEvent[]) {
   return map;
 }
 
+function pickCalendarColor(usedColors: Set<string>) {
+  return EVENT_COLORS.find((color) => !usedColors.has(color)) ?? EVENT_COLORS[0];
+}
+
 export default function TaskSchedulerCalendar({
   events: persistedEvents,
   tasks,
   loading = false,
+  calendars = [],
+  calendarsLoading = false,
+  onCreateCalendar,
+  onUpdateCalendar,
+  onDeleteCalendar,
+  activeCalendarId = null,
+  onActiveCalendarChange,
   onCreateEvent,
   onUpdateEvent,
   onDeleteEvent,
@@ -299,9 +291,24 @@ export default function TaskSchedulerCalendar({
   );
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [miniCalendarCollapsed, setMiniCalendarCollapsed] = useState(false);
-  const [calendars, setCalendars] = useState<CalendarSource[]>(() =>
-    INITIAL_CALENDARS.map((calendar) => ({ ...calendar })),
+  const [openCalendarMenuId, setOpenCalendarMenuId] = useState<string | null>(
+    null,
   );
+  const [createPanelOpen, setCreatePanelOpen] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createColor, setCreateColor] = useState(DEFAULT_CALENDAR_COLOR);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [editCalendarId, setEditCalendarId] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState<"rename" | "color" | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState(DEFAULT_CALENDAR_COLOR);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [calendarActionId, setCalendarActionId] = useState<string | null>(null);
+  const [calendarDeleteError, setCalendarDeleteError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
+  const [creatingCalendar, setCreatingCalendar] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const eventsRef = useRef<CalendarEvent[]>([]);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -326,22 +333,35 @@ export default function TaskSchedulerCalendar({
     planner: null,
     calendar: null,
   });
-  useEffect(() => {
-    const mapped = persistedEvents.map(mapPersistedEvent);
-    setEvents(mapped);
-    eventsRef.current = mapped;
-  }, [persistedEvents]);
+  const calendarMenuRef = useRef<HTMLDivElement | null>(null);
+  const calendarMenuButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  useEffect(() => {
-    eventsRef.current = events;
-  }, [events]);
-
+  const activeCalendar = useMemo(
+    () =>
+      calendars.find((calendar) => calendar.id === activeCalendarId) ?? null,
+    [activeCalendarId, calendars],
+  );
   const defaultCalendar = useMemo(
-    () => calendars.find((calendar) => calendar.isDefault) ?? calendars[0],
+    () => calendars.find((calendar) => calendar.isDefault) ?? null,
+    [calendars],
+  );
+  const fallbackCalendar = useMemo(
+    () => calendars[0] ?? null,
     [calendars],
   );
   const defaultCalendarColor =
-    defaultCalendar?.color ?? DEFAULT_CALENDAR_COLOR;
+    (defaultCalendar ?? fallbackCalendar)?.color ?? DEFAULT_CALENDAR_COLOR;
+  const draftCalendar = useMemo(() => {
+    if (activeCalendar && activeCalendar.isVisible) {
+      return activeCalendar;
+    }
+    if (defaultCalendar) {
+      return defaultCalendar;
+    }
+    return calendars.find((calendar) => calendar.isVisible) ?? null;
+  }, [activeCalendar, calendars, defaultCalendar]);
+  const draftCalendarColor = draftCalendar?.color ?? DEFAULT_CALENDAR_COLOR;
+  const canCreateBlocks = !!draftCalendar;
   const hiddenCalendarColors = useMemo(
     () =>
       new Set(
@@ -355,6 +375,25 @@ export default function TaskSchedulerCalendar({
     () => new Set(calendars.map((calendar) => calendar.color)),
     [calendars],
   );
+  const editingCalendar = useMemo(
+    () =>
+      editCalendarId
+        ? calendars.find((calendar) => calendar.id === editCalendarId) ?? null
+        : null,
+    [calendars, editCalendarId],
+  );
+
+  useEffect(() => {
+    const mapped = persistedEvents.map((event) =>
+      mapPersistedEvent(event, defaultCalendarColor),
+    );
+    setEvents(mapped);
+    eventsRef.current = mapped;
+  }, [defaultCalendarColor, persistedEvents]);
+
+  useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
 
   const habitInstances = useMemo(() => {
     const weekEnd = addDays(visibleWeekStart, 6);
@@ -444,15 +483,228 @@ export default function TaskSchedulerCalendar({
     [getBaselineMinutesForDay],
   );
 
-  const toggleCalendarVisibility = useCallback((calendarId: string) => {
-    setCalendars((prev) =>
-      prev.map((calendar) =>
-        calendar.id === calendarId
-          ? { ...calendar, isVisible: !calendar.isVisible }
-          : calendar,
-      ),
+  const toggleCalendarVisibility = useCallback(
+    async (calendar: TaskCalendar) => {
+      if (calendarActionId === calendar.id) return;
+      setCalendarActionId(calendar.id);
+      setCalendarDeleteError(null);
+      try {
+        await onUpdateCalendar(calendar.id, {
+          isVisible: !calendar.isVisible,
+        });
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Failed to update calendar.",
+        );
+      } finally {
+        setCalendarActionId(null);
+      }
+    },
+    [calendarActionId, onUpdateCalendar],
+  );
+
+  useEffect(() => {
+    if (!openCalendarMenuId) return;
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (calendarMenuRef.current?.contains(target)) return;
+      if (calendarMenuButtonRef.current?.contains(target)) return;
+      setOpenCalendarMenuId(null);
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpenCalendarMenuId(null);
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openCalendarMenuId]);
+
+  useEffect(() => {
+    if (
+      openCalendarMenuId &&
+      !calendars.some((calendar) => calendar.id === openCalendarMenuId)
+    ) {
+      setOpenCalendarMenuId(null);
+    }
+    if (
+      editCalendarId &&
+      !calendars.some((calendar) => calendar.id === editCalendarId)
+    ) {
+      setEditCalendarId(null);
+      setEditMode(null);
+      setEditError(null);
+    }
+  }, [calendars, editCalendarId, openCalendarMenuId]);
+
+  function openCreatePanel() {
+    setCreatePanelOpen(true);
+    setCreateError(null);
+    setCreateName(calendars.length === 0 ? "Study" : "");
+    setCreateColor(pickCalendarColor(calendarColorSet));
+    setEditCalendarId(null);
+    setEditMode(null);
+    setEditError(null);
+    setOpenCalendarMenuId(null);
+    setCalendarDeleteError(null);
+  }
+
+  function closeCreatePanel() {
+    setCreatePanelOpen(false);
+    setCreateError(null);
+  }
+
+  async function handleCreateCalendarSubmit() {
+    const trimmed = createName.trim();
+    if (!trimmed) {
+      setCreateError("Name is required.");
+      return;
+    }
+    setCreatingCalendar(true);
+    setCreateError(null);
+    try {
+      await onCreateCalendar({ name: trimmed, color: createColor });
+      setCreatePanelOpen(false);
+      setCreateName("");
+      setCreateColor(pickCalendarColor(calendarColorSet));
+    } catch (error) {
+      setCreateError(
+        error instanceof Error ? error.message : "Failed to create calendar.",
+      );
+    } finally {
+      setCreatingCalendar(false);
+    }
+  }
+
+  function openEditPanel(calendar: TaskCalendar, mode: "rename" | "color") {
+    setEditCalendarId(calendar.id);
+    setEditMode(mode);
+    setEditName(calendar.name);
+    setEditColor(calendar.color);
+    setEditError(null);
+    setCreatePanelOpen(false);
+    setOpenCalendarMenuId(null);
+    setCalendarDeleteError(null);
+  }
+
+  function closeEditPanel() {
+    setEditCalendarId(null);
+    setEditMode(null);
+    setEditError(null);
+  }
+
+  async function handleSaveCalendarEdit() {
+    if (!editingCalendar || !editMode) return;
+    if (calendarActionId === editingCalendar.id) return;
+    if (editMode === "rename") {
+      const trimmed = editName.trim();
+      if (!trimmed) {
+        setEditError("Name is required.");
+        return;
+      }
+      if (trimmed === editingCalendar.name) {
+        closeEditPanel();
+        return;
+      }
+      setCalendarActionId(editingCalendar.id);
+      setEditError(null);
+      try {
+        await onUpdateCalendar(editingCalendar.id, { name: trimmed });
+        closeEditPanel();
+      } catch (error) {
+        setEditError(
+          error instanceof Error ? error.message : "Failed to rename calendar.",
+        );
+      } finally {
+        setCalendarActionId(null);
+      }
+      return;
+    }
+    if (editMode === "color") {
+      if (editColor === editingCalendar.color) {
+        closeEditPanel();
+        return;
+      }
+      setCalendarActionId(editingCalendar.id);
+      setEditError(null);
+      try {
+        await onUpdateCalendar(editingCalendar.id, { color: editColor });
+        closeEditPanel();
+      } catch (error) {
+        setEditError(
+          error instanceof Error ? error.message : "Failed to update color.",
+        );
+      } finally {
+        setCalendarActionId(null);
+      }
+    }
+  }
+
+  async function handleSetDefault(calendar: TaskCalendar) {
+    if (calendarActionId === calendar.id) return;
+    setCalendarActionId(calendar.id);
+    setCalendarDeleteError(null);
+    setOpenCalendarMenuId(null);
+    try {
+      await onUpdateCalendar(calendar.id, { isDefault: true });
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to set default calendar.",
+      );
+    } finally {
+      setCalendarActionId(null);
+    }
+  }
+
+  async function handleDeleteCalendar(calendar: TaskCalendar) {
+    if (calendarActionId === calendar.id) return;
+    setCalendarActionId(calendar.id);
+    setCalendarDeleteError(null);
+    setOpenCalendarMenuId(null);
+    try {
+      await onDeleteCalendar(calendar.id);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to delete calendar.";
+      if (message.toLowerCase().includes("last calendar")) {
+        setCalendarDeleteError({ id: calendar.id, message });
+      } else {
+        alert(message);
+      }
+    } finally {
+      setCalendarActionId(null);
+    }
+  }
+
+  function handleCalendarRowClick(calendar: TaskCalendar) {
+    setOpenCalendarMenuId(null);
+    setCalendarDeleteError(null);
+    setEditCalendarId(null);
+    setEditMode(null);
+    onActiveCalendarChange?.(calendar.id);
+  }
+
+  function handleCalendarMenuToggle(
+    calendarId: string,
+    button: HTMLButtonElement,
+  ) {
+    setOpenCalendarMenuId((prev) =>
+      prev === calendarId ? null : calendarId,
     );
-  }, []);
+    calendarMenuButtonRef.current = button;
+    setCreatePanelOpen(false);
+    setEditCalendarId(null);
+    setEditMode(null);
+    setEditError(null);
+  }
 
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }, (_, index) => {
@@ -631,6 +883,7 @@ export default function TaskSchedulerCalendar({
     event: React.MouseEvent<HTMLDivElement>,
   ) {
     if ((event.target as HTMLElement).closest("[data-event-block]")) return;
+    if (!canCreateBlocks) return;
     event.preventDefault();
     const minutes = snapToIncrement(
       minutesFromPointer(dayIndex, event.clientY),
@@ -645,6 +898,7 @@ export default function TaskSchedulerCalendar({
 
   const finalizeSelection = useCallback(
     (selection: SelectionState) => {
+      if (!draftCalendar) return;
       const { anchor, currentMinutes, dayIndex, originMinutes } = selection;
       const startMinutes = clampMinutes(
         Math.min(originMinutes, currentMinutes),
@@ -657,7 +911,7 @@ export default function TaskSchedulerCalendar({
       if (!day) return;
       const startDate = createDateWithMinutes(day, startMinutes);
       const endDate = createDateWithMinutes(day, endMinutes);
-      const color = defaultCalendarColor;
+      const color = draftCalendar.color;
       openEditor({
         id: null,
         title: "",
@@ -668,7 +922,7 @@ export default function TaskSchedulerCalendar({
         color,
       });
     },
-    [defaultCalendarColor],
+    [draftCalendar],
   );
 
   useEffect(() => {
@@ -868,7 +1122,7 @@ export default function TaskSchedulerCalendar({
     weekDays.some((day) => isSameDay(day, today)) &&
     nowMinutes >= START_MINUTES &&
     nowMinutes <= END_MINUTES;
-  const editorColor = editorState?.color ?? defaultCalendarColor;
+  const editorColor = editorState?.color ?? draftCalendarColor;
   const showCustomCalendar = editorState
     ? !calendarColorSet.has(editorColor)
     : false;
@@ -1184,51 +1438,327 @@ export default function TaskSchedulerCalendar({
             )}
 
             <div className="mt-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
-                Calendars
-              </p>
-              <div className="mt-2 space-y-1">
-                {calendars.map((calendar) => {
-                  const isHidden = !calendar.isVisible;
-                  return (
-                    <div
-                      key={calendar.id}
-                      className={`flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[13px] leading-5 transition hover:bg-white/[0.03] ${
-                        isHidden ? "text-white/40" : "text-white/80"
-                      }`}
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
+                  Calendars
+                </p>
+                <button
+                  type="button"
+                  onClick={openCreatePanel}
+                  className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:bg-white/10 hover:text-white"
+                >
+                  + Create
+                </button>
+              </div>
+              <div className="mt-2 space-y-2">
+                {calendarsLoading ? (
+                  <div className="rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/50">
+                    Loading calendars…
+                  </div>
+                ) : calendars.length === 0 ? (
+                  <div className="rounded-md border border-white/10 bg-white/[0.02] px-3 py-3 text-[13px] text-white/60">
+                    <p>No calendars yet</p>
+                    <button
+                      type="button"
+                      onClick={openCreatePanel}
+                      className="mt-2 w-full rounded-md border border-white/10 bg-white/10 px-3 py-2 text-[12px] font-semibold text-white transition hover:bg-white/15"
                     >
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: calendar.color }}
-                        />
-                        <span className="min-w-0 truncate">
-                          {calendar.name}
-                        </span>
-                        {calendar.isDefault && (
-                          <span className="shrink-0 text-[10px] uppercase tracking-[0.25em] text-white/40">
-                            Default
-                          </span>
-                        )}
-                      </div>
+                      + Create calendar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {calendars.map((calendar) => {
+                      const isHidden = !calendar.isVisible;
+                      const isActive = calendar.id === activeCalendarId;
+                      const isMenuOpen = openCalendarMenuId === calendar.id;
+                      const isEditing = editCalendarId === calendar.id;
+                      const isBusy = calendarActionId === calendar.id;
+                      const showDeleteError =
+                        calendarDeleteError?.id === calendar.id;
+                      return (
+                        <div key={calendar.id}>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleCalendarRowClick(calendar)}
+                              className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-[13px] leading-5 transition ${
+                                isActive
+                                  ? "bg-white/[0.06] text-white"
+                                  : "hover:bg-white/[0.03]"
+                              } ${isHidden ? "text-white/40" : "text-white/80"}`}
+                              aria-pressed={isActive}
+                            >
+                              <span
+                                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                style={{ backgroundColor: calendar.color }}
+                              />
+                              <span className="min-w-0 truncate">
+                                {calendar.name}
+                              </span>
+                              {calendar.isDefault && (
+                                <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.02] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.25em] text-white/60">
+                                  Default
+                                </span>
+                              )}
+                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void toggleCalendarVisibility(calendar);
+                                }}
+                                aria-pressed={calendar.isVisible}
+                                aria-label={`${
+                                  calendar.isVisible ? "Hide" : "Show"
+                                } ${calendar.name}`}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/50 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                disabled={isBusy}
+                              >
+                                {calendar.isVisible ? (
+                                  <Eye className="h-4 w-4" aria-hidden />
+                                ) : (
+                                  <EyeOff className="h-4 w-4" aria-hidden />
+                                )}
+                              </button>
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleCalendarMenuToggle(
+                                      calendar.id,
+                                      event.currentTarget,
+                                    );
+                                  }}
+                                  aria-expanded={isMenuOpen}
+                                  aria-haspopup="menu"
+                                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/50 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                  disabled={isBusy}
+                                >
+                                  <MoreHorizontal
+                                    className="h-4 w-4"
+                                    aria-hidden
+                                  />
+                                </button>
+                                {isMenuOpen && (
+                                  <div
+                                    ref={calendarMenuRef}
+                                    className="absolute right-0 top-9 z-30 w-40 rounded-md border border-white/10 bg-[#0f0f10] py-1 text-[12px] shadow-lg"
+                                    role="menu"
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openEditPanel(calendar, "rename")
+                                      }
+                                      className="flex w-full items-center px-3 py-2 text-left text-white/80 transition hover:bg-white/[0.05] hover:text-white"
+                                      role="menuitem"
+                                    >
+                                      Rename
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openEditPanel(calendar, "color")
+                                      }
+                                      className="flex w-full items-center px-3 py-2 text-left text-white/80 transition hover:bg-white/[0.05] hover:text-white"
+                                      role="menuitem"
+                                    >
+                                      Change color
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleSetDefault(calendar)}
+                                      className="flex w-full items-center px-3 py-2 text-left text-white/80 transition hover:bg-white/[0.05] hover:text-white"
+                                      role="menuitem"
+                                    >
+                                      Set default
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void handleDeleteCalendar(calendar)
+                                      }
+                                      className="flex w-full items-center px-3 py-2 text-left text-rose-200 transition hover:bg-rose-500/10 hover:text-rose-100"
+                                      role="menuitem"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          {showDeleteError && (
+                            <p className="mt-1 pl-8 text-[11px] text-rose-300">
+                              {calendarDeleteError?.message}
+                            </p>
+                          )}
+                          {isEditing && editMode && (
+                            <div className="mt-2 rounded-md border border-white/10 bg-white/[0.02] p-3">
+                              <div className="flex items-center justify-between">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
+                                  {editMode === "rename"
+                                    ? "Rename calendar"
+                                    : "Change color"}
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={closeEditPanel}
+                                  className="text-[11px] text-white/50 transition hover:text-white"
+                                >
+                                  Close
+                                </button>
+                              </div>
+                              {editMode === "rename" ? (
+                                <div className="mt-2 space-y-2">
+                                  <input
+                                    value={editName}
+                                    onChange={(event) =>
+                                      setEditName(event.target.value)
+                                    }
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        void handleSaveCalendarEdit();
+                                      }
+                                    }}
+                                    className="w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/90 outline-none transition placeholder:text-white/35 focus:border-white/30"
+                                    placeholder="Calendar name"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {EVENT_COLORS.map((color) => {
+                                    const isSelected = editColor === color;
+                                    return (
+                                      <button
+                                        key={color}
+                                        type="button"
+                                        onClick={() => setEditColor(color)}
+                                        className={`h-6 w-6 rounded-full border transition ${
+                                          isSelected
+                                            ? "border-white ring-2 ring-white/60"
+                                            : "border-white/10 hover:border-white/40"
+                                        }`}
+                                        style={{ backgroundColor: color }}
+                                        aria-label={`Select ${color}`}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              {editError && (
+                                <p className="mt-2 text-[11px] text-rose-300">
+                                  {editError}
+                                </p>
+                              )}
+                              <div className="mt-3 flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={closeEditPanel}
+                                  className="rounded-md border border-white/10 px-3 py-1.5 text-[12px] text-white/60 transition hover:text-white"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleSaveCalendarEdit()}
+                                  disabled={
+                                    calendarActionId === calendar.id ||
+                                    (editMode === "rename" &&
+                                      !editName.trim())
+                                  }
+                                  className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {createPanelOpen && (
+                  <div className="rounded-md border border-white/10 bg-white/[0.02] p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
+                        Create calendar
+                      </p>
                       <button
                         type="button"
-                        onClick={() => toggleCalendarVisibility(calendar.id)}
-                        aria-pressed={calendar.isVisible}
-                        aria-label={`${
-                          calendar.isVisible ? "Hide" : "Show"
-                        } ${calendar.name}`}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/50 transition hover:bg-white/5 hover:text-white"
+                        onClick={closeCreatePanel}
+                        className="text-[11px] text-white/50 transition hover:text-white"
                       >
-                        {calendar.isVisible ? (
-                          <Eye className="h-4 w-4" aria-hidden />
-                        ) : (
-                          <EyeOff className="h-4 w-4" aria-hidden />
-                        )}
+                        Close
                       </button>
                     </div>
-                  );
-                })}
+                    <div className="mt-2 space-y-2">
+                      <input
+                        value={createName}
+                        onChange={(event) => setCreateName(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            void handleCreateCalendarSubmit();
+                          }
+                        }}
+                        className="w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/90 outline-none transition placeholder:text-white/35 focus:border-white/30"
+                        placeholder="Calendar name"
+                      />
+                    </div>
+                    <div className="mt-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
+                        Color
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {EVENT_COLORS.map((color) => {
+                          const isSelected = createColor === color;
+                          return (
+                            <button
+                              key={color}
+                              type="button"
+                              onClick={() => setCreateColor(color)}
+                              className={`h-6 w-6 rounded-full border transition ${
+                                isSelected
+                                  ? "border-white ring-2 ring-white/60"
+                                  : "border-white/10 hover:border-white/40"
+                              }`}
+                              style={{ backgroundColor: color }}
+                              aria-label={`Select ${color}`}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {createError && (
+                      <p className="mt-2 text-[11px] text-rose-300">
+                        {createError}
+                      </p>
+                    )}
+                    <div className="mt-3 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={closeCreatePanel}
+                        className="rounded-md border border-white/10 px-3 py-1.5 text-[12px] text-white/60 transition hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateCalendarSubmit()}
+                        disabled={creatingCalendar || !createName.trim()}
+                        className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {creatingCalendar ? "Creating…" : "Create"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </aside>
