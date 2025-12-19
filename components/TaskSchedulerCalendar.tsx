@@ -6,12 +6,14 @@ import type {
   TaskCalendarEvent as PersistedEvent,
 } from "@/lib/taskSchedulerTypes";
 import {
+  Bell,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
   EyeOff,
-  Search,
+  Link,
+  MoreHorizontal,
 } from "lucide-react";
 import { TASK_DAILY_MINUTES_LIMIT } from "@/lib/taskSchedulerConstants";
 import {
@@ -209,10 +211,17 @@ function formatTimeString(date: Date) {
   });
 }
 
-function formatInputTime(date: Date) {
-  const hours = `${date.getHours()}`.padStart(2, "0");
-  const minutes = `${date.getMinutes()}`.padStart(2, "0");
-  return `${hours}:${minutes}`;
+function formatDurationLabel(totalMinutes: number) {
+  const minutes = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  if (hours > 0 && remaining > 0) {
+    return `${hours}h ${remaining}min`;
+  }
+  if (hours > 0) {
+    return `${hours}h`;
+  }
+  return `${remaining}min`;
 }
 
 function buildMonthMatrix(monthReference: Date) {
@@ -710,44 +719,11 @@ export default function TaskSchedulerCalendar({
     });
   }
 
-  function handleLinkChange(taskId: string | null) {
-    const linkedTask = taskId ? tasks.find((task) => task.id === taskId) : null;
-    setEditorState((prev) =>
-      prev
-        ? {
-            ...prev,
-            taskId,
-            title: linkedTask ? linkedTask.title : prev.title,
-          }
-        : prev,
-    );
-  }
-
   function updateEditorField<K extends keyof EditorState>(
     field: K,
     value: EditorState[K],
   ) {
     setEditorState((prev) => (prev ? { ...prev, [field]: value } : prev));
-  }
-
-  function handleTimeChange(field: "start" | "end", value: string) {
-    if (!editorState) return;
-    const base = new Date(
-      field === "start" ? editorState.startISO : editorState.endISO,
-    );
-    const [hours, minutes] = value.split(":").map((part) => parseInt(part, 10));
-    base.setHours(
-      Number.isNaN(hours) ? 0 : hours,
-      Number.isNaN(minutes) ? 0 : minutes,
-      0,
-      0,
-    );
-    const nextISO = base.toISOString();
-    if (field === "start") {
-      updateEditorField("startISO", nextISO);
-    } else {
-      updateEditorField("endISO", nextISO);
-    }
   }
 
   async function handleSaveEvent() {
@@ -816,6 +792,188 @@ export default function TaskSchedulerCalendar({
   const showCustomCalendar = editorState
     ? !calendarColorSet.has(editorColor)
     : false;
+
+  function EventDetailsPanel() {
+    const panelDisabled = !editorState;
+    const startDate = editorState ? new Date(editorState.startISO) : null;
+    const endDate = editorState ? new Date(editorState.endISO) : null;
+    const hasValidStart =
+      !!startDate && !Number.isNaN(startDate.getTime());
+    const hasValidEnd = !!endDate && !Number.isNaN(endDate.getTime());
+    const hasValidDates = hasValidStart && hasValidEnd;
+    const durationMinutes =
+      hasValidDates && startDate && endDate
+        ? Math.max(
+            0,
+            Math.round((endDate.getTime() - startDate.getTime()) / 60000),
+          )
+        : 0;
+    const calendarMatch = editorState
+      ? calendars.find((calendar) => calendar.color === editorColor)
+      : null;
+    const calendarLabel = editorState
+      ? calendarMatch?.name ?? (showCustomCalendar ? "Custom color" : "Calendar")
+      : "Calendar";
+    const dateLabel =
+      hasValidDates && startDate
+        ? startDate.toLocaleDateString(undefined, {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+          })
+        : "Date";
+    const startLabel =
+      hasValidStart && startDate ? formatTimeString(startDate) : "--";
+    const endLabel =
+      hasValidEnd && endDate ? formatTimeString(endDate) : "--";
+
+    return (
+      <div className="flex min-h-0 flex-col gap-4 px-4 pb-6 pt-4">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            disabled
+            className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/50 disabled:opacity-60"
+          >
+            Event
+            <ChevronDown className="h-3.5 w-3.5 text-white/40" aria-hidden />
+          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              disabled
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 text-white/40 transition disabled:opacity-50"
+              aria-label="Copy link"
+            >
+              <Link className="h-3.5 w-3.5" aria-hidden />
+            </button>
+            <button
+              type="button"
+              disabled
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 text-white/40 transition disabled:opacity-50"
+              aria-label="Notifications"
+            >
+              <Bell className="h-3.5 w-3.5" aria-hidden />
+            </button>
+            <button
+              type="button"
+              disabled
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 text-white/40 transition disabled:opacity-50"
+              aria-label="More options"
+            >
+              <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
+        </div>
+
+        <input
+          value={editorState?.title ?? ""}
+          onChange={(event) => updateEditorField("title", event.target.value)}
+          disabled={panelDisabled || !!editorState?.taskId}
+          className="w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[15px] text-white/90 outline-none transition placeholder:text-white/35 focus:border-white/30 disabled:cursor-not-allowed disabled:opacity-60"
+          placeholder="Title"
+        />
+
+        <div
+          className={`flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] ${
+            panelDisabled ? "text-white/35" : "text-white/80"
+          }`}
+        >
+          <span className="font-medium">{startLabel}</span>
+          <span className="text-white/30">-&gt;</span>
+          <span className="font-medium">{endLabel}</span>
+          <span className="ml-auto text-[12px] text-white/45">
+            {hasValidDates ? formatDurationLabel(durationMinutes) : ""}
+          </span>
+        </div>
+
+        <div
+          className={`text-[13px] ${
+            panelDisabled ? "text-white/35" : "text-white/70"
+          }`}
+        >
+          {hasValidDates ? dateLabel : "Date"}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {["All-day", "Time zone", "Repeat"].map((label) => (
+            <button
+              key={label}
+              type="button"
+              disabled
+              className="rounded-full border border-white/10 bg-white/[0.02] px-3 py-1 text-[12px] text-white/40 disabled:opacity-60"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-1">
+          {[
+            "Participants",
+            "Conferencing",
+            "AI Meeting Notes and Docs",
+            "Location",
+          ].map((label) => (
+            <div
+              key={label}
+              className="rounded-md border border-white/10 bg-white/[0.015] px-3 py-2 text-[13px] text-white/35"
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
+            Description
+          </p>
+          <div className="mt-2 min-h-[80px] rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/30">
+            Add a description
+          </div>
+        </div>
+
+        <div className="rounded-md border border-white/10 bg-white/[0.02] px-3 py-2">
+          <div
+            className={`flex items-center gap-2 text-[13px] ${
+              panelDisabled ? "text-white/35" : "text-white/80"
+            }`}
+          >
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                panelDisabled ? "bg-white/20" : ""
+              }`}
+              style={panelDisabled ? undefined : { backgroundColor: editorColor }}
+            />
+            <span className="min-w-0 truncate">{calendarLabel}</span>
+          </div>
+          <div className="mt-2 space-y-1 text-[12px] text-white/45">
+            <div>Busy</div>
+            <div>Default visibility</div>
+          </div>
+        </div>
+
+        <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-3 text-sm">
+          <button
+            type="button"
+            onClick={handleDeleteEvent}
+            disabled={savingEvent || panelDisabled}
+            className="text-white/45 transition hover:text-white disabled:opacity-40"
+          >
+            Delete
+          </button>
+          <button
+            type="button"
+            onClick={handleSaveEvent}
+            disabled={savingEvent || panelDisabled}
+            className="rounded-md border border-white/10 bg-white/10 px-4 py-2 font-semibold text-white transition hover:bg-white/15 disabled:opacity-50"
+          >
+            {savingEvent ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="notion-calendar flex h-full min-h-0 w-full flex-col text-white">
@@ -1260,212 +1418,11 @@ export default function TaskSchedulerCalendar({
             </div>
           </section>
 
-          <aside className="order-3 min-h-0 overflow-y-auto hide-scrollbar border-t border-white/10 bg-[#0f0f10] px-3 pb-2 pt-1 lg:border-t-0 lg:border-l">
-            <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
-              <Search className="h-4 w-4 text-white/35" aria-hidden />
-              <input
-                className="w-full bg-transparent text-[13px] leading-5 text-white/80 outline-none placeholder:text-white/40"
-                placeholder="Search"
-              />
-            </div>
-
-            <div className="mt-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
-                Useful shortcuts
-              </p>
-              <div className="mt-2 space-y-0.5">
-                {[
-                  { label: "Command menu", keys: "Ctrl + K" },
-                  { label: "Toggle calendar sidebar", keys: "Ctrl + Alt + K" },
-                  { label: "Go to date", keys: "G" },
-                  { label: "All keyboard shortcuts", keys: "?" },
-                ].map((item) => {
-                  const keyParts = item.keys
-                    .split("+")
-                    .map((part) => part.trim())
-                    .filter(Boolean);
-
-                  return (
-                    <div
-                      key={item.label}
-                      className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-[13px] leading-5 text-white/80 hover:bg-white/[0.03]"
-                    >
-                      <span className="min-w-0 truncate">{item.label}</span>
-                      <span className="flex shrink-0 items-center gap-1 text-[11px] text-white/60">
-                        {keyParts.map((part, index) => (
-                          <span
-                            key={`${part}-${index}`}
-                            className="inline-flex items-center gap-1"
-                          >
-                            {index > 0 && (
-                              <span className="text-white/25">+</span>
-                            )}
-                            <kbd>{part}</kbd>
-                          </span>
-                        ))}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+          <aside className="order-3 min-h-0 overflow-y-auto hide-scrollbar border-t border-white/10 bg-[#0f0f10] lg:border-t-0 lg:border-l">
+            <EventDetailsPanel />
           </aside>
         </div>
       </div>
-
-      {editorState && (
-        <div
-          className="fixed z-50 rounded-lg border border-white/15 bg-[#111112] p-4 shadow-xl"
-          style={{
-            left: editorState.position.x,
-            top: editorState.position.y,
-            width: 280,
-          }}
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">
-              {editorState.id ? "Edit block" : "New block"}
-            </h3>
-            <button
-              type="button"
-              onClick={closeEditor}
-              className="text-white/60 transition hover:text-white"
-              aria-label="Close editor"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="mt-3 space-y-3 text-sm">
-            <div>
-              <label className="text-xs uppercase tracking-[0.3em] text-white/40">
-                Title
-              </label>
-              <input
-                value={editorState.title}
-                onChange={(event) =>
-                  updateEditorField("title", event.target.value)
-                }
-                disabled={!!editorState.taskId}
-                className="mt-1 w-full rounded-md border border-white/10 bg-black/20 p-2 text-sm text-white outline-none focus:border-white/30"
-                placeholder="Study session"
-              />
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-[0.3em] text-white/40">
-                Calendar
-              </label>
-              <div className="mt-1 space-y-1">
-                {calendars.map((calendar) => {
-                  const isActive = editorColor === calendar.color;
-                  return (
-                    <button
-                      key={calendar.id}
-                      type="button"
-                      onClick={() =>
-                        updateEditorField("color", calendar.color)
-                      }
-                      className={`flex w-full items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-left text-[12px] transition ${
-                        isActive
-                          ? "border-white/30 bg-white/10 text-white"
-                          : "border-white/10 bg-black/20 text-white/70 hover:border-white/20"
-                      }`}
-                    >
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: calendar.color }}
-                        />
-                        <span className="min-w-0 truncate">
-                          {calendar.name}
-                        </span>
-                        {calendar.isDefault && (
-                          <span className="shrink-0 text-[10px] uppercase tracking-[0.25em] text-white/40">
-                            Default
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-                {showCustomCalendar && (
-                  <div className="flex items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-[12px] text-white/60">
-                    <span
-                      className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: editorColor }}
-                    />
-                    <span className="min-w-0 truncate">Custom color</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-[0.3em] text-white/40">
-                Link to task
-              </label>
-              <select
-                value={editorState.taskId ?? ""}
-                onChange={(event) =>
-                  handleLinkChange(event.target.value || null)
-                }
-                className="mt-1 w-full rounded-md border border-white/10 bg-black/20 p-2 text-sm text-white outline-none focus:border-white/30"
-              >
-                <option value="">Not linked</option>
-                {tasks.map((task) => (
-                  <option key={task.id} value={task.id}>
-                    {task.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-xs uppercase tracking-[0.3em] text-white/40">
-                  Start
-                </label>
-                <input
-                  type="time"
-                  value={formatInputTime(new Date(editorState.startISO))}
-                  onChange={(event) =>
-                    handleTimeChange("start", event.target.value)
-                  }
-                  className="mt-1 w-full rounded-md border border-white/10 bg-black/20 p-2 text-sm text-white outline-none focus:border-white/30"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-xs uppercase tracking-[0.3em] text-white/40">
-                  End
-                </label>
-                <input
-                  type="time"
-                  value={formatInputTime(new Date(editorState.endISO))}
-                  onChange={(event) =>
-                    handleTimeChange("end", event.target.value)
-                  }
-                  className="mt-1 w-full rounded-md border border-white/10 bg-black/20 p-2 text-sm text-white outline-none focus:border-white/30"
-                />
-              </div>
-            </div>
-          </div>
-          <div className="mt-4 flex items-center justify-between text-sm">
-            <button
-              type="button"
-              onClick={handleDeleteEvent}
-              disabled={savingEvent}
-              className="text-white/50 transition hover:text-white disabled:opacity-40"
-            >
-              Delete
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveEvent}
-              disabled={savingEvent}
-              className="rounded-md border border-white/10 bg-white/10 px-4 py-2 font-semibold text-white transition hover:bg-white/15 disabled:opacity-50"
-            >
-              {savingEvent ? "Saving…" : "Save"}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
