@@ -7,11 +7,13 @@ import type {
 } from "@/lib/taskSchedulerTypes";
 import {
   Bell,
+  Calendar as CalendarIcon,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
   EyeOff,
+  List as ListIcon,
   Link,
   MoreHorizontal,
 } from "lucide-react";
@@ -110,6 +112,8 @@ type CalendarEventInput = {
   taskId: string | null;
   color?: string | null;
 };
+
+type SurfaceView = "planner" | "calendar";
 
 type TaskSchedulerCalendarProps = {
   events: PersistedEvent[];
@@ -300,6 +304,7 @@ export default function TaskSchedulerCalendar({
   );
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const eventsRef = useRef<CalendarEvent[]>([]);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const pendingResizeRef = useRef<CalendarEvent | null>(null);
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const [selectionState, setSelectionState] = useState<SelectionState | null>(
@@ -310,7 +315,17 @@ export default function TaskSchedulerCalendar({
     null,
   );
   const [savingEvent, setSavingEvent] = useState(false);
+  const [activeSurfaceTab, setActiveSurfaceTab] = useState<SurfaceView | null>(
+    null,
+  );
+  const [surfaceTabsReady, setSurfaceTabsReady] = useState(false);
   const columnRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const surfaceButtonsRef = useRef<
+    Record<SurfaceView, HTMLButtonElement | null>
+  >({
+    planner: null,
+    calendar: null,
+  });
   useEffect(() => {
     const mapped = persistedEvents.map(mapPersistedEvent);
     setEvents(mapped);
@@ -473,6 +488,64 @@ export default function TaskSchedulerCalendar({
     }
   }, [focusTaskId, events, onRequestFocusClear]);
 
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const container = root.parentElement;
+    const topBar = container?.previousElementSibling as HTMLElement | null;
+    if (!topBar) return;
+
+    const buttons = Array.from(
+      topBar.querySelectorAll('button[aria-label^="Switch to "]'),
+    ) as HTMLButtonElement[];
+    if (buttons.length === 0) return;
+
+    const nextButtons: Record<SurfaceView, HTMLButtonElement | null> = {
+      planner: null,
+      calendar: null,
+    };
+
+    buttons.forEach((button) => {
+      const label = button.getAttribute("aria-label")?.toLowerCase() ?? "";
+      if (label.includes("planner")) {
+        nextButtons.planner = button;
+      } else if (label.includes("calendar")) {
+        nextButtons.calendar = button;
+      }
+    });
+
+    surfaceButtonsRef.current = nextButtons;
+    setSurfaceTabsReady(!!(nextButtons.planner || nextButtons.calendar));
+
+    const previousDisplay = topBar.style.display;
+    topBar.style.display = "none";
+
+    const updateActiveTab = () => {
+      if (nextButtons.planner?.classList.contains("bg-white/10")) {
+        setActiveSurfaceTab("planner");
+      } else if (nextButtons.calendar?.classList.contains("bg-white/10")) {
+        setActiveSurfaceTab("calendar");
+      } else {
+        setActiveSurfaceTab(null);
+      }
+    };
+
+    updateActiveTab();
+
+    const observer = new MutationObserver(updateActiveTab);
+    buttons.forEach((button) => {
+      observer.observe(button, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    });
+
+    return () => {
+      observer.disconnect();
+      topBar.style.display = previousDisplay;
+    };
+  }, []);
+
   const hours = useMemo(
     () =>
       Array.from(
@@ -510,6 +583,13 @@ export default function TaskSchedulerCalendar({
     const minutesLabel = minutes ? `:${`${minutes}`.padStart(2, "0")}` : "";
     return `GMT${sign}${hours}${minutesLabel}`;
   }, []);
+
+  function handleSurfaceTabClick(surface: SurfaceView) {
+    const button = surfaceButtonsRef.current[surface];
+    if (!button) return;
+    button.click();
+    setActiveSurfaceTab(surface);
+  }
 
   function handleTabToday() {
     const today = new Date();
@@ -828,7 +908,7 @@ export default function TaskSchedulerCalendar({
       hasValidEnd && endDate ? formatTimeString(endDate) : "--";
 
     return (
-      <div className="flex min-h-0 flex-col gap-4 px-4 pb-6 pt-4">
+      <div className="flex min-h-0 flex-col gap-4 px-4 pb-6 pt-3">
         <div className="flex items-center justify-between">
           <button
             type="button"
@@ -976,10 +1056,13 @@ export default function TaskSchedulerCalendar({
   }
 
   return (
-    <div className="notion-calendar flex h-full min-h-0 w-full flex-col text-white">
+    <div
+      ref={rootRef}
+      className="notion-calendar flex h-full min-h-0 w-full flex-col text-white"
+    >
       <div className="relative h-full min-h-0 w-full overflow-hidden bg-[#0f0f10]">
         <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[272px_minmax(0,1fr)_288px]">
-          <aside className="order-2 min-h-0 overflow-y-auto hide-scrollbar border-t border-white/10 bg-[#0f0f10] px-3 pb-2 pt-1 lg:order-1 lg:border-t-0 lg:border-r">
+          <aside className="order-2 min-h-0 overflow-y-auto hide-scrollbar border-t border-white/10 bg-[#0f0f10] px-3 pb-2 pt-0 lg:order-1 lg:border-t-0 lg:border-r">
             <div className="flex items-center justify-between gap-2">
               <p className="text-[13px] font-semibold leading-5 text-white/90">
                 {monthReference.toLocaleDateString(undefined, {
@@ -987,23 +1070,57 @@ export default function TaskSchedulerCalendar({
                   year: "numeric",
                 })}
               </p>
-              <button
-                type="button"
-                onClick={() => setMiniCalendarCollapsed((prev) => !prev)}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-xs text-white/60 transition hover:bg-white/5 hover:text-white"
-                aria-label="Toggle mini calendar"
-              >
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${
-                    miniCalendarCollapsed ? "-rotate-90" : "rotate-0"
-                  }`}
-                  aria-hidden
-                />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <div className="inline-flex shrink-0 items-center rounded-md border border-white/10 bg-white/5 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSurfaceTabClick("planner")}
+                    disabled={!surfaceTabsReady}
+                    aria-pressed={activeSurfaceTab === "planner"}
+                    aria-label="Switch to Planner"
+                    title="Planner"
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-[6px] transition ${
+                      activeSurfaceTab === "planner"
+                        ? "bg-white/10 text-white"
+                        : "text-white/60 hover:bg-white/5 hover:text-white"
+                    } ${surfaceTabsReady ? "" : "cursor-not-allowed opacity-50"}`}
+                  >
+                    <ListIcon className="h-4 w-4" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSurfaceTabClick("calendar")}
+                    disabled={!surfaceTabsReady}
+                    aria-pressed={activeSurfaceTab === "calendar"}
+                    aria-label="Switch to Calendar"
+                    title="Calendar"
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-[6px] transition ${
+                      activeSurfaceTab === "calendar"
+                        ? "bg-white/10 text-white"
+                        : "text-white/60 hover:bg-white/5 hover:text-white"
+                    } ${surfaceTabsReady ? "" : "cursor-not-allowed opacity-50"}`}
+                  >
+                    <CalendarIcon className="h-4 w-4" aria-hidden />
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMiniCalendarCollapsed((prev) => !prev)}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-xs text-white/60 transition hover:bg-white/5 hover:text-white"
+                  aria-label="Toggle mini calendar"
+                >
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${
+                      miniCalendarCollapsed ? "-rotate-90" : "rotate-0"
+                    }`}
+                    aria-hidden
+                  />
+                </button>
+              </div>
             </div>
 
             {!miniCalendarCollapsed && (
-              <div className="mt-2">
+              <div className="mt-1">
                 <div className="grid grid-cols-7 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">
                   {WEEKDAY_LABELS.map((label) => (
                     <span key={label}>{label}</span>
@@ -1117,7 +1234,7 @@ export default function TaskSchedulerCalendar({
           </aside>
 
           <section className="order-1 flex min-h-0 min-w-0 flex-col lg:order-2">
-            <header className="flex h-11 items-center justify-between gap-2 border-b border-white/10 px-3">
+            <header className="flex h-10 items-center justify-between gap-2 border-b border-white/10 px-3">
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-semibold text-white">{monthLabel}</h2>
                 {loading && (
