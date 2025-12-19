@@ -54,7 +54,7 @@ export function normalizeEnum<T extends readonly string[]>(
   value: unknown,
   allowed: T,
   fallback?: T[number],
-) {
+): T[number] | null {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
     const match = allowed.find((entry) => entry === normalized);
