@@ -298,6 +298,7 @@ export default function TaskSchedulerCalendar({
   const pendingResizeRef = useRef<CalendarEvent | null>(null);
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const [calendarSelectOpen, setCalendarSelectOpen] = useState(false);
+  const [calendarSelectActiveIndex, setCalendarSelectActiveIndex] = useState(0);
   const [selectionState, setSelectionState] = useState<SelectionState | null>(
     null,
   );
@@ -1109,9 +1110,69 @@ export default function TaskSchedulerCalendar({
     ? calendars.find((calendar) => calendar.id === editorState.calendarId) ?? null
     : null;
   const editorCalendarColor = editorCalendar?.color ?? defaultCalendarColor;
+  const panelDisabled = !editorState;
+  const calendarSelectValue =
+    calendars.length === 0 ? "" : editorState?.calendarId ?? "";
+  const emptyCalendarLabel = editorState ? "No calendar" : "Select calendar";
+  const selectedCalendar = editorState?.calendarId
+    ? calendars.find((calendar) => calendar.id === editorState.calendarId) ??
+      null
+    : null;
+  const calendarLabel = calendarsLoading
+    ? "Loading calendars…"
+    : calendars.length === 0
+      ? "No calendars yet"
+      : selectedCalendar?.name ?? emptyCalendarLabel;
+  const calendarDropdownDisabled =
+    panelDisabled || calendarsLoading || calendars.length === 0;
+  const calendarSelectOptions = useMemo(() => {
+    if (calendarDropdownDisabled) return [];
+    const options: Array<{
+      id: string | null;
+      label: string;
+      color: string | null;
+      isEmpty: boolean;
+    }> = [];
+    if (calendarSelectValue === "") {
+      options.push({
+        id: null,
+        label: emptyCalendarLabel,
+        color: null,
+        isEmpty: true,
+      });
+    }
+    calendars.forEach((calendar) => {
+      options.push({
+        id: calendar.id,
+        label: calendar.name,
+        color: calendar.color,
+        isEmpty: false,
+      });
+    });
+    return options;
+  }, [
+    calendarDropdownDisabled,
+    calendarSelectValue,
+    calendars,
+    emptyCalendarLabel,
+  ]);
+  const calendarSelectCurrentIndex = useMemo(() => {
+    if (calendarSelectOptions.length === 0) return -1;
+    if (calendarSelectValue === "") return 0;
+    const index = calendarSelectOptions.findIndex(
+      (option) => option.id === calendarSelectValue,
+    );
+    return index >= 0 ? index : 0;
+  }, [calendarSelectOptions, calendarSelectValue]);
+
+  useEffect(() => {
+    if (!calendarSelectOpen) return;
+    const nextIndex =
+      calendarSelectCurrentIndex >= 0 ? calendarSelectCurrentIndex : 0;
+    setCalendarSelectActiveIndex(nextIndex);
+  }, [calendarSelectCurrentIndex, calendarSelectOpen]);
 
   function renderEventDetailsPanel() {
-    const panelDisabled = !editorState;
     const startDate = editorState ? new Date(editorState.startISO) : null;
     const endDate = editorState ? new Date(editorState.endISO) : null;
     const hasValidStart =
@@ -1137,24 +1198,49 @@ export default function TaskSchedulerCalendar({
       hasValidStart && startDate ? formatTimeString(startDate) : "--";
     const endLabel =
       hasValidEnd && endDate ? formatTimeString(endDate) : "--";
-    const calendarSelectValue =
-      calendars.length === 0 ? "" : editorState?.calendarId ?? "";
-    const emptyCalendarLabel = editorState ? "No calendar" : "Select calendar";
-    const selectedCalendar = editorState?.calendarId
-      ? calendars.find((calendar) => calendar.id === editorState.calendarId) ??
-        null
-      : null;
-    const calendarLabel = calendarsLoading
-      ? "Loading calendars…"
-      : calendars.length === 0
-        ? "No calendars yet"
-        : selectedCalendar?.name ?? emptyCalendarLabel;
-    const calendarDropdownDisabled =
-      panelDisabled || calendarsLoading || calendars.length === 0;
     const canEditTaskLink = !!editorState && editorState.id === null;
     const taskLabel = editorState?.taskId
       ? taskById.get(editorState.taskId)?.title ?? "Linked task"
       : "No task linked";
+    function handleCalendarSelectKeyDown(
+      event: React.KeyboardEvent<HTMLDivElement>,
+    ) {
+      if (calendarDropdownDisabled) return;
+      if (!calendarSelectOpen) {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          setCalendarSelectOpen(true);
+          setCalendarSelectActiveIndex(
+            calendarSelectCurrentIndex >= 0
+              ? calendarSelectCurrentIndex
+              : 0,
+          );
+        }
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        setCalendarSelectActiveIndex((prev) => {
+          const count = calendarSelectOptions.length;
+          if (count === 0) return prev;
+          const next = (prev + direction + count) % count;
+          return next;
+        });
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const option = calendarSelectOptions[calendarSelectActiveIndex];
+        if (!option) return;
+        updateEditorField("calendarId", option.id ?? null);
+        setCalendarSelectOpen(false);
+        return;
+      }
+      if (event.key === "Escape") {
+        setCalendarSelectOpen(false);
+      }
+    }
 
     return (
       <div className="flex min-h-0 flex-col gap-4 px-4 pb-6 pt-3">
@@ -1202,10 +1288,26 @@ export default function TaskSchedulerCalendar({
                   : { backgroundColor: editorCalendarColor }
               }
             />
-            <div className="relative w-full" ref={calendarSelectRef}>
+            <div
+              className="relative w-full"
+              ref={calendarSelectRef}
+              onKeyDown={handleCalendarSelectKeyDown}
+            >
               <button
                 type="button"
-                onClick={() => setCalendarSelectOpen((prev) => !prev)}
+                onClick={() =>
+                  setCalendarSelectOpen((prev) => {
+                    const next = !prev;
+                    if (next) {
+                      setCalendarSelectActiveIndex(
+                        calendarSelectCurrentIndex >= 0
+                          ? calendarSelectCurrentIndex
+                          : 0,
+                      );
+                    }
+                    return next;
+                  })
+                }
                 disabled={calendarDropdownDisabled}
                 aria-haspopup="listbox"
                 aria-expanded={calendarSelectOpen}
@@ -1223,46 +1325,45 @@ export default function TaskSchedulerCalendar({
                 <div
                   role="listbox"
                   aria-label="Select calendar"
-                  className="absolute z-30 mt-2 w-full rounded-md border border-white/10 bg-[#0b0b0f] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+                  className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-md border border-white/10 bg-[#0b0b0f] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
                 >
-                  {calendarSelectValue === "" && (
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={calendarSelectValue === ""}
-                      onClick={() => {
-                        updateEditorField("calendarId", null);
-                        setCalendarSelectOpen(false);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] text-white/70 transition hover:bg-white/10"
-                    >
-                      <span className="h-2.5 w-2.5 rounded-full bg-white/20" />
-                      <span className="truncate">{emptyCalendarLabel}</span>
-                    </button>
-                  )}
-                  {calendars.map((calendar) => {
-                    const isSelected = calendar.id === calendarSelectValue;
+                  {calendarSelectOptions.map((option, optionIndex) => {
+                    const isSelected =
+                      option.id === calendarSelectValue ||
+                      (option.id === null && calendarSelectValue === "");
+                    const isHighlighted =
+                      optionIndex === calendarSelectActiveIndex;
+                    const isActive = isSelected || isHighlighted;
                     return (
                       <button
-                        key={calendar.id}
+                        key={option.id ?? "empty"}
                         type="button"
                         role="option"
                         aria-selected={isSelected}
+                        onMouseEnter={() =>
+                          setCalendarSelectActiveIndex(optionIndex)
+                        }
                         onClick={() => {
-                          updateEditorField("calendarId", calendar.id);
+                          updateEditorField("calendarId", option.id ?? null);
                           setCalendarSelectOpen(false);
                         }}
                         className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] transition ${
-                          isSelected
+                          isActive
                             ? "bg-white/10 text-white"
                             : "text-white/70 hover:bg-white/10 hover:text-white"
                         }`}
                       >
                         <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: calendar.color }}
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            option.isEmpty ? "bg-white/20" : ""
+                          }`}
+                          style={
+                            option.color
+                              ? { backgroundColor: option.color }
+                              : undefined
+                          }
                         />
-                        <span className="truncate">{calendar.name}</span>
+                        <span className="truncate">{option.label}</span>
                       </button>
                     );
                   })}
