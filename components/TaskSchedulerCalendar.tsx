@@ -523,7 +523,7 @@ export default function TaskSchedulerCalendar({
     });
   }, [tasks, visibleWeekStart]);
 
-  const habitEvents = useMemo(
+  const habitEvents = useMemo<CalendarEvent[]>(
     () =>
       habitInstances.map((instance) => ({
         id: instance.id,
