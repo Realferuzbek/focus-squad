@@ -9,12 +9,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Database,
-  Eye,
-  Link2,
-  Plus,
   Search,
-  Users,
 } from "lucide-react";
 import { TASK_DAILY_MINUTES_LIMIT } from "@/lib/taskSchedulerConstants";
 import {
@@ -722,144 +717,97 @@ export default function TaskSchedulerCalendar({
     <div className="notion-calendar flex h-full min-h-0 w-full flex-col text-white">
       <div className="relative h-full min-h-0 w-full overflow-hidden bg-[#0f0f10]">
         <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[272px_minmax(0,1fr)_288px]">
-          <aside className="order-2 min-h-0 overflow-y-auto hide-scrollbar border-t border-white/10 bg-[#0f0f10] px-3 py-2 lg:order-1 lg:border-t-0 lg:border-r">
+          <aside className="order-2 min-h-0 overflow-y-auto hide-scrollbar border-t border-white/10 bg-[#0f0f10] px-3 pb-2 pt-1 lg:order-1 lg:border-t-0 lg:border-r">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-2">
-                <Link2 className="h-4 w-4 text-white/40" aria-hidden />
-                <p className="truncate text-[13px] font-semibold leading-5 text-white/85">
-                  Scheduling
-                </p>
-              </div>
+              <p className="text-[13px] font-semibold leading-5 text-white/90">
+                {monthReference.toLocaleDateString(undefined, {
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
               <button
                 type="button"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/55 transition hover:bg-white/5 hover:text-white"
-                onClick={() => {}}
-                aria-label="Toggle scheduling visibility"
+                onClick={() => setMiniCalendarCollapsed((prev) => !prev)}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-xs text-white/60 transition hover:bg-white/5 hover:text-white"
+                aria-label="Toggle mini calendar"
               >
-                <Eye className="h-4 w-4" aria-hidden />
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${
+                    miniCalendarCollapsed ? "-rotate-90" : "rotate-0"
+                  }`}
+                  aria-hidden
+                />
               </button>
             </div>
 
-            <div className="mt-2">
-              <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
-                <Users className="h-4 w-4 text-white/35" aria-hidden />
-                <input
-                  className="w-full bg-transparent text-[13px] leading-5 text-white/80 outline-none placeholder:text-white/40"
-                  placeholder="Meet with…"
-                />
-              </div>
-            </div>
-
-            <div className="mt-3 border-t border-white/10 pt-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[13px] font-semibold leading-5 text-white/90">
-                  {monthReference.toLocaleDateString(undefined, {
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setMiniCalendarCollapsed((prev) => !prev)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-xs text-white/60 transition hover:bg-white/5 hover:text-white"
-                  aria-label="Toggle mini calendar"
-                >
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform ${
-                      miniCalendarCollapsed ? "-rotate-90" : "rotate-0"
-                    }`}
-                    aria-hidden
-                  />
-                </button>
-              </div>
-
-              {!miniCalendarCollapsed && (
-                <div className="mt-3">
-                  <div className="grid grid-cols-7 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">
-                    {WEEKDAY_LABELS.map((label) => (
-                      <span key={label}>{label}</span>
-                    ))}
-                  </div>
-                  <div className="mt-2 space-y-1">
-                    {miniCalendarWeeks.map((week, weekIndex) => {
-                      const isActiveWeek = week.some((day) =>
-                        isSameWeek(day, visibleWeekStart),
-                      );
-                      return (
-                        <div
-                          key={`week-${weekIndex}`}
-                          className={`grid grid-cols-7 gap-1 rounded-md p-1 ${
-                            isActiveWeek ? "bg-white/[0.03]" : ""
-                          }`}
-                        >
-                          {week.map((day) => {
-                            const miniDateKey = day.toISOString().slice(0, 10);
-                            const overloadedMini =
-                              overloadedDayKeys.has(miniDateKey);
-                            const isCurrentMonth =
-                              day.getMonth() === monthReference.getMonth();
-                            const isSelected = isSameDay(day, selectedDate);
-                            const isToday = isSameDay(day, new Date());
-                            return (
-                              <button
-                                key={day.toISOString()}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedDate(day);
-                                  setVisibleWeekStart(getStartOfWeek(day));
-                                }}
-                                className={`relative flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-medium transition ${
-                                  isSelected
-                                    ? "bg-white/15 text-white"
-                                    : "text-white/70 hover:bg-white/[0.06]"
-                                } ${!isCurrentMonth ? "opacity-40" : ""}`}
-                                aria-label={`Select ${day.toDateString()}`}
-                              >
-                                <span
-                                  className={`relative ${
-                                    isToday && !isSelected
-                                      ? "before:absolute before:-left-1 before:-top-1 before:h-1.5 before:w-1.5 before:rounded-full before:bg-rose-400"
-                                      : ""
-                                  }`}
-                                >
-                                  {day.getDate()}
-                                </span>
-                                {overloadedMini && (
-                                  <span className="absolute -bottom-0.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-rose-400" />
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </div>
+            {!miniCalendarCollapsed && (
+              <div className="mt-2">
+                <div className="grid grid-cols-7 text-center text-[10px] font-medium uppercase tracking-[0.18em] text-white/40">
+                  {WEEKDAY_LABELS.map((label) => (
+                    <span key={label}>{label}</span>
+                  ))}
                 </div>
-              )}
-            </div>
-
-            <div className="mt-3 border-t border-white/10 pt-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
-                Google Calendar
-              </p>
-              <div className="mt-1 space-y-0.5">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] leading-5 text-white/70 transition hover:bg-white/[0.03] hover:text-white"
-                  onClick={() => {}}
-                >
-                  <Plus className="h-4 w-4 text-white/40" aria-hidden />
-                  <span>Add calendar account</span>
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[13px] leading-5 text-white/70 transition hover:bg-white/[0.03] hover:text-white"
-                  onClick={() => {}}
-                >
-                  <Database className="h-4 w-4 text-white/40" aria-hidden />
-                  <span>Add Notion database</span>
-                </button>
+                <div className="mt-2 space-y-1">
+                  {miniCalendarWeeks.map((week, weekIndex) => {
+                    const isActiveWeek = week.some((day) =>
+                      isSameWeek(day, visibleWeekStart),
+                    );
+                    return (
+                      <div
+                        key={`week-${weekIndex}`}
+                        className={`grid grid-cols-7 gap-1 rounded-md p-1 ${
+                          isActiveWeek ? "bg-white/[0.03]" : ""
+                        }`}
+                      >
+                        {week.map((day) => {
+                          const miniDateKey = day.toISOString().slice(0, 10);
+                          const overloadedMini =
+                            overloadedDayKeys.has(miniDateKey);
+                          const isCurrentMonth =
+                            day.getMonth() === monthReference.getMonth();
+                          const isSelected = isSameDay(day, selectedDate);
+                          const isToday = isSameDay(day, new Date());
+                          return (
+                            <button
+                              key={day.toISOString()}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDate(day);
+                                setVisibleWeekStart(getStartOfWeek(day));
+                              }}
+                              className={`relative flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-medium transition ${
+                                isSelected
+                                  ? "bg-white/15 text-white"
+                                  : "text-white/70 hover:bg-white/[0.06]"
+                              } ${!isCurrentMonth ? "opacity-40" : ""}`}
+                              aria-label={`Select ${day.toDateString()}`}
+                            >
+                              <span
+                                className={`relative ${
+                                  isToday && !isSelected
+                                    ? "before:absolute before:-left-1 before:-top-1 before:h-1.5 before:w-1.5 before:rounded-full before:bg-rose-400"
+                                    : ""
+                                }`}
+                              >
+                                {day.getDate()}
+                              </span>
+                              {overloadedMini && (
+                                <span className="absolute -bottom-0.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-rose-400" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
+            )}
+
+            <div className="mt-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
+                Calendars
+              </p>
             </div>
           </aside>
 
@@ -1163,7 +1111,7 @@ export default function TaskSchedulerCalendar({
             </div>
           </section>
 
-          <aside className="order-3 min-h-0 overflow-y-auto hide-scrollbar border-t border-white/10 bg-[#0f0f10] px-3 py-2 lg:border-t-0 lg:border-l">
+          <aside className="order-3 min-h-0 overflow-y-auto hide-scrollbar border-t border-white/10 bg-[#0f0f10] px-3 pb-2 pt-1 lg:border-t-0 lg:border-l">
             <div className="flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-2 py-1.5">
               <Search className="h-4 w-4 text-white/35" aria-hidden />
               <input
