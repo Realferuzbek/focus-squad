@@ -9,6 +9,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Eye,
+  EyeOff,
   Search,
 } from "lucide-react";
 import { TASK_DAILY_MINUTES_LIMIT } from "@/lib/taskSchedulerConstants";
@@ -33,6 +35,49 @@ const GRID_COLUMNS_STYLE: React.CSSProperties = {
 const MIN_DURATION_MINUTES = 30;
 const WEEKDAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 const EVENT_COLORS = ["#9b7bff", "#f472b6", "#22d3ee", "#34d399", "#facc15"];
+const DEFAULT_CALENDAR_COLOR = EVENT_COLORS[0];
+
+type CalendarSource = {
+  id: string;
+  name: string;
+  color: string;
+  isDefault?: boolean;
+  isVisible: boolean;
+};
+
+const INITIAL_CALENDARS: CalendarSource[] = [
+  {
+    id: "ielts",
+    name: "Ielts",
+    color: DEFAULT_CALENDAR_COLOR,
+    isDefault: true,
+    isVisible: true,
+  },
+  {
+    id: "ai-learning",
+    name: "AI Learning",
+    color: EVENT_COLORS[1],
+    isVisible: true,
+  },
+  {
+    id: "sport",
+    name: "Sport",
+    color: EVENT_COLORS[2],
+    isVisible: true,
+  },
+  {
+    id: "startup-project",
+    name: "Startup Project",
+    color: EVENT_COLORS[3],
+    isVisible: true,
+  },
+  {
+    id: "content-studio",
+    name: "Content Studio",
+    color: EVENT_COLORS[4],
+    isVisible: true,
+  },
+];
 
 type CalendarEvent = {
   id: string;
@@ -198,7 +243,7 @@ function mapPersistedEvent(event: PersistedEvent): CalendarEvent {
     title: event.title,
     startISO: event.start,
     endISO: event.end,
-    color: event.color ?? EVENT_COLORS[0],
+    color: event.color ?? DEFAULT_CALENDAR_COLOR,
     taskId: event.taskId ?? null,
     eventKind: event.eventKind,
   };
@@ -241,6 +286,9 @@ export default function TaskSchedulerCalendar({
   );
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [miniCalendarCollapsed, setMiniCalendarCollapsed] = useState(false);
+  const [calendars, setCalendars] = useState<CalendarSource[]>(() =>
+    INITIAL_CALENDARS.map((calendar) => ({ ...calendar })),
+  );
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const eventsRef = useRef<CalendarEvent[]>([]);
   const pendingResizeRef = useRef<CalendarEvent | null>(null);
@@ -263,6 +311,26 @@ export default function TaskSchedulerCalendar({
   useEffect(() => {
     eventsRef.current = events;
   }, [events]);
+
+  const defaultCalendar = useMemo(
+    () => calendars.find((calendar) => calendar.isDefault) ?? calendars[0],
+    [calendars],
+  );
+  const defaultCalendarColor =
+    defaultCalendar?.color ?? DEFAULT_CALENDAR_COLOR;
+  const hiddenCalendarColors = useMemo(
+    () =>
+      new Set(
+        calendars
+          .filter((calendar) => !calendar.isVisible)
+          .map((calendar) => calendar.color),
+      ),
+    [calendars],
+  );
+  const calendarColorSet = useMemo(
+    () => new Set(calendars.map((calendar) => calendar.color)),
+    [calendars],
+  );
 
   const habitInstances = useMemo(() => {
     const weekEnd = addDays(visibleWeekStart, 6);
@@ -288,9 +356,14 @@ export default function TaskSchedulerCalendar({
     [habitInstances],
   );
 
+  const visibleEvents = useMemo(() => {
+    if (hiddenCalendarColors.size === 0) return events;
+    return events.filter((event) => !hiddenCalendarColors.has(event.color));
+  }, [events, hiddenCalendarColors]);
+
   const renderedEvents = useMemo(
-    () => [...events, ...habitEvents],
-    [events, habitEvents],
+    () => [...visibleEvents, ...habitEvents],
+    [visibleEvents, habitEvents],
   );
 
   const persistedDailyMinutes = useMemo(
@@ -346,6 +419,16 @@ export default function TaskSchedulerCalendar({
     },
     [getBaselineMinutesForDay],
   );
+
+  const toggleCalendarVisibility = useCallback((calendarId: string) => {
+    setCalendars((prev) =>
+      prev.map((calendar) =>
+        calendar.id === calendarId
+          ? { ...calendar, isVisible: !calendar.isVisible }
+          : calendar,
+      ),
+    );
+  }, []);
 
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }, (_, index) => {
@@ -485,7 +568,7 @@ export default function TaskSchedulerCalendar({
       if (!day) return;
       const startDate = createDateWithMinutes(day, startMinutes);
       const endDate = createDateWithMinutes(day, endMinutes);
-      const color = EVENT_COLORS[events.length % EVENT_COLORS.length];
+      const color = defaultCalendarColor;
       openEditor({
         id: null,
         title: "",
@@ -496,7 +579,7 @@ export default function TaskSchedulerCalendar({
         color,
       });
     },
-    [events.length],
+    [defaultCalendarColor],
   );
 
   useEffect(() => {
@@ -583,7 +666,7 @@ export default function TaskSchedulerCalendar({
     const nextPosition = (() => {
       if (typeof window === "undefined") return state.position;
       const width = 280;
-      const height = 230;
+      const height = 320;
       return {
         x: Math.min(
           Math.max(state.position.x, 16),
@@ -729,6 +812,10 @@ export default function TaskSchedulerCalendar({
     weekDays.some((day) => isSameDay(day, today)) &&
     nowMinutes >= START_MINUTES &&
     nowMinutes <= END_MINUTES;
+  const editorColor = editorState?.color ?? defaultCalendarColor;
+  const showCustomCalendar = editorState
+    ? !calendarColorSet.has(editorColor)
+    : false;
 
   return (
     <div className="notion-calendar flex h-full min-h-0 w-full flex-col text-white">
@@ -825,6 +912,49 @@ export default function TaskSchedulerCalendar({
               <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
                 Calendars
               </p>
+              <div className="mt-2 space-y-1">
+                {calendars.map((calendar) => {
+                  const isHidden = !calendar.isVisible;
+                  return (
+                    <div
+                      key={calendar.id}
+                      className={`flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[13px] leading-5 transition hover:bg-white/[0.03] ${
+                        isHidden ? "text-white/40" : "text-white/80"
+                      }`}
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: calendar.color }}
+                        />
+                        <span className="min-w-0 truncate">
+                          {calendar.name}
+                        </span>
+                        {calendar.isDefault && (
+                          <span className="shrink-0 text-[10px] uppercase tracking-[0.25em] text-white/40">
+                            Default
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleCalendarVisibility(calendar.id)}
+                        aria-pressed={calendar.isVisible}
+                        aria-label={`${
+                          calendar.isVisible ? "Hide" : "Show"
+                        } ${calendar.name}`}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/50 transition hover:bg-white/5 hover:text-white"
+                      >
+                        {calendar.isVisible ? (
+                          <Eye className="h-4 w-4" aria-hidden />
+                        ) : (
+                          <EyeOff className="h-4 w-4" aria-hidden />
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </aside>
 
@@ -1219,6 +1349,54 @@ export default function TaskSchedulerCalendar({
                 className="mt-1 w-full rounded-md border border-white/10 bg-black/20 p-2 text-sm text-white outline-none focus:border-white/30"
                 placeholder="Study session"
               />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-[0.3em] text-white/40">
+                Calendar
+              </label>
+              <div className="mt-1 space-y-1">
+                {calendars.map((calendar) => {
+                  const isActive = editorColor === calendar.color;
+                  return (
+                    <button
+                      key={calendar.id}
+                      type="button"
+                      onClick={() =>
+                        updateEditorField("color", calendar.color)
+                      }
+                      className={`flex w-full items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-left text-[12px] transition ${
+                        isActive
+                          ? "border-white/30 bg-white/10 text-white"
+                          : "border-white/10 bg-black/20 text-white/70 hover:border-white/20"
+                      }`}
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: calendar.color }}
+                        />
+                        <span className="min-w-0 truncate">
+                          {calendar.name}
+                        </span>
+                        {calendar.isDefault && (
+                          <span className="shrink-0 text-[10px] uppercase tracking-[0.25em] text-white/40">
+                            Default
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+                {showCustomCalendar && (
+                  <div className="flex items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-[12px] text-white/60">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: editorColor }}
+                    />
+                    <span className="min-w-0 truncate">Custom color</span>
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="text-xs uppercase tracking-[0.3em] text-white/40">
