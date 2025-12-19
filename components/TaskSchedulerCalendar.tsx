@@ -7,7 +7,6 @@ import type {
   TaskCalendarEvent as PersistedEvent,
 } from "@/lib/taskSchedulerTypes";
 import {
-  Bell,
   Calendar as CalendarIcon,
   ChevronDown,
   ChevronLeft,
@@ -15,14 +14,10 @@ import {
   Eye,
   EyeOff,
   List as ListIcon,
-  Link,
   MoreHorizontal,
 } from "lucide-react";
 import { TASK_DAILY_MINUTES_LIMIT } from "@/lib/taskSchedulerConstants";
-import {
-  generateHabitInstances,
-  type HabitInstance,
-} from "@/lib/taskSchedulerHabits";
+import { generateHabitInstances } from "@/lib/taskSchedulerHabits";
 
 const START_HOUR = 1;
 const END_HOUR = 24;
@@ -49,6 +44,8 @@ type CalendarEvent = {
   endISO: string;
   color: string;
   taskId: string | null;
+  calendarId: string | null;
+  description: string | null;
   eventKind: PersistedEvent["eventKind"] | "habit";
   readOnly?: boolean;
   isVirtual?: boolean;
@@ -61,7 +58,8 @@ type EditorState = {
   endISO: string;
   position: { x: number; y: number };
   taskId: string | null;
-  color: string;
+  calendarId: string | null;
+  description: string;
 };
 
 type CalendarEventInput = {
@@ -69,7 +67,8 @@ type CalendarEventInput = {
   start: string;
   end: string;
   taskId: string | null;
-  color?: string | null;
+  calendarId?: string | null;
+  description?: string | null;
 };
 
 type CalendarCreatePayload = {
@@ -230,15 +229,24 @@ function buildMonthMatrix(monthReference: Date) {
 
 function mapPersistedEvent(
   event: PersistedEvent,
+  calendarColorById: Map<string, string>,
   fallbackColor: string,
+  defaultCalendarId: string | null,
 ): CalendarEvent {
+  const calendarId = event.calendarId ?? null;
+  const colorSourceId = calendarId ?? defaultCalendarId;
+  const color =
+    (colorSourceId ? calendarColorById.get(colorSourceId) : null) ??
+    fallbackColor;
   return {
     id: event.id,
     title: event.title,
     startISO: event.start,
     endISO: event.end,
-    color: event.color ?? fallbackColor,
+    color,
     taskId: event.taskId ?? null,
+    calendarId,
+    description: event.description ?? null,
     eventKind: event.eventKind,
   };
 }
@@ -249,7 +257,8 @@ function buildEventInput(event: CalendarEvent): CalendarEventInput {
     start: event.startISO,
     end: event.endISO,
     taskId: event.taskId,
-    color: event.color,
+    calendarId: event.calendarId,
+    description: event.description,
   };
 }
 
@@ -349,31 +358,38 @@ export default function TaskSchedulerCalendar({
     () => calendars[0] ?? null,
     [calendars],
   );
+  const visibleCalendars = useMemo(
+    () => calendars.filter((calendar) => calendar.isVisible),
+    [calendars],
+  );
   const defaultCalendarColor =
     (defaultCalendar ?? fallbackCalendar)?.color ?? DEFAULT_CALENDAR_COLOR;
+  const defaultCalendarId = defaultCalendar?.id ?? null;
   const draftCalendar = useMemo(() => {
     if (activeCalendar && activeCalendar.isVisible) {
       return activeCalendar;
     }
-    if (defaultCalendar) {
+    if (defaultCalendar && defaultCalendar.isVisible) {
       return defaultCalendar;
     }
-    return calendars.find((calendar) => calendar.isVisible) ?? null;
-  }, [activeCalendar, calendars, defaultCalendar]);
-  const draftCalendarColor = draftCalendar?.color ?? DEFAULT_CALENDAR_COLOR;
+    return visibleCalendars[0] ?? null;
+  }, [activeCalendar, defaultCalendar, visibleCalendars]);
   const canCreateBlocks = !!draftCalendar;
-  const hiddenCalendarColors = useMemo(
-    () =>
-      new Set(
-        calendars
-          .filter((calendar) => !calendar.isVisible)
-          .map((calendar) => calendar.color),
-      ),
-    [calendars],
+  const visibleCalendarIds = useMemo(
+    () => new Set(visibleCalendars.map((calendar) => calendar.id)),
+    [visibleCalendars],
   );
   const calendarColorSet = useMemo(
     () => new Set(calendars.map((calendar) => calendar.color)),
     [calendars],
+  );
+  const calendarColorById = useMemo(
+    () => new Map(calendars.map((calendar) => [calendar.id, calendar.color])),
+    [calendars],
+  );
+  const taskById = useMemo(
+    () => new Map(tasks.map((task) => [task.id, task])),
+    [tasks],
   );
   const editingCalendar = useMemo(
     () =>
@@ -385,11 +401,16 @@ export default function TaskSchedulerCalendar({
 
   useEffect(() => {
     const mapped = persistedEvents.map((event) =>
-      mapPersistedEvent(event, defaultCalendarColor),
+      mapPersistedEvent(
+        event,
+        calendarColorById,
+        defaultCalendarColor,
+        defaultCalendarId,
+      ),
     );
     setEvents(mapped);
     eventsRef.current = mapped;
-  }, [defaultCalendarColor, persistedEvents]);
+  }, [calendarColorById, defaultCalendarColor, defaultCalendarId, persistedEvents]);
 
   useEffect(() => {
     eventsRef.current = events;
@@ -412,6 +433,8 @@ export default function TaskSchedulerCalendar({
         endISO: instance.endISO,
         color: instance.color,
         taskId: instance.taskId,
+        calendarId: null,
+        description: null,
         eventKind: "habit" as const,
         readOnly: true,
         isVirtual: true,
@@ -420,9 +443,10 @@ export default function TaskSchedulerCalendar({
   );
 
   const visibleEvents = useMemo(() => {
-    if (hiddenCalendarColors.size === 0) return events;
-    return events.filter((event) => !hiddenCalendarColors.has(event.color));
-  }, [events, hiddenCalendarColors]);
+    return events.filter(
+      (event) => !event.calendarId || visibleCalendarIds.has(event.calendarId),
+    );
+  }, [events, visibleCalendarIds]);
 
   const renderedEvents = useMemo(
     () => [...visibleEvents, ...habitEvents],
@@ -430,8 +454,8 @@ export default function TaskSchedulerCalendar({
   );
 
   const persistedDailyMinutes = useMemo(
-    () => computeDailyMinutes(events),
-    [events],
+    () => computeDailyMinutes(visibleEvents),
+    [visibleEvents],
   );
   const habitDailyMinutes = useMemo(
     () => computeDailyMinutes(habitEvents),
@@ -911,7 +935,6 @@ export default function TaskSchedulerCalendar({
       if (!day) return;
       const startDate = createDateWithMinutes(day, startMinutes);
       const endDate = createDateWithMinutes(day, endMinutes);
-      const color = draftCalendar.color;
       openEditor({
         id: null,
         title: "",
@@ -919,7 +942,8 @@ export default function TaskSchedulerCalendar({
         endISO: endDate.toISOString(),
         position: anchor,
         taskId: null,
-        color,
+        calendarId: draftCalendar.id,
+        description: "",
       });
     },
     [draftCalendar],
@@ -1049,7 +1073,8 @@ export default function TaskSchedulerCalendar({
       endISO: calendarEvent.endISO,
       position: { x: rect.right + 12, y: rect.top },
       taskId: calendarEvent.taskId,
-      color: calendarEvent.color,
+      calendarId: calendarEvent.calendarId,
+      description: calendarEvent.description ?? "",
     });
   }
 
@@ -1060,9 +1085,26 @@ export default function TaskSchedulerCalendar({
     setEditorState((prev) => (prev ? { ...prev, [field]: value } : prev));
   }
 
+  const handleTaskLinkChange = useCallback(
+    (nextTaskId: string | null) => {
+      setEditorState((prev) => {
+        if (!prev) return prev;
+        const nextTask = nextTaskId ? taskById.get(nextTaskId) : null;
+        const nextTitle = nextTask ? nextTask.title : prev.title;
+        return {
+          ...prev,
+          taskId: nextTaskId,
+          title: nextTitle,
+        };
+      });
+    },
+    [taskById],
+  );
+
   async function handleSaveEvent() {
     if (!editorState) return;
-    const { id, endISO, startISO, title, taskId, color } = editorState;
+    const { id, endISO, startISO, title, taskId, calendarId, description } =
+      editorState;
     const start = new Date(startISO);
     const end = new Date(endISO);
     if (end.getTime() <= start.getTime()) {
@@ -1082,7 +1124,8 @@ export default function TaskSchedulerCalendar({
       start: start.toISOString(),
       end: end.toISOString(),
       taskId,
-      color,
+      calendarId,
+      description: description.trim() ? description.trim() : null,
     };
     setSavingEvent(true);
     try {
@@ -1122,10 +1165,10 @@ export default function TaskSchedulerCalendar({
     weekDays.some((day) => isSameDay(day, today)) &&
     nowMinutes >= START_MINUTES &&
     nowMinutes <= END_MINUTES;
-  const editorColor = editorState?.color ?? draftCalendarColor;
-  const showCustomCalendar = editorState
-    ? !calendarColorSet.has(editorColor)
-    : false;
+  const editorCalendar = editorState?.calendarId
+    ? calendars.find((calendar) => calendar.id === editorState.calendarId) ?? null
+    : null;
+  const editorCalendarColor = editorCalendar?.color ?? defaultCalendarColor;
 
   function EventDetailsPanel() {
     const panelDisabled = !editorState;
@@ -1142,12 +1185,6 @@ export default function TaskSchedulerCalendar({
             Math.round((endDate.getTime() - startDate.getTime()) / 60000),
           )
         : 0;
-    const calendarMatch = editorState
-      ? calendars.find((calendar) => calendar.color === editorColor)
-      : null;
-    const calendarLabel = editorState
-      ? calendarMatch?.name ?? (showCustomCalendar ? "Custom color" : "Calendar")
-      : "Calendar";
     const dateLabel =
       hasValidDates && startDate
         ? startDate.toLocaleDateString(undefined, {
@@ -1160,46 +1197,16 @@ export default function TaskSchedulerCalendar({
       hasValidStart && startDate ? formatTimeString(startDate) : "--";
     const endLabel =
       hasValidEnd && endDate ? formatTimeString(endDate) : "--";
+    const calendarSelectValue =
+      calendars.length === 0 ? "" : editorState?.calendarId ?? "";
+    const emptyCalendarLabel = editorState ? "No calendar" : "Select calendar";
+    const canEditTaskLink = !!editorState && editorState.id === null;
+    const taskLabel = editorState?.taskId
+      ? taskById.get(editorState.taskId)?.title ?? "Linked task"
+      : "No task linked";
 
     return (
       <div className="flex min-h-0 flex-col gap-4 px-4 pb-6 pt-3">
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            disabled
-            className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/50 disabled:opacity-60"
-          >
-            Event
-            <ChevronDown className="h-3.5 w-3.5 text-white/40" aria-hidden />
-          </button>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              disabled
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 text-white/40 transition disabled:opacity-50"
-              aria-label="Copy link"
-            >
-              <Link className="h-3.5 w-3.5" aria-hidden />
-            </button>
-            <button
-              type="button"
-              disabled
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 text-white/40 transition disabled:opacity-50"
-              aria-label="Notifications"
-            >
-              <Bell className="h-3.5 w-3.5" aria-hidden />
-            </button>
-            <button
-              type="button"
-              disabled
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 text-white/40 transition disabled:opacity-50"
-              aria-label="More options"
-            >
-              <MoreHorizontal className="h-3.5 w-3.5" aria-hidden />
-            </button>
-          </div>
-        </div>
-
         <input
           value={editorState?.title ?? ""}
           onChange={(event) => updateEditorField("title", event.target.value)}
@@ -1229,62 +1236,93 @@ export default function TaskSchedulerCalendar({
           {hasValidDates ? dateLabel : "Date"}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {["All-day", "Time zone", "Repeat"].map((label) => (
-            <button
-              key={label}
-              type="button"
-              disabled
-              className="rounded-full border border-white/10 bg-white/[0.02] px-3 py-1 text-[12px] text-white/40 disabled:opacity-60"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="space-y-1">
-          {[
-            "Participants",
-            "Conferencing",
-            "AI Meeting Notes and Docs",
-            "Location",
-          ].map((label) => (
-            <div
-              key={label}
-              className="rounded-md border border-white/10 bg-white/[0.015] px-3 py-2 text-[13px] text-white/35"
-            >
-              {label}
-            </div>
-          ))}
-        </div>
-
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
-            Description
+            Calendar
           </p>
-          <div className="mt-2 min-h-[80px] rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/30">
-            Add a description
-          </div>
-        </div>
-
-        <div className="rounded-md border border-white/10 bg-white/[0.02] px-3 py-2">
-          <div
-            className={`flex items-center gap-2 text-[13px] ${
-              panelDisabled ? "text-white/35" : "text-white/80"
-            }`}
-          >
+          <div className="mt-2 flex items-center gap-2">
             <span
               className={`h-2.5 w-2.5 rounded-full ${
                 panelDisabled ? "bg-white/20" : ""
               }`}
-              style={panelDisabled ? undefined : { backgroundColor: editorColor }}
+              style={
+                panelDisabled
+                  ? undefined
+                  : { backgroundColor: editorCalendarColor }
+              }
             />
-            <span className="min-w-0 truncate">{calendarLabel}</span>
+            <select
+              value={calendarSelectValue}
+              onChange={(event) =>
+                updateEditorField(
+                  "calendarId",
+                  event.target.value ? event.target.value : null,
+                )
+              }
+              disabled={panelDisabled || calendars.length === 0}
+              className="w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/90 outline-none transition focus:border-white/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {calendars.length === 0 ? (
+                <option value="">No calendars yet</option>
+              ) : (
+                <>
+                  {calendarSelectValue === "" && (
+                    <option value="">{emptyCalendarLabel}</option>
+                  )}
+                  {calendars.map((calendar) => (
+                    <option key={calendar.id} value={calendar.id}>
+                      {calendar.name}
+                    </option>
+                  ))}
+                </>
+              )}
+            </select>
           </div>
-          <div className="mt-2 space-y-1 text-[12px] text-white/45">
-            <div>Busy</div>
-            <div>Default visibility</div>
-          </div>
+        </div>
+
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
+            Link to task
+          </p>
+          {canEditTaskLink ? (
+            <select
+              value={editorState?.taskId ?? ""}
+              onChange={(event) =>
+                handleTaskLinkChange(
+                  event.target.value ? event.target.value : null,
+                )
+              }
+              disabled={panelDisabled}
+              className="mt-2 w-full rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/90 outline-none transition focus:border-white/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">No task</option>
+              {tasks.map((task) => (
+                <option key={task.id} value={task.id}>
+                  {task.title}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="mt-2 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/70">
+              {taskLabel}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/40">
+            Notes
+          </p>
+          <textarea
+            value={editorState?.description ?? ""}
+            onChange={(event) =>
+              updateEditorField("description", event.target.value)
+            }
+            disabled={panelDisabled}
+            rows={4}
+            className="mt-2 w-full resize-none rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] text-white/90 outline-none transition placeholder:text-white/35 focus:border-white/30 disabled:cursor-not-allowed disabled:opacity-50"
+            placeholder="Add notes"
+          />
         </div>
 
         <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-3 text-sm">
@@ -1897,6 +1935,13 @@ export default function TaskSchedulerCalendar({
                       className="absolute top-0 h-px bg-rose-400/80"
                       style={{ left: TIME_GUTTER_W, right: 0 }}
                     />
+                  </div>
+                )}
+                {calendars.length === 0 && (
+                  <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                    <p className="rounded-md border border-white/10 bg-white/[0.03] px-4 py-2 text-[13px] text-white/60">
+                      Create your first calendar to start planning.
+                    </p>
                   </div>
                 )}
                 <div
