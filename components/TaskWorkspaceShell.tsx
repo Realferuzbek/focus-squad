@@ -11,6 +11,7 @@ import {
   StudentTaskCategory,
   StudentTaskPriority,
   StudentTaskStatus,
+  TaskCalendar,
   TaskCalendarEvent,
   TaskPrivateItem,
   TaskPrivateItemKind,
@@ -65,6 +66,15 @@ type CalendarEventInput = {
   taskId: string | null;
   color?: string | null;
 };
+
+type CalendarCreatePayload = {
+  name: string;
+  color: string;
+};
+
+type CalendarPatchPayload = Partial<
+  Pick<TaskCalendar, "name" | "color" | "isDefault" | "isVisible" | "sortOrder">
+>;
 
 const navItems: Array<{
   id: Section;
@@ -228,6 +238,14 @@ function computeDailyMinutesFromEvents(events: TaskCalendarEvent[]) {
   });
   return minutes;
 }
+
+function getDefaultCalendarId(calendars: TaskCalendar[]) {
+  return (
+    calendars.find((calendar) => calendar.isDefault)?.id ??
+    calendars[0]?.id ??
+    null
+  );
+}
 export default function TaskWorkspaceShell() {
   const [activeSection, setActiveSection] = useState<Section>("home");
   const [activeSurface, setActiveSurface] = useState<SurfaceView>("planner");
@@ -250,6 +268,9 @@ export default function TaskWorkspaceShell() {
   const [allTasksLoaded, setAllTasksLoaded] = useState(false);
   const [events, setEvents] = useState<TaskCalendarEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
+  const [calendars, setCalendars] = useState<TaskCalendar[]>([]);
+  const [calendarsLoading, setCalendarsLoading] = useState(true);
+  const [activeCalendarId, setActiveCalendarId] = useState<string | null>(null);
   const [calendarFocusTaskId, setCalendarFocusTaskId] = useState<string | null>(
     null,
   );
@@ -317,6 +338,7 @@ export default function TaskWorkspaceShell() {
   useEffect(() => {
     loadAllTasks();
     loadEvents();
+    loadCalendars();
   }, []);
 
   useEffect(() => {
@@ -324,6 +346,21 @@ export default function TaskWorkspaceShell() {
       loadTasksFor(activePrivateItemId);
     }
   }, [activePrivateItemId, tasksByList, loadTasksFor]);
+
+  useEffect(() => {
+    if (calendars.length === 0) {
+      if (activeCalendarId !== null) {
+        setActiveCalendarId(null);
+      }
+      return;
+    }
+    const hasActive =
+      activeCalendarId &&
+      calendars.some((calendar) => calendar.id === activeCalendarId);
+    if (!hasActive) {
+      setActiveCalendarId(getDefaultCalendarId(calendars));
+    }
+  }, [activeCalendarId, calendars]);
 
   const taskEventDates = useMemo(
     () => buildTaskEventDateMap(events),
@@ -598,6 +635,24 @@ export default function TaskWorkspaceShell() {
     }
   }
 
+  async function loadCalendars() {
+    setCalendarsLoading(true);
+    try {
+      const res = await fetch("/api/task-scheduler/calendars");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to load calendars");
+      }
+      const data = await res.json();
+      const nextCalendars: TaskCalendar[] = data?.calendars ?? [];
+      setCalendars(nextCalendars);
+    } catch {
+      setCalendars([]);
+    } finally {
+      setCalendarsLoading(false);
+    }
+  }
+
   async function loadEvents() {
     setEventsLoading(true);
     try {
@@ -737,6 +792,103 @@ export default function TaskWorkspaceShell() {
     } finally {
       toggleTaskSaving(taskId, false);
     }
+  }
+
+  async function handleCreateCalendar(input: CalendarCreatePayload) {
+    const res = await csrfFetch("/api/task-scheduler/calendars", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error || "Failed to create calendar");
+    }
+    const data = await res.json();
+    if (data.calendar) {
+      const created = data.calendar as TaskCalendar;
+      setCalendars((prev) => {
+        const next = [...prev, created];
+        if (created.isDefault) {
+          return next.map((calendar) =>
+            calendar.id === created.id
+              ? created
+              : { ...calendar, isDefault: false },
+          );
+        }
+        return next;
+      });
+      setActiveCalendarId((prev) => prev ?? created.id);
+    }
+  }
+
+  async function handleUpdateCalendar(
+    calendarId: string,
+    patch: CalendarPatchPayload,
+  ) {
+    const res = await csrfFetch(
+      `/api/task-scheduler/calendars/${calendarId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+      },
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error || "Failed to update calendar");
+    }
+    const data = await res.json();
+    if (data.calendar) {
+      const updated = data.calendar as TaskCalendar;
+      setCalendars((prev) => {
+        const next = prev.map((calendar) =>
+          calendar.id === updated.id ? updated : calendar,
+        );
+        if (updated.isDefault) {
+          return next.map((calendar) =>
+            calendar.id === updated.id
+              ? calendar
+              : { ...calendar, isDefault: false },
+          );
+        }
+        return next;
+      });
+    }
+  }
+
+  async function handleDeleteCalendar(calendarId: string) {
+    const res = await csrfFetch(
+      `/api/task-scheduler/calendars/${calendarId}`,
+      {
+        method: "DELETE",
+      },
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error || "Failed to delete calendar");
+    }
+    const data = await res.json();
+    const deletedId = data?.deletedCalendarId ?? calendarId;
+    const reassignedCalendarId =
+      typeof data?.reassignedCalendarId === "string"
+        ? data.reassignedCalendarId
+        : null;
+    setCalendars((prev) => {
+      const remaining = prev.filter((calendar) => calendar.id !== deletedId);
+      if (reassignedCalendarId) {
+        return remaining.map((calendar) => ({
+          ...calendar,
+          isDefault: calendar.id === reassignedCalendarId,
+        }));
+      }
+      return remaining;
+    });
+    setActiveCalendarId((prev) => {
+      if (prev && prev !== deletedId) return prev;
+      if (reassignedCalendarId) return reassignedCalendarId;
+      return null;
+    });
   }
 
   async function handleCreateEvent(input: CalendarEventInput) {
@@ -1136,6 +1288,13 @@ export default function TaskWorkspaceShell() {
               events={events}
               tasks={allTasks}
               loading={eventsLoading || !allTasksLoaded}
+              calendars={calendars}
+              calendarsLoading={calendarsLoading}
+              onCreateCalendar={handleCreateCalendar}
+              onUpdateCalendar={handleUpdateCalendar}
+              onDeleteCalendar={handleDeleteCalendar}
+              activeCalendarId={activeCalendarId}
+              onActiveCalendarChange={setActiveCalendarId}
               onCreateEvent={handleCreateEvent}
               onUpdateEvent={handleUpdateEvent}
               onDeleteEvent={handleDeleteEvent}
