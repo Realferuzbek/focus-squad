@@ -17,6 +17,7 @@ import {
 import { DEFAULT_EVENT_COLOR } from "@/lib/taskSchedulerTypes";
 import {
   normalizeOptionalString,
+  normalizeBoolean,
   validateScheduleInput,
 } from "@/lib/taskSchedulerValidation";
 
@@ -81,6 +82,17 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
+  const hasIsAllDay = hasProp(body, "isAllDay");
+  let isAllDayValue: boolean | null = null;
+  if (hasIsAllDay) {
+    isAllDayValue = normalizeBoolean(body?.isAllDay);
+    if (isAllDayValue === null) {
+      return NextResponse.json(
+        { error: "Invalid all-day value" },
+        { status: 400 },
+      );
+    }
+  }
   const schedule = validateScheduleInput(body?.start, body?.end);
   if (!schedule.start || !schedule.end) {
     if (schedule.error === "invalidRange") {
@@ -154,6 +166,9 @@ export async function POST(req: NextRequest) {
     if (hasDescription) {
       syncOptions.description = description;
     }
+    if (hasIsAllDay) {
+      syncOptions.isAllDay = isAllDayValue ?? false;
+    }
 
     const event = await syncTaskCalendarEvent(sb, syncOptions);
 
@@ -176,6 +191,7 @@ export async function POST(req: NextRequest) {
 
   const title = normalizeOptionalString(body?.title) ?? "Untitled block";
   const color = normalizeOptionalString(body?.color) ?? DEFAULT_EVENT_COLOR;
+  const isAllDay = isAllDayValue ?? false;
 
   const { data, error } = await sb
     .from("task_calendar_events")
@@ -187,6 +203,7 @@ export async function POST(req: NextRequest) {
       description,
       start_at: schedule.start,
       end_at: schedule.end,
+      is_all_day: isAllDay,
       color,
     })
     .select(TASK_CALENDAR_EVENT_COLUMNS)

@@ -18,6 +18,7 @@ import {
 import { DEFAULT_EVENT_COLOR } from "@/lib/taskSchedulerTypes";
 import {
   normalizeOptionalString,
+  normalizeBoolean,
   validateScheduleInput,
 } from "@/lib/taskSchedulerValidation";
 
@@ -67,6 +68,17 @@ export async function PATCH(
   }
 
   const body = await req.json().catch(() => ({}));
+  const hasIsAllDay = hasProp(body, "isAllDay");
+  let isAllDayValue: boolean | null = null;
+  if (hasIsAllDay) {
+    isAllDayValue = normalizeBoolean(body?.isAllDay);
+    if (isAllDayValue === null) {
+      return NextResponse.json(
+        { error: "Invalid all-day value" },
+        { status: 400 },
+      );
+    }
+  }
   const hasCalendarId = hasProp(body, "calendarId");
   let calendarIdValue: string | null | undefined;
   if (hasCalendarId) {
@@ -106,6 +118,9 @@ export async function PATCH(
     }
     if (hasDescription) {
       eventUpdates.description = descriptionValue;
+    }
+    if (hasIsAllDay) {
+      eventUpdates.is_all_day = isAllDayValue ?? false;
     }
 
     if (hasProp(body, "title")) {
@@ -208,6 +223,9 @@ export async function PATCH(
     if (hasDescription) {
       syncOptions.description = descriptionValue;
     }
+    if (hasIsAllDay) {
+      syncOptions.isAllDay = isAllDayValue ?? false;
+    }
 
     const event = await syncTaskCalendarEvent(sb, syncOptions);
 
@@ -220,6 +238,9 @@ export async function PATCH(
   }
   if (hasDescription) {
     eventUpdates.description = descriptionValue;
+  }
+  if (hasIsAllDay) {
+    eventUpdates.is_all_day = isAllDayValue ?? false;
   }
 
   if (hasProp(body, "title")) {

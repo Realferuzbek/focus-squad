@@ -62,6 +62,7 @@ type CalendarEventInput = {
   title: string;
   start: string;
   end: string;
+  isAllDay: boolean;
   taskId: string | null;
   calendarId?: string | null;
   description?: string | null;

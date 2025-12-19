@@ -21,7 +21,10 @@ import { generateHabitInstances } from "@/lib/taskSchedulerHabits";
 const START_HOUR = 1;
 const END_HOUR = 24;
 const TIME_GUTTER_W = 72; // px (tune to match Notion)
-const ALLDAY_H = 28; // px (tune to match Notion)
+const ALLDAY_MIN_H = 28; // px (tune to match Notion)
+const ALLDAY_PILL_H = 18;
+const ALLDAY_PILL_GAP = 4;
+const ALLDAY_ROW_PADDING = 4;
 const HOUR_ROW_H = 64; // px (use existing if already close)
 
 const START_MINUTES = START_HOUR * 60;
@@ -41,6 +44,7 @@ type CalendarEvent = {
   title: string;
   startISO: string;
   endISO: string;
+  isAllDay: boolean;
   color: string;
   taskId: string | null;
   calendarId: string | null;
@@ -50,21 +54,29 @@ type CalendarEvent = {
   isVirtual?: boolean;
 };
 
+type TimedRange = {
+  startISO: string;
+  endISO: string;
+};
+
 type EditorState = {
   id: string | null;
   title: string;
   startISO: string;
   endISO: string;
+  isAllDay: boolean;
   position: { x: number; y: number };
   taskId: string | null;
   calendarId: string | null;
   description: string;
+  lastTimedRange: TimedRange | null;
 };
 
 type CalendarEventInput = {
   title: string;
   start: string;
   end: string;
+  isAllDay: boolean;
   taskId: string | null;
   calendarId?: string | null;
   description?: string | null;
@@ -127,6 +139,19 @@ function addDays(date: Date, amount: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + amount);
   return next;
+}
+
+function startOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function formatDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function isSameDay(a: Date, b: Date) {
@@ -229,6 +254,7 @@ function mapPersistedEvent(
     title: event.title,
     startISO: event.start,
     endISO: event.end,
+    isAllDay: event.isAllDay ?? false,
     color,
     taskId: event.taskId ?? null,
     calendarId,
@@ -242,6 +268,7 @@ function buildEventInput(event: CalendarEvent): CalendarEventInput {
     title: event.title,
     start: event.startISO,
     end: event.endISO,
+    isAllDay: event.isAllDay,
     taskId: event.taskId,
     calendarId: event.calendarId,
     description: event.description,
@@ -408,6 +435,7 @@ export default function TaskSchedulerCalendar({
         title: `${instance.title}`,
         startISO: instance.startISO,
         endISO: instance.endISO,
+        isAllDay: false,
         color: instance.color,
         taskId: instance.taskId,
         calendarId: null,
@@ -429,6 +457,29 @@ export default function TaskSchedulerCalendar({
     () => [...visibleEvents, ...habitEvents],
     [visibleEvents, habitEvents],
   );
+  const timedEvents = useMemo(
+    () => renderedEvents.filter((event) => !event.isAllDay),
+    [renderedEvents],
+  );
+  const allDayEvents = useMemo(
+    () => renderedEvents.filter((event) => event.isAllDay),
+    [renderedEvents],
+  );
+  const allDayEventsByDate = useMemo(() => {
+    const map = new Map<string, CalendarEvent[]>();
+    allDayEvents.forEach((event) => {
+      const start = new Date(event.startISO);
+      if (Number.isNaN(start.getTime())) return;
+      const key = formatDateKey(start);
+      const existing = map.get(key) ?? [];
+      existing.push(event);
+      map.set(key, existing);
+    });
+    map.forEach((eventsForDay) => {
+      eventsForDay.sort((a, b) => a.startISO.localeCompare(b.startISO));
+    });
+    return map;
+  }, [allDayEvents]);
 
   const toggleCalendarVisibility = useCallback(
     async (calendar: TaskCalendar) => {
@@ -686,6 +737,17 @@ export default function TaskSchedulerCalendar({
       return day;
     });
   }, [visibleWeekStart]);
+  const allDayRowHeight = useMemo(() => {
+    const maxCount = weekDays.reduce((max, day) => {
+      const count = allDayEventsByDate.get(formatDateKey(day))?.length ?? 0;
+      return Math.max(max, count);
+    }, 0);
+    const stackedHeight =
+      ALLDAY_ROW_PADDING * 2 +
+      maxCount * ALLDAY_PILL_H +
+      Math.max(0, maxCount - 1) * ALLDAY_PILL_GAP;
+    return Math.max(ALLDAY_MIN_H, stackedHeight);
+  }, [allDayEventsByDate, weekDays]);
   const weekDaysRef = useRef(weekDays);
 
   useEffect(() => {
@@ -889,10 +951,15 @@ export default function TaskSchedulerCalendar({
         title: "",
         startISO: startDate.toISOString(),
         endISO: endDate.toISOString(),
+        isAllDay: false,
         position: anchor,
         taskId: null,
         calendarId: draftCalendar.id,
         description: "",
+        lastTimedRange: {
+          startISO: startDate.toISOString(),
+          endISO: endDate.toISOString(),
+        },
       });
     },
     [draftCalendar],
@@ -1002,7 +1069,7 @@ export default function TaskSchedulerCalendar({
   }
 
   function handleEventClick(
-    event: React.MouseEvent<HTMLDivElement, MouseEvent>,
+    event: React.MouseEvent<HTMLElement, MouseEvent>,
     calendarEvent: CalendarEvent,
   ) {
     event.stopPropagation();
@@ -1012,18 +1079,23 @@ export default function TaskSchedulerCalendar({
       return;
     }
     if (calendarEvent.readOnly) return;
-    const rect = (
-      event.currentTarget as HTMLDivElement
-    ).getBoundingClientRect();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     openEditor({
       id: calendarEvent.id,
       title: calendarEvent.title,
       startISO: calendarEvent.startISO,
       endISO: calendarEvent.endISO,
+      isAllDay: calendarEvent.isAllDay,
       position: { x: rect.right + 12, y: rect.top },
       taskId: calendarEvent.taskId,
       calendarId: calendarEvent.calendarId,
       description: calendarEvent.description ?? "",
+      lastTimedRange: calendarEvent.isAllDay
+        ? null
+        : {
+            startISO: calendarEvent.startISO,
+            endISO: calendarEvent.endISO,
+          },
     });
   }
 
@@ -1032,6 +1104,50 @@ export default function TaskSchedulerCalendar({
     value: EditorState[K],
   ) {
     setEditorState((prev) => (prev ? { ...prev, [field]: value } : prev));
+  }
+
+  function handleAllDayToggle(nextValue: boolean) {
+    setEditorState((prev) => {
+      if (!prev || prev.isAllDay === nextValue) return prev;
+      if (nextValue) {
+        const startSource = new Date(prev.startISO);
+        const baseDate = Number.isNaN(startSource.getTime())
+          ? new Date()
+          : startSource;
+        const dayStart = startOfDay(baseDate);
+        const nextDayStart = addDays(dayStart, 1);
+        return {
+          ...prev,
+          isAllDay: true,
+          startISO: dayStart.toISOString(),
+          endISO: nextDayStart.toISOString(),
+          lastTimedRange: {
+            startISO: prev.startISO,
+            endISO: prev.endISO,
+          },
+        };
+      }
+      const daySource = new Date(prev.startISO);
+      const baseDate = Number.isNaN(daySource.getTime()) ? new Date() : daySource;
+      const roundedMinutes = snapToIncrement(getMinutesFromDate(new Date()), 60);
+      const startMinutes = Math.min(
+        clampMinutes(roundedMinutes),
+        END_MINUTES - 60,
+      );
+      const fallbackStart = createDateWithMinutes(baseDate, startMinutes);
+      const fallbackEnd = createDateWithMinutes(baseDate, startMinutes + 60);
+      const restored = prev.lastTimedRange ?? {
+        startISO: fallbackStart.toISOString(),
+        endISO: fallbackEnd.toISOString(),
+      };
+      return {
+        ...prev,
+        isAllDay: false,
+        startISO: restored.startISO,
+        endISO: restored.endISO,
+        lastTimedRange: restored,
+      };
+    });
   }
 
   const handleTaskLinkChange = useCallback(
@@ -1052,8 +1168,16 @@ export default function TaskSchedulerCalendar({
 
   async function handleSaveEvent() {
     if (!editorState) return;
-    const { id, endISO, startISO, title, taskId, calendarId, description } =
-      editorState;
+    const {
+      id,
+      endISO,
+      startISO,
+      title,
+      taskId,
+      calendarId,
+      description,
+      isAllDay,
+    } = editorState;
     const start = new Date(startISO);
     const end = new Date(endISO);
     if (end.getTime() <= start.getTime()) {
@@ -1064,6 +1188,7 @@ export default function TaskSchedulerCalendar({
       title: title.trim() || "Untitled block",
       start: start.toISOString(),
       end: end.toISOString(),
+      isAllDay,
       taskId,
       calendarId,
       description: description.trim() ? description.trim() : null,
@@ -1199,6 +1324,7 @@ export default function TaskSchedulerCalendar({
     const endLabel =
       hasValidEnd && endDate ? formatTimeString(endDate) : "--";
     const canEditTaskLink = !!editorState && editorState.id === null;
+    const isAllDay = !!editorState?.isAllDay;
     const taskLabel = editorState?.taskId
       ? taskById.get(editorState.taskId)?.title ?? "Linked task"
       : "No task linked";
@@ -1252,17 +1378,52 @@ export default function TaskSchedulerCalendar({
           placeholder="Title"
         />
 
+        {isAllDay ? (
+          <div
+            className={`flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] ${
+              panelDisabled ? "text-white/35" : "text-white/80"
+            }`}
+          >
+            <span className="font-medium">All-day</span>
+          </div>
+        ) : (
+          <div
+            className={`flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] ${
+              panelDisabled ? "text-white/35" : "text-white/80"
+            }`}
+          >
+            <span className="font-medium">{startLabel}</span>
+            <span className="text-white/30">-&gt;</span>
+            <span className="font-medium">{endLabel}</span>
+            <span className="ml-auto text-[12px] text-white/45">
+              {hasValidDates ? formatDurationLabel(durationMinutes) : ""}
+            </span>
+          </div>
+        )}
+
         <div
-          className={`flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] ${
+          className={`flex items-center justify-between rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-[13px] ${
             panelDisabled ? "text-white/35" : "text-white/80"
           }`}
         >
-          <span className="font-medium">{startLabel}</span>
-          <span className="text-white/30">-&gt;</span>
-          <span className="font-medium">{endLabel}</span>
-          <span className="ml-auto text-[12px] text-white/45">
-            {hasValidDates ? formatDurationLabel(durationMinutes) : ""}
-          </span>
+          <span className="font-medium">All-day</span>
+          <button
+            type="button"
+            onClick={() => handleAllDayToggle(!isAllDay)}
+            disabled={panelDisabled}
+            aria-pressed={isAllDay}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full border transition ${
+              isAllDay
+                ? "border-emerald-400/70 bg-emerald-400/30"
+                : "border-white/15 bg-white/10"
+            } ${panelDisabled ? "cursor-not-allowed opacity-60" : ""}`}
+          >
+            <span
+              className={`inline-block h-4 w-4 rounded-full bg-white shadow transition ${
+                isAllDay ? "translate-x-4" : "translate-x-0.5"
+              }`}
+            />
+          </button>
         </div>
 
         <div
@@ -1979,20 +2140,51 @@ export default function TaskSchedulerCalendar({
 
                 <div
                   className="grid border-b border-white/10 bg-[#0f0f10]"
-                  style={{ ...GRID_COLUMNS_STYLE, height: ALLDAY_H }}
+                  style={{ ...GRID_COLUMNS_STYLE, height: allDayRowHeight }}
                 >
                   <div className="allday-label flex h-full items-center justify-center whitespace-nowrap border-r border-white/10 text-[11px] font-medium text-white/40">
                     All-day
                   </div>
                   {weekDays.map((day) => {
                     const isToday = isSameDay(day, today);
+                    const dayKey = formatDateKey(day);
+                    const dayEvents = allDayEventsByDate.get(dayKey) ?? [];
                     return (
                       <div
                         key={`all-day-${day.toISOString()}`}
                         className={`h-full border-r border-white/10 last:border-r-0 ${
                           isToday ? "bg-white/[0.02]" : ""
                         }`}
-                      />
+                      >
+                        <div className="flex h-full flex-col gap-1 px-2 py-1">
+                          {dayEvents.map((eventItem) => {
+                            const isHighlighted =
+                              highlightedEventId === eventItem.id;
+                            return (
+                              <button
+                                key={eventItem.id}
+                                type="button"
+                                data-event-block
+                                onClick={(event) =>
+                                  handleEventClick(event, eventItem)
+                                }
+                                className={`group flex items-center rounded-md px-2 text-[11px] font-medium text-white/90 transition hover:text-white ${
+                                  isHighlighted ? "ring-2 ring-white" : ""
+                                }`}
+                                style={{
+                                  height: ALLDAY_PILL_H,
+                                  backgroundImage: `linear-gradient(135deg, ${eventItem.color}, rgba(0,0,0,0.35))`,
+                                }}
+                                title={eventItem.title}
+                              >
+                                <span className="truncate">
+                                  {eventItem.title || "Untitled block"}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -2056,7 +2248,7 @@ export default function TaskSchedulerCalendar({
                 </div>
 
                 {weekDays.map((day, columnIndex) => {
-                  const todaysEvents = renderedEvents.filter((event) =>
+                  const todaysEvents = timedEvents.filter((event) =>
                     isSameDay(new Date(event.startISO), day),
                   );
                   const selectionPreview =

@@ -50,6 +50,7 @@ export type TaskCalendarEventRow = {
   description: string | null;
   start_at: string;
   end_at: string;
+  is_all_day: boolean;
   color: string | null;
   event_kind: string;
   created_at: string;
@@ -73,7 +74,7 @@ export const TASK_PRIVATE_ITEM_COLUMNS =
 export const TASK_ITEM_COLUMNS =
   "id,user_id,private_item_id,title,description,status,priority,category,due_date,scheduled_start,scheduled_end,estimated_minutes,repeat_rule,repeat_days,repeat_until,auto_planned,auto_block_duration_min,auto_daily_max_minutes,auto_start_date,auto_allowed_days,created_at,updated_at";
 export const TASK_CALENDAR_EVENT_COLUMNS =
-  "id,user_id,task_id,calendar_id,title,description,start_at,end_at,color,event_kind,created_at,updated_at";
+  "id,user_id,task_id,calendar_id,title,description,start_at,end_at,is_all_day,color,event_kind,created_at,updated_at";
 export const TASK_CALENDAR_COLUMNS =
   "id,user_id,name,color,is_default,is_visible,sort_order,created_at,updated_at";
 
@@ -121,6 +122,7 @@ export function serializeCalendarEvent(
     title: row.title,
     start: row.start_at,
     end: row.end_at,
+    isAllDay: row.is_all_day ?? false,
     color: row.color,
     calendarId: row.calendar_id ?? null,
     description: row.description ?? null,
@@ -216,6 +218,7 @@ export async function syncTaskCalendarEvent(
     scheduledEnd?: string | null;
     calendarId?: string | null;
     description?: string | null;
+    isAllDay?: boolean;
   },
 ): Promise<TaskCalendarEvent | null> {
   const { userId, taskId } = opts;
@@ -223,6 +226,7 @@ export async function syncTaskCalendarEvent(
   const scheduledEnd = opts.scheduledEnd ?? null;
   const hasCalendarId = Object.prototype.hasOwnProperty.call(opts, "calendarId");
   const hasDescription = Object.prototype.hasOwnProperty.call(opts, "description");
+  const hasIsAllDay = Object.prototype.hasOwnProperty.call(opts, "isAllDay");
 
   if (!scheduledStart || !scheduledEnd) {
     const { data } = await sb
@@ -257,6 +261,9 @@ export async function syncTaskCalendarEvent(
     if (hasDescription) {
       updates.description = opts.description ?? null;
     }
+    if (hasIsAllDay) {
+      updates.is_all_day = opts.isAllDay ?? false;
+    }
     const { data, error } = await sb
       .from("task_calendar_events")
       .update(updates)
@@ -288,6 +295,9 @@ export async function syncTaskCalendarEvent(
   }
   if (hasDescription) {
     insertPayload.description = opts.description ?? null;
+  }
+  if (hasIsAllDay) {
+    insertPayload.is_all_day = opts.isAllDay ?? false;
   }
 
   const { data, error } = await sb

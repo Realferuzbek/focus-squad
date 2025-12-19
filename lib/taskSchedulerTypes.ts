@@ -67,6 +67,7 @@ export type TaskCalendarEvent = {
   title: string;
   start: string;
   end: string;
+  isAllDay: boolean;
   color: string | null;
   calendarId?: string | null;
   description?: string | null;
