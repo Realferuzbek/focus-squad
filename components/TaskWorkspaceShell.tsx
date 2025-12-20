@@ -370,6 +370,12 @@ export default function TaskWorkspaceShell() {
   }, []);
 
   useEffect(() => {
+    if (activeSurface !== "planner") return;
+    setActiveSection("home");
+    setPlannerPage("home");
+  }, [activeSurface]);
+
+  useEffect(() => {
     if (activePrivateItemId && !tasksByList[activePrivateItemId]) {
       loadTasksFor(activePrivateItemId);
     }
@@ -401,11 +407,6 @@ export default function TaskWorkspaceShell() {
     return base;
   }, []);
   const todayKey = useMemo(() => toDateKey(today), [today]);
-  const todayEnd = useMemo(() => {
-    const end = new Date(today);
-    end.setHours(23, 59, 59, 999);
-    return end;
-  }, [today]);
   const weekStart = useMemo(() => getStartOfWeek(today), [today]);
   const weekEnd = useMemo(() => {
     const next = new Date(weekStart);
@@ -534,34 +535,22 @@ export default function TaskWorkspaceShell() {
     weekStart,
   ]);
 
-  const tasksWithFutureEvents = useMemo(() => {
-    const set = new Set<string>();
-    events.forEach((event) => {
-      if (!event.taskId) return;
-      const start = new Date(event.start);
-      if (Number.isNaN(start.getTime())) return;
-      if (start > todayEnd) {
-        set.add(event.taskId);
-      }
-    });
-    return set;
-  }, [events, todayEnd]);
-
-  const upcomingEvents = useMemo(() => {
+  const nextEvents = useMemo(() => {
     const now = new Date();
+    const horizon = new Date(now);
+    horizon.setHours(horizon.getHours() + 24);
     return events
       .filter((event) => {
+        const start = new Date(event.start);
         const end = new Date(event.end);
-        if (Number.isNaN(end.getTime())) return false;
-        return end >= now;
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+          return false;
+        }
+        return end >= now && start <= horizon;
       })
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+      .slice(0, 3);
   }, [events]);
-
-  const nextEvents = useMemo(
-    () => upcomingEvents.slice(0, 3),
-    [upcomingEvents],
-  );
 
   const incompleteTasks = useMemo(
     () => allTasks.filter((task) => task.status !== "done"),
@@ -573,48 +562,62 @@ export default function TaskWorkspaceShell() {
     [incompleteTasks],
   );
 
-  const plannerTasks = useMemo(() => {
-    const baseTasks = plannerTab === "done" ? allTasks : incompleteTasks;
-    return baseTasks.filter((task) => {
-      switch (plannerTab) {
-        case "today": {
+  const todayTaskIds = useMemo(() => {
+    return new Set(
+      incompleteTasks
+        .filter((task) => {
           const dueToday = task.dueDate === todayKey;
-          const scheduledToday = intersectsDayRange(
-            task.scheduledStart,
-            task.scheduledEnd,
-            today,
-          );
-          return dueToday || scheduledToday || tasksWithEventsToday.has(task.id);
-        }
-        case "next": {
-          const dueLater = task.dueDate ? task.dueDate > todayKey : false;
-          const scheduledLater = task.scheduledStart
-            ? new Date(task.scheduledStart) > todayEnd
+          const createdToday = task.createdAt
+            ? task.createdAt.slice(0, 10) === todayKey
             : false;
-          return (
-            dueLater ||
-            scheduledLater ||
-            tasksWithFutureEvents.has(task.id)
-          );
-        }
-        case "projects":
-          return task.category === "project";
-        case "done":
-          return task.status === "done";
-        default:
-          return true;
-      }
-    });
-  }, [
-    allTasks,
-    incompleteTasks,
-    plannerTab,
-    tasksWithEventsToday,
-    tasksWithFutureEvents,
-    today,
-    todayEnd,
-    todayKey,
-  ]);
+          return dueToday || createdToday;
+        })
+        .map((task) => task.id),
+    );
+  }, [incompleteTasks, todayKey]);
+
+  const plannerProjectGroups = useMemo(
+    () =>
+      TASK_CATEGORIES.flatMap((category) => {
+        const tasks = incompleteTasks.filter(
+          (task) => task.category === category,
+        );
+        if (!tasks.length) return [];
+        return [
+          {
+            id: category,
+            label: category[0].toUpperCase() + category.slice(1),
+            tasks,
+          },
+        ];
+      }),
+    [incompleteTasks],
+  );
+
+  const plannerHasEstimate = useMemo(
+    () => allTasks.some((task) => typeof task.estimatedMinutes === "number"),
+    [allTasks],
+  );
+
+  const plannerHasDue = useMemo(
+    () => allTasks.some((task) => !!task.dueDate),
+    [allTasks],
+  );
+
+  const plannerTasks = useMemo(() => {
+    switch (plannerTab) {
+      case "today":
+        return incompleteTasks.filter((task) => todayTaskIds.has(task.id));
+      case "next":
+        return incompleteTasks.filter((task) => !todayTaskIds.has(task.id));
+      case "projects":
+        return incompleteTasks;
+      case "done":
+        return allTasks.filter((task) => task.status === "done");
+      default:
+        return incompleteTasks;
+    }
+  }, [allTasks, incompleteTasks, plannerTab, todayTaskIds]);
 
   useEffect(() => {
     setListTitleDraft(activePrivateItem?.title ?? "");
@@ -1159,7 +1162,7 @@ export default function TaskWorkspaceShell() {
               </div>
             ) : (
               <div className="mt-3 rounded-2xl border border-dashed border-white/15 bg-black/20 px-4 py-5 text-sm text-white/60">
-                No scheduled blocks yet.
+                No blocks scheduled yet.
               </div>
             )}
           </div>
@@ -1186,12 +1189,23 @@ export default function TaskWorkspaceShell() {
                     key={task.id}
                     className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
                   >
-                    <p className="text-sm font-semibold text-white">
-                      {task.title}
-                    </p>
-                    <p className="mt-1 text-xs text-white/50">
-                      {task.dueDate ? `Due ${task.dueDate}` : "No due date"}
-                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          {task.title}
+                        </p>
+                        <p className="mt-1 text-xs text-white/50">
+                          {task.dueDate ? `Due ${task.dueDate}` : "No due date"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleScheduleJump(task)}
+                        className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-white/30 hover:text-white"
+                      >
+                        Schedule
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1216,6 +1230,52 @@ export default function TaskWorkspaceShell() {
   }
 
   function renderPlannerView() {
+    const plannerGridClass = plannerHasEstimate
+      ? plannerHasDue
+        ? "grid-cols-[1.5fr,140px,140px,140px,120px]"
+        : "grid-cols-[1.5fr,140px,140px,120px]"
+      : plannerHasDue
+        ? "grid-cols-[1.5fr,140px,140px,120px]"
+        : "grid-cols-[1.5fr,140px,120px]";
+
+    const renderPlannerRow = (task: StudentTask) => {
+      const hasEstimate = typeof task.estimatedMinutes === "number";
+      const hasDue = !!task.dueDate;
+
+      return (
+        <div
+          key={task.id}
+          className={classNames(
+            "grid items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/80",
+            plannerGridClass,
+            task.status === "done" && "text-white/40",
+          )}
+        >
+          <span className="font-semibold">{task.title}</span>
+          <span>{statusLabels[task.status]}</span>
+          {plannerHasEstimate && (
+            <span className={classNames(!hasEstimate && "text-white/40")}>
+              {hasEstimate ? `${task.estimatedMinutes} min` : "-"}
+            </span>
+          )}
+          {plannerHasDue && (
+            <span className={classNames(!hasDue && "text-white/40")}>
+              {hasDue ? task.dueDate : "-"}
+            </span>
+          )}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => handleScheduleJump(task)}
+              className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-white/30 hover:text-white"
+            >
+              Schedule
+            </button>
+          </div>
+        </div>
+      );
+    };
+
     return (
       <section className="rounded-3xl border border-white/10 bg-[#0c0c16] p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1255,11 +1315,16 @@ export default function TaskWorkspaceShell() {
 
         <div className="mt-4 overflow-x-auto">
           <div className="min-w-[640px] space-y-2">
-            <div className="grid grid-cols-[1.5fr,140px,140px,140px,120px] gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.2em] text-white/50">
+            <div
+              className={classNames(
+                "grid gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.2em] text-white/50",
+                plannerGridClass,
+              )}
+            >
               <span>Title</span>
               <span>Status</span>
-              <span>Estimate</span>
-              <span>Due</span>
+              {plannerHasEstimate && <span>Estimate</span>}
+              {plannerHasDue && <span>Due</span>}
               <span className="text-right">Action</span>
             </div>
 
@@ -1267,40 +1332,29 @@ export default function TaskWorkspaceShell() {
               <p className="rounded-xl border border-dashed border-white/15 bg-black/20 px-4 py-6 text-sm text-white/60">
                 Loading tasks...
               </p>
+            ) : plannerTab === "projects" ? (
+              plannerProjectGroups.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-white/15 bg-black/20 px-4 py-6 text-sm text-white/60">
+                  No tasks found for this view.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {plannerProjectGroups.map((group) => (
+                    <div key={group.id} className="space-y-2">
+                      <p className="text-xs uppercase tracking-[0.3em] text-white/40">
+                        {group.label}
+                      </p>
+                      {group.tasks.map((task) => renderPlannerRow(task))}
+                    </div>
+                  ))}
+                </div>
+              )
             ) : plannerTasks.length === 0 ? (
               <p className="rounded-xl border border-dashed border-white/15 bg-black/20 px-4 py-6 text-sm text-white/60">
                 No tasks found for this view.
               </p>
             ) : (
-              plannerTasks.map((task) => {
-                const estimateLabel = task.estimatedMinutes
-                  ? `${task.estimatedMinutes} min`
-                  : "No estimate";
-                const dueLabel = task.dueDate || "No due date";
-                return (
-                  <div
-                    key={task.id}
-                    className={classNames(
-                      "grid grid-cols-[1.5fr,140px,140px,140px,120px] items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/80",
-                      task.status === "done" && "text-white/40",
-                    )}
-                  >
-                    <span className="font-semibold">{task.title}</span>
-                    <span>{statusLabels[task.status]}</span>
-                    <span>{estimateLabel}</span>
-                    <span>{dueLabel}</span>
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => handleScheduleJump(task)}
-                        className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-white/30 hover:text-white"
-                      >
-                        Schedule
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
+              plannerTasks.map((task) => renderPlannerRow(task))
             )}
           </div>
         </div>
