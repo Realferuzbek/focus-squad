@@ -51,6 +51,13 @@ type TaskDraft = {
   title: string;
 };
 
+type HabitCompletion = {
+  id: string;
+  habitId: string;
+  dateKey: string;
+  completedAt: string;
+};
+
 type TaskUpdatePayload = Partial<{
   title: string;
   description: string | null;
@@ -166,6 +173,7 @@ const priorityLabels: Record<StudentTaskPriority, string> = {
 };
 
 const WEEKDAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const HABIT_COMPLETION_LOOKBACK_DAYS = 60;
 
 function toDateInput(value: string | null) {
   if (!value) return "";
@@ -205,6 +213,17 @@ function getStartOfWeek(date: Date) {
 
 function toDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function toLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function makeHabitCompletionKey(habitId: string, dateKey: string) {
+  return `${habitId}:${dateKey}`;
 }
 
 function intersectsDayRange(
@@ -310,6 +329,13 @@ export default function TaskWorkspaceShell() {
   const [eventsLoading, setEventsLoading] = useState(true);
   const [calendars, setCalendars] = useState<TaskCalendar[]>([]);
   const [calendarsLoading, setCalendarsLoading] = useState(true);
+  const [habitCompletions, setHabitCompletions] = useState<HabitCompletion[]>(
+    [],
+  );
+  const [habitCompletionsLoading, setHabitCompletionsLoading] = useState(true);
+  const [habitCompletionSavingKeys, setHabitCompletionSavingKeys] = useState<
+    Set<string>
+  >(new Set());
   const [activeCalendarId, setActiveCalendarId] = useState<string | null>(null);
   const [calendarFocusTaskId, setCalendarFocusTaskId] = useState<string | null>(
     null,
@@ -426,6 +452,16 @@ export default function TaskWorkspaceShell() {
     return base;
   }, []);
   const todayKey = useMemo(() => toDateKey(today), [today]);
+  const todayLocalKey = useMemo(() => toLocalDateKey(today), [today]);
+  const habitLookbackStart = useMemo(() => {
+    const next = new Date(today);
+    next.setDate(next.getDate() - (HABIT_COMPLETION_LOOKBACK_DAYS - 1));
+    return next;
+  }, [today]);
+  const habitLookbackStartKey = useMemo(
+    () => toLocalDateKey(habitLookbackStart),
+    [habitLookbackStart],
+  );
   const weekStart = useMemo(() => getStartOfWeek(today), [today]);
   const weekEnd = useMemo(() => {
     const next = new Date(weekStart);
@@ -439,6 +475,10 @@ export default function TaskWorkspaceShell() {
       return toDateKey(day);
     });
   }, [weekStart]);
+
+  useEffect(() => {
+    loadHabitCompletions();
+  }, [habitLookbackStartKey, todayLocalKey]);
 
   const activeHabitInstancesToday = useMemo(
     () =>
@@ -456,6 +496,22 @@ export default function TaskWorkspaceShell() {
       }),
     [activeTasks, weekStart, weekEnd],
   );
+  const habitInstancesTodayAll = useMemo(
+    () =>
+      generateHabitInstances(allTasks, {
+        startDate: today,
+        endDate: today,
+      }),
+    [allTasks, today],
+  );
+  const habitInstancesLookback = useMemo(
+    () =>
+      generateHabitInstances(allTasks, {
+        startDate: habitLookbackStart,
+        endDate: today,
+      }),
+    [allTasks, habitLookbackStart, today],
+  );
 
   const habitTodayTaskIds = useMemo(
     () => new Set(activeHabitInstancesToday.map((instance) => instance.taskId)),
@@ -465,6 +521,72 @@ export default function TaskWorkspaceShell() {
     () => new Set(activeHabitInstancesWeek.map((instance) => instance.taskId)),
     [activeHabitInstancesWeek],
   );
+  const habitTasksById = useMemo(
+    () => new Map(allTasks.map((task) => [task.id, task])),
+    [allTasks],
+  );
+  const habitTodayTasks = useMemo(() => {
+    const seen = new Set<string>();
+    const list: StudentTask[] = [];
+    habitInstancesTodayAll.forEach((instance) => {
+      if (seen.has(instance.taskId)) return;
+      const task = habitTasksById.get(instance.taskId);
+      if (!task) return;
+      seen.add(instance.taskId);
+      list.push(task);
+    });
+    return list;
+  }, [habitInstancesTodayAll, habitTasksById]);
+  const habitCompletionKeySet = useMemo(() => {
+    const set = new Set<string>();
+    habitCompletions.forEach((completion) => {
+      set.add(makeHabitCompletionKey(completion.habitId, completion.dateKey));
+    });
+    return set;
+  }, [habitCompletions]);
+  const habitCompletionDatesById = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    habitCompletions.forEach((completion) => {
+      if (!map.has(completion.habitId)) {
+        map.set(completion.habitId, new Set());
+      }
+      map.get(completion.habitId)!.add(completion.dateKey);
+    });
+    return map;
+  }, [habitCompletions]);
+  const requiredHabitKeysById = useMemo(() => {
+    const map = new Map<string, string[]>();
+    habitInstancesLookback.forEach((instance) => {
+      const existing = map.get(instance.taskId);
+      if (!existing) {
+        map.set(instance.taskId, [instance.dateKey]);
+      } else if (!existing.includes(instance.dateKey)) {
+        existing.push(instance.dateKey);
+      }
+    });
+    map.forEach((keys) => keys.sort());
+    return map;
+  }, [habitInstancesLookback]);
+  const habitStreaksById = useMemo(() => {
+    const map = new Map<string, number>();
+    habitTodayTasks.forEach((task) => {
+      const requiredKeys = requiredHabitKeysById.get(task.id) ?? [];
+      const completedKeys = habitCompletionDatesById.get(task.id) ?? new Set();
+      let streak = 0;
+      for (let index = requiredKeys.length - 1; index >= 0; index -= 1) {
+        const key = requiredKeys[index];
+        if (completedKeys.has(key)) {
+          streak += 1;
+        } else {
+          streak = 0;
+          break;
+        }
+      }
+      map.set(task.id, streak);
+    });
+    return map;
+  }, [habitCompletionDatesById, habitTodayTasks, requiredHabitKeysById]);
+  const habitsTodayLoading = !allTasksLoaded || habitCompletionsLoading;
 
   const tasksWithEventsToday = useMemo(() => {
     const set = new Set<string>();
@@ -757,6 +879,29 @@ export default function TaskWorkspaceShell() {
     }
   }
 
+  async function loadHabitCompletions() {
+    setHabitCompletionsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        startDate: habitLookbackStartKey,
+        endDate: todayLocalKey,
+      });
+      const res = await fetch(
+        `/api/task-scheduler/habit-completions?${params.toString()}`,
+      );
+      if (!res.ok) {
+        throw new Error("Failed to load habit completions");
+      }
+      const data = await res.json();
+      const completions: HabitCompletion[] = data?.completions ?? [];
+      setHabitCompletions(completions);
+    } catch {
+      setHabitCompletions([]);
+    } finally {
+      setHabitCompletionsLoading(false);
+    }
+  }
+
   function upsertTaskInState(task: StudentTask) {
     setTasksByList((prev) => {
       const listTasks = prev[task.privateItemId] ?? [];
@@ -777,6 +922,94 @@ export default function TaskWorkspaceShell() {
       else next.delete(taskId);
       return next;
     });
+  }
+
+  function toggleHabitCompletionSaving(key: string, saving: boolean) {
+    setHabitCompletionSavingKeys((prev) => {
+      const next = new Set(prev);
+      if (saving) {
+        next.add(key);
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
+  }
+
+  async function handleHabitCompletionToggle(
+    habitId: string,
+    dateKey: string,
+    nextCompleted: boolean,
+  ) {
+    const completionKey = makeHabitCompletionKey(habitId, dateKey);
+    toggleHabitCompletionSaving(completionKey, true);
+    setHabitCompletions((prev) => {
+      const filtered = prev.filter(
+        (completion) =>
+          !(
+            completion.habitId === habitId &&
+            completion.dateKey === dateKey
+          ),
+      );
+      if (!nextCompleted) return filtered;
+      return [
+        ...filtered,
+        {
+          id: `temp-${completionKey}`,
+          habitId,
+          dateKey,
+          completedAt: new Date().toISOString(),
+        },
+      ];
+    });
+
+    try {
+      if (nextCompleted) {
+        const res = await csrfFetch("/api/task-scheduler/habit-completions", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ habitId, dateKey }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.error || "Failed to save completion");
+        }
+        const data = await res.json();
+        if (data?.completion) {
+          setHabitCompletions((prev) => {
+            const filtered = prev.filter(
+              (completion) =>
+                !(
+                  completion.habitId === habitId &&
+                  completion.dateKey === dateKey
+                ),
+            );
+            return [...filtered, data.completion];
+          });
+        } else {
+          await loadHabitCompletions();
+        }
+      } else {
+        const res = await csrfFetch("/api/task-scheduler/habit-completions", {
+          method: "DELETE",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ habitId, dateKey }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.error || "Failed to remove completion");
+        }
+      }
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to update habit completion",
+      );
+      loadHabitCompletions();
+    } finally {
+      toggleHabitCompletionSaving(completionKey, false);
+    }
   }
 
   async function handleCreatePrivateItem() {
@@ -1274,9 +1507,38 @@ export default function TaskWorkspaceShell() {
             <p className="text-xs uppercase tracking-[0.35em] text-white/40">
               Habits today
             </p>
-            <div className="mt-3 rounded-2xl border border-dashed border-white/15 bg-black/20 px-4 py-5 text-sm text-white/60">
-              Habit tracking lands in step 7.
-            </div>
+            {habitsTodayLoading ? (
+              <p className="mt-3 text-sm text-white/60">Loading habits...</p>
+            ) : habitTodayTasks.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {habitTodayTasks.map((task) => {
+                  const completionKey = makeHabitCompletionKey(
+                    task.id,
+                    todayLocalKey,
+                  );
+                  return (
+                    <HabitTodayRow
+                      key={task.id}
+                      task={task}
+                      completed={habitCompletionKeySet.has(completionKey)}
+                      streak={habitStreaksById.get(task.id) ?? 0}
+                      disabled={habitCompletionSavingKeys.has(completionKey)}
+                      onToggle={(nextCompleted) =>
+                        handleHabitCompletionToggle(
+                          task.id,
+                          todayLocalKey,
+                          nextCompleted,
+                        )
+                      }
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-3 rounded-2xl border border-dashed border-white/15 bg-black/20 px-4 py-5 text-sm text-white/60">
+                No habits required today.
+              </div>
+            )}
           </section>
         </div>
       </div>
@@ -2033,6 +2295,54 @@ function TaskRow({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+type HabitTodayRowProps = {
+  task: StudentTask;
+  completed: boolean;
+  streak: number;
+  disabled: boolean;
+  onToggle: (nextCompleted: boolean) => void;
+};
+
+function HabitTodayRow({
+  task,
+  completed,
+  streak,
+  disabled,
+  onToggle,
+}: HabitTodayRowProps) {
+  const streakLabel = `${streak} day${streak === 1 ? "" : "s"}`;
+
+  return (
+    <div
+      className={classNames(
+        "flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3",
+        disabled && "opacity-60",
+      )}
+    >
+      <label className="flex items-center gap-3">
+        <input
+          type="checkbox"
+          checked={completed}
+          disabled={disabled}
+          onChange={(event) => onToggle(event.target.checked)}
+          className="h-4 w-4 rounded border border-white/30 bg-black/40 text-emerald-300 accent-emerald-400"
+        />
+        <span
+          className={classNames(
+            "text-sm font-semibold text-white",
+            completed && "text-white/50 line-through",
+          )}
+        >
+          {task.title}
+        </span>
+      </label>
+      <span className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
+        {streakLabel}
+      </span>
     </div>
   );
 }
