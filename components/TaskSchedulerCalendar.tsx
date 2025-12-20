@@ -1645,7 +1645,7 @@ export default function TaskSchedulerCalendar({
 
     buttons.forEach((button) => {
       const label = button.getAttribute("aria-label")?.toLowerCase() ?? "";
-      if (label.includes("planner")) {
+      if (label.includes("home")) {
         nextButtons.planner = button;
       } else if (label.includes("calendar")) {
         nextButtons.calendar = button;
@@ -2994,8 +2994,8 @@ export default function TaskSchedulerCalendar({
                     onClick={() => handleSurfaceTabClick("planner")}
                     disabled={!surfaceTabsReady}
                     aria-pressed={activeSurfaceTab === "planner"}
-                    aria-label="Switch to Planner"
-                    title="Planner"
+                    aria-label="Switch to Home"
+                    title="Home"
                     className={`inline-flex h-7 w-7 items-center justify-center rounded-[6px] transition ${
                       activeSurfaceTab === "planner"
                         ? "bg-white/10 text-white"

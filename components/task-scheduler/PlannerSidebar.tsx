@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import {
   Calendar as CalendarIcon,
   ChevronDown,
-  List as ListIcon,
 } from "lucide-react";
 import type {
   TaskCalendar,
@@ -92,7 +91,6 @@ export default function PlannerSidebar({
   const workspaceInitial = workspaceName[0]?.toUpperCase() || "W";
 
   const isHomeActive = activeSection === "home";
-  const isPlannerActive = activeSection === "private";
   const isSettingsActive = activeSection === "settings";
   const isCalendarActive = activeSurface === "calendar";
   const [createCalendarOpen, setCreateCalendarOpen] = useState(false);
@@ -216,22 +214,6 @@ export default function PlannerSidebar({
                   {homeItem?.icon ?? "H"}
                 </span>
                 <span className="truncate">{homeItem?.label ?? "Home"}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onSectionChange("private")}
-                title={privateItem?.description}
-                className={classNames(
-                  "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition",
-                  isPlannerActive
-                    ? "bg-white/10 text-white font-medium"
-                    : "text-white/70 hover:bg-white/5 hover:text-white",
-                )}
-              >
-                <span className="flex h-5 w-5 items-center justify-center">
-                  <ListIcon className="h-[18px] w-[18px]" aria-hidden />
-                </span>
-                <span className="truncate">Planner</span>
               </button>
               <button
                 type="button"

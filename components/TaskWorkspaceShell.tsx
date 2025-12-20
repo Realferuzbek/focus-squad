@@ -34,8 +34,6 @@ import { generateHabitInstances } from "@/lib/taskSchedulerHabits";
 
 type Section = "home" | "private" | "settings";
 type SurfaceView = "planner" | "calendar";
-type PlannerPage = "home" | "planner" | `privateItem:${string}`;
-type PlannerTab = "today" | "next" | "projects" | "done";
 type SelectedEntity =
   | { kind: "none" }
   | { kind: "task"; id: string }
@@ -143,7 +141,7 @@ const surfaceTabs: Array<{
 }> = [
   {
     id: "planner",
-    label: "Planner",
+    label: "Home",
     detail: "Workspace style layout",
   },
   {
@@ -151,13 +149,6 @@ const surfaceTabs: Array<{
     label: "Calendar",
     detail: "Time blocking grid",
   },
-];
-
-const plannerTabs: Array<{ id: PlannerTab; label: string }> = [
-  { id: "today", label: "Today" },
-  { id: "next", label: "Next" },
-  { id: "projects", label: "Projects" },
-  { id: "done", label: "Done" },
 ];
 
 const kindMeta: Record<
@@ -327,9 +318,6 @@ function formatEventRange(event: TaskCalendarEvent) {
 export default function TaskWorkspaceShell() {
   const [activeSection, setActiveSection] = useState<Section>("home");
   const [activeSurface, setActiveSurface] = useState<SurfaceView>("planner");
-  const [plannerPage, setPlannerPage] = useState<PlannerPage>("home");
-  const [plannerTab, setPlannerTab] = useState<PlannerTab>("today");
-  const privateSelectionRef = useRef(false);
   const [privateItems, setPrivateItems] = useState<TaskPrivateItem[]>([]);
   const [privateLoading, setPrivateLoading] = useState(true);
   const [privateError, setPrivateError] = useState<string | null>(null);
@@ -439,8 +427,14 @@ export default function TaskWorkspaceShell() {
   useEffect(() => {
     if (activeSurface !== "planner") return;
     setActiveSection("home");
-    setPlannerPage("home");
   }, [activeSurface]);
+
+  useEffect(() => {
+    if (activeSection !== "private") return;
+    if (activePrivateItemId) return;
+    if (privateItems.length === 0) return;
+    setActivePrivateItemId(privateItems[0].id);
+  }, [activeSection, activePrivateItemId, privateItems]);
 
   useEffect(() => {
     if (activePrivateItemId && !tasksByList[activePrivateItemId]) {
@@ -739,49 +733,6 @@ export default function TaskWorkspaceShell() {
     );
   }, [incompleteTasks, todayKey]);
 
-  const plannerProjectGroups = useMemo(
-    () =>
-      TASK_CATEGORIES.flatMap((category) => {
-        const tasks = incompleteTasks.filter(
-          (task) => task.category === category,
-        );
-        if (!tasks.length) return [];
-        return [
-          {
-            id: category,
-            label: category[0].toUpperCase() + category.slice(1),
-            tasks,
-          },
-        ];
-      }),
-    [incompleteTasks],
-  );
-
-  const plannerHasEstimate = useMemo(
-    () => allTasks.some((task) => typeof task.estimatedMinutes === "number"),
-    [allTasks],
-  );
-
-  const plannerHasDue = useMemo(
-    () => allTasks.some((task) => !!task.dueDate),
-    [allTasks],
-  );
-
-  const plannerTasks = useMemo(() => {
-    switch (plannerTab) {
-      case "today":
-        return incompleteTasks.filter((task) => todayTaskIds.has(task.id));
-      case "next":
-        return incompleteTasks.filter((task) => !todayTaskIds.has(task.id));
-      case "projects":
-        return incompleteTasks;
-      case "done":
-        return allTasks.filter((task) => task.status === "done");
-      default:
-        return incompleteTasks;
-    }
-  }, [allTasks, incompleteTasks, plannerTab, todayTaskIds]);
-
   useEffect(() => {
     setListTitleDraft(activePrivateItem?.title ?? "");
   }, [activePrivateItem]);
@@ -1035,9 +986,6 @@ export default function TaskWorkspaceShell() {
   }
 
   async function handleCreatePrivateItem() {
-    if (activeSection !== "private") {
-      privateSelectionRef.current = true;
-    }
     try {
       const res = await csrfFetch("/api/task-scheduler/private-items", {
         method: "POST",
@@ -1052,7 +1000,6 @@ export default function TaskWorkspaceShell() {
       const item: TaskPrivateItem = data.item;
       setPrivateItems((prev) => [...prev, item]);
       setActivePrivateItemId(item.id);
-      setPlannerPage(`privateItem:${item.id}`);
       setListTitleDraft(item.title);
     } catch (error) {
       alert(error instanceof Error ? error.message : "Failed to create list");
@@ -1397,29 +1344,13 @@ export default function TaskWorkspaceShell() {
 
   const handleSectionChange = useCallback((section: Section) => {
     setActiveSection(section);
-    setPlannerPage((prev) => {
-      const shouldPreservePrivate =
-        section === "private" &&
-        privateSelectionRef.current &&
-        prev.startsWith("privateItem:");
-      privateSelectionRef.current = false;
-      if (section === "home") return "home";
-      if (section === "private") {
-        return shouldPreservePrivate ? prev : "planner";
-      }
-      return prev;
-    });
   }, []);
 
   const handleSelectPrivateItem = useCallback(
     (id: string) => {
-      if (activeSection !== "private") {
-        privateSelectionRef.current = true;
-      }
       setActivePrivateItemId(id);
-      setPlannerPage(`privateItem:${id}`);
     },
-    [activeSection],
+    [],
   );
 
   function renderHomeView() {
@@ -1564,143 +1495,6 @@ export default function TaskWorkspaceShell() {
           </section>
         </div>
       </div>
-    );
-  }
-
-  function renderPlannerView() {
-    const plannerGridClass = plannerHasEstimate
-      ? plannerHasDue
-        ? "grid-cols-[1.5fr,140px,140px,140px,120px]"
-        : "grid-cols-[1.5fr,140px,140px,120px]"
-      : plannerHasDue
-        ? "grid-cols-[1.5fr,140px,140px,120px]"
-        : "grid-cols-[1.5fr,140px,120px]";
-
-    const renderPlannerRow = (task: StudentTask) => {
-      const hasEstimate = typeof task.estimatedMinutes === "number";
-      const hasDue = !!task.dueDate;
-      const isSelected =
-        selectedEntity.kind === "task" && selectedEntity.id === task.id;
-
-      return (
-        <div
-          key={task.id}
-          onClick={() => handleSelectTask(task.id)}
-          className={classNames(
-            "grid cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/80",
-            plannerGridClass,
-            task.status === "done" && "text-white/40",
-            isSelected && "border-white/30 bg-white/10",
-          )}
-        >
-          <span className="font-semibold">{task.title}</span>
-          <span>{statusLabels[task.status]}</span>
-          {plannerHasEstimate && (
-            <span className={classNames(!hasEstimate && "text-white/40")}>
-              {hasEstimate ? `${task.estimatedMinutes} min` : "-"}
-            </span>
-          )}
-          {plannerHasDue && (
-            <span className={classNames(!hasDue && "text-white/40")}>
-              {hasDue ? task.dueDate : "-"}
-            </span>
-          )}
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => handleScheduleJump(task)}
-              className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-white/30 hover:text-white"
-            >
-              Schedule
-            </button>
-          </div>
-        </div>
-      );
-    };
-
-    return (
-      <section className="rounded-3xl border border-white/10 bg-[#0c0c16] p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-white/40">
-              Planner
-            </p>
-            <h2 className="mt-2 text-xl font-semibold">Tasks database</h2>
-            <p className="mt-2 text-sm text-zinc-400">
-              Sort by what matters most right now.
-            </p>
-          </div>
-          {!allTasksLoaded && (
-            <span className="text-xs uppercase tracking-[0.3em] text-white/40">
-              Loading...
-            </span>
-          )}
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2 text-sm">
-          {plannerTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setPlannerTab(tab.id)}
-              className={classNames(
-                "rounded-full border px-3 py-1",
-                plannerTab === tab.id
-                  ? "border-white bg-white/10 text-white"
-                  : "border-white/10 text-white/70 hover:border-white/30",
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 overflow-x-auto">
-          <div className="min-w-[640px] space-y-2">
-            <div
-              className={classNames(
-                "grid gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.2em] text-white/50",
-                plannerGridClass,
-              )}
-            >
-              <span>Title</span>
-              <span>Status</span>
-              {plannerHasEstimate && <span>Estimate</span>}
-              {plannerHasDue && <span>Due</span>}
-              <span className="text-right">Action</span>
-            </div>
-
-            {!allTasksLoaded ? (
-              <p className="rounded-xl border border-dashed border-white/15 bg-black/20 px-4 py-6 text-sm text-white/60">
-                Loading tasks...
-              </p>
-            ) : plannerTab === "projects" ? (
-              plannerProjectGroups.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-white/15 bg-black/20 px-4 py-6 text-sm text-white/60">
-                  No tasks found for this view.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {plannerProjectGroups.map((group) => (
-                    <div key={group.id} className="space-y-2">
-                      <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                        {group.label}
-                      </p>
-                      {group.tasks.map((task) => renderPlannerRow(task))}
-                    </div>
-                  ))}
-                </div>
-              )
-            ) : plannerTasks.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-white/15 bg-black/20 px-4 py-6 text-sm text-white/60">
-                No tasks found for this view.
-              </p>
-            ) : (
-              plannerTasks.map((task) => renderPlannerRow(task))
-            )}
-          </div>
-        </div>
-      </section>
     );
   }
 
@@ -1862,8 +1656,7 @@ export default function TaskWorkspaceShell() {
   function renderActiveSection() {
     if (activeSection === "settings") return renderSettingsView();
     if (activeSection === "home") return renderHomeView();
-    if (plannerPage === "planner") return renderPlannerView();
-    if (plannerPage.startsWith("privateItem:")) return renderPrivateView();
+    if (activeSection === "private") return renderPrivateView();
     return renderHomeView();
   }
 
