@@ -267,7 +267,7 @@ export default function PlannerSidebar({
         <button
           type="button"
           aria-label="Workspace menu"
-          className="rounded-lg border border-white/10 bg-white/5 p-1 text-white/60 transition hover:text-white"
+          className="rounded-lg border border-white/10 bg-white/5 p-2 text-white/60 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
         >
           <ChevronDown className="h-4 w-4" aria-hidden />
         </button>
@@ -438,7 +438,7 @@ export default function PlannerSidebar({
                           type="button"
                           onClick={() => handleToggleVisibility(calendar)}
                           className={classNames(
-                            "rounded-lg border border-white/10 p-1 text-white/60 transition hover:text-white",
+                            "rounded-lg border border-white/10 p-2 text-white/60 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
                             isMuted && "border-white/5 text-white/40",
                           )}
                           aria-label={
@@ -473,7 +473,7 @@ export default function PlannerSidebar({
                                 prev === calendar.id ? null : calendar.id,
                               )
                             }
-                            className="rounded-lg border border-white/10 p-1 text-white/60 transition hover:text-white"
+                            className="rounded-lg border border-white/10 p-2 text-white/60 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                             aria-label="Calendar actions"
                             title="Calendar actions"
                           >
@@ -636,6 +636,18 @@ function CalendarDialog({
   const showColorPicker =
     palette.length > 0 && typeof onColorChange === "function" && !!color;
 
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#0b0b16] p-6 text-sm text-white">
@@ -644,7 +656,8 @@ function CalendarDialog({
           <button
             type="button"
             onClick={onClose}
-            className="text-white/60 hover:text-white"
+            aria-label="Close dialog"
+            className="rounded-lg p-2 text-white/60 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
           >
             X
           </button>
@@ -659,7 +672,7 @@ function CalendarDialog({
               value={name}
               onChange={(event) => onNameChange(event.target.value)}
               placeholder="Calendar name"
-              className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:border-white/40"
             />
           </div>
           {showColorPicker && (
@@ -676,7 +689,7 @@ function CalendarDialog({
                       type="button"
                       onClick={() => onColorChange?.(swatch)}
                       className={classNames(
-                        "h-7 w-7 rounded-full border",
+                        "h-7 w-7 rounded-full border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
                         isActive ? "border-white" : "border-white/20",
                       )}
                       style={{ backgroundColor: swatch }}

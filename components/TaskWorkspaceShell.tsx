@@ -102,6 +102,11 @@ type CalendarPatchPayload = Partial<
   Pick<TaskCalendar, "name" | "color" | "isDefault" | "isVisible" | "sortOrder">
 >;
 
+type RowSelectOption = {
+  value: string;
+  label: string;
+};
+
 const navItems: Array<{
   id: Section;
   label: string;
@@ -171,6 +176,20 @@ const priorityLabels: Record<StudentTaskPriority, string> = {
   medium: "Medium",
   high: "High",
 };
+
+const TASK_CATEGORY_OPTIONS: RowSelectOption[] = TASK_CATEGORIES.map(
+  (category) => ({
+    value: category,
+    label: category[0].toUpperCase() + category.slice(1),
+  }),
+);
+
+const TASK_PRIORITY_OPTIONS: RowSelectOption[] = TASK_PRIORITIES.map(
+  (priority) => ({
+    value: priority,
+    label: priorityLabels[priority],
+  }),
+);
 
 const WEEKDAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const HABIT_COMPLETION_LOOKBACK_DAYS = 60;
@@ -1861,9 +1880,9 @@ export default function TaskWorkspaceShell() {
           </div>
         </div>
       ) : (
-        <div className="flex h-[100dvh] flex-col overflow-hidden">
+        <div className="flex h-[100dvh] flex-col overflow-y-auto lg:overflow-hidden">
           <div className="flex-1 min-h-0">
-            <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4 px-4 py-4 lg:flex-row">
+            <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4 lg:h-full lg:flex-row">
               <aside className="min-h-0 lg:w-64 lg:shrink-0 lg:overflow-y-auto">
                 <PlannerSidebar
                   navItems={navItems}
@@ -1887,7 +1906,7 @@ export default function TaskWorkspaceShell() {
                 />
               </aside>
 
-              <main className="min-h-0 flex-1 overflow-y-auto">
+              <main className="min-h-0 flex-1 lg:overflow-y-auto">
                 {renderActiveSection()}
               </main>
 
@@ -2015,7 +2034,7 @@ function TaskListPane({
           </button>
         ))}
       </div>
-      <div className="mt-4 overflow-x-auto">
+      <div className="mt-4 overflow-x-auto overflow-y-visible">
         <div className="min-w-[780px] space-y-2">
           <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.2em] text-white/50">
             <span>Status</span>
@@ -2090,6 +2109,98 @@ type TaskRowProps = {
   onSelect?: () => void;
 };
 
+type RowSelectProps = {
+  value: string;
+  options: RowSelectOption[];
+  disabled?: boolean;
+  onChange: (value: string) => void;
+};
+
+function RowSelect({ value, options, disabled, onChange }: RowSelectProps) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const selectedOption = options.find((option) => option.value === value) ?? null;
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(event: MouseEvent) {
+      if (wrapperRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", handleClick);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("mousedown", handleClick);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (disabled) {
+      setOpen(false);
+    }
+  }, [disabled]);
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        disabled={disabled || options.length === 0}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white outline-none transition focus:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span className="truncate text-left">
+          {selectedOption?.label ?? "Select"}
+        </span>
+        <ChevronDown
+          className={classNames(
+            "h-4 w-4 text-white/60 transition",
+            open && "rotate-180",
+          )}
+          aria-hidden
+        />
+      </button>
+      {open && !disabled && options.length > 0 && (
+        <div
+          role="listbox"
+          className="absolute left-0 right-0 z-30 mt-2 max-h-56 overflow-auto rounded-xl border border-white/10 bg-[#0b0b0f] p-1 text-sm shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+        >
+          {options.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className={classNames(
+                  "flex w-full items-center rounded-lg px-2 py-2 text-left text-sm transition",
+                  isSelected
+                    ? "bg-white/10 text-white"
+                    : "text-white/70 hover:bg-white/10 hover:text-white",
+                )}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TaskRow({
   task,
   saving,
@@ -2101,6 +2212,7 @@ function TaskRow({
 }: TaskRowProps) {
   const [title, setTitle] = useState(task.title);
   const [category, setCategory] = useState<StudentTaskCategory>(task.category);
+  const [priority, setPriority] = useState<StudentTaskPriority>(task.priority);
   const [dueDate, setDueDate] = useState(toDateInput(task.dueDate));
   const [start, setStart] = useState(toDateTimeInput(task.scheduledStart));
   const [end, setEnd] = useState(toDateTimeInput(task.scheduledEnd));
@@ -2108,6 +2220,7 @@ function TaskRow({
   useEffect(() => {
     setTitle(task.title);
     setCategory(task.category);
+    setPriority(task.priority);
     setDueDate(toDateInput(task.dueDate));
     setStart(toDateTimeInput(task.scheduledStart));
     setEnd(toDateTimeInput(task.scheduledEnd));
@@ -2125,6 +2238,13 @@ function TaskRow({
     setCategory(next);
     if (next !== task.category) {
       onUpdate(task.id, { category: next });
+    }
+  }
+
+  function handlePriorityChange(next: StudentTaskPriority) {
+    setPriority(next);
+    if (next !== task.priority) {
+      onUpdate(task.id, { priority: next });
     }
   }
 
@@ -2201,20 +2321,14 @@ function TaskRow({
         className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white outline-none focus:border-white/40"
       />
       <div>
-        <select
+        <RowSelect
           value={category}
+          options={TASK_CATEGORY_OPTIONS}
           disabled={saving}
-          onChange={(event) =>
-            handleCategoryChange(event.target.value as StudentTaskCategory)
+          onChange={(nextValue) =>
+            handleCategoryChange(nextValue as StudentTaskCategory)
           }
-          className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white outline-none focus:border-white/40"
-        >
-          {TASK_CATEGORIES.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat[0].toUpperCase() + cat.slice(1)}
-            </option>
-          ))}
-        </select>
+        />
         {task.category === "habit" && onRepeat && (
           <button
             type="button"
@@ -2225,22 +2339,14 @@ function TaskRow({
           </button>
         )}
       </div>
-      <select
-        value={task.priority}
+      <RowSelect
+        value={priority}
+        options={TASK_PRIORITY_OPTIONS}
         disabled={saving}
-        onChange={(event) =>
-          onUpdate(task.id, {
-            priority: event.target.value as StudentTaskPriority,
-          })
+        onChange={(nextValue) =>
+          handlePriorityChange(nextValue as StudentTaskPriority)
         }
-        className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white outline-none focus:border-white/40"
-      >
-        {TASK_PRIORITIES.map((priority) => (
-          <option key={priority} value={priority}>
-            {priorityLabels[priority]}
-          </option>
-        ))}
-      </select>
+      />
       <input
         type="date"
         value={dueDate}
@@ -2255,10 +2361,11 @@ function TaskRow({
         disabled={saving}
         onChange={(event) => setStart(event.target.value)}
         onBlur={() => {
-          if (!start) {
+          const nextEnd = start ? end : "";
+          if (!start && end) {
             setEnd("");
           }
-          commitScheduleChange(start, end);
+          commitScheduleChange(start, nextEnd);
         }}
         className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white outline-none focus:border-white/40"
       />
@@ -2367,6 +2474,18 @@ function HabitRepeatDialog({
   const [repeatUntil, setRepeatUntil] = useState(task.repeatUntil ?? "");
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
+
   function toggleDay(day: number) {
     setDays((prev) => {
       if (prev.includes(day)) {
@@ -2405,7 +2524,8 @@ function HabitRepeatDialog({
           <button
             type="button"
             onClick={onClose}
-            className="text-white/60 hover:text-white"
+            aria-label="Close dialog"
+            className="rounded-lg p-2 text-white/60 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
           >
             ✕
           </button>
@@ -2465,7 +2585,7 @@ function HabitRepeatDialog({
               type="date"
               value={repeatUntil}
               onChange={(event) => setRepeatUntil(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:border-white/40"
             />
           </div>
         </div>
@@ -2513,6 +2633,18 @@ function AutoPlanDialog({ task, onClose, onSubmit }: AutoPlanDialogProps) {
   const [replaceExisting, setReplaceExisting] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
+
   function toggleAllowedDay(day: number) {
     setAllowedDays((prev) => {
       if (prev.includes(day)) {
@@ -2550,7 +2682,8 @@ function AutoPlanDialog({ task, onClose, onSubmit }: AutoPlanDialogProps) {
           <button
             type="button"
             onClick={onClose}
-            className="text-white/60 hover:text-white"
+            aria-label="Close dialog"
+            className="rounded-lg p-2 text-white/60 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
           >
             ✕
           </button>
@@ -2568,7 +2701,7 @@ function AutoPlanDialog({ task, onClose, onSubmit }: AutoPlanDialogProps) {
                 max={180}
                 value={blockLength}
                 onChange={(event) => setBlockLength(Number(event.target.value))}
-                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white"
+                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:border-white/40"
               />
             </label>
             <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.3em] text-white/40">
@@ -2579,7 +2712,7 @@ function AutoPlanDialog({ task, onClose, onSubmit }: AutoPlanDialogProps) {
                 max={600}
                 value={maxMinutes}
                 onChange={(event) => setMaxMinutes(Number(event.target.value))}
-                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white"
+                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:border-white/40"
               />
             </label>
           </div>
@@ -2589,7 +2722,7 @@ function AutoPlanDialog({ task, onClose, onSubmit }: AutoPlanDialogProps) {
               type="date"
               value={startDate}
               onChange={(event) => setStartDate(event.target.value)}
-              className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white"
+              className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:border-white/40"
             />
           </label>
           <div>
