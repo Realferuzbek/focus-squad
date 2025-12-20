@@ -1194,6 +1194,11 @@ export default function TaskWorkspaceShell() {
                   onSelectPrivateItem={setActivePrivateItemId}
                   onAddPrivateItem={handleCreatePrivateItem}
                   kindMeta={kindMeta}
+                  calendars={calendars}
+                  calendarsLoading={calendarsLoading}
+                  onCreateCalendar={handleCreateCalendar}
+                  onUpdateCalendar={handleUpdateCalendar}
+                  onDeleteCalendar={handleDeleteCalendar}
                   workspaceTitle="Workspace"
                 />
               </aside>

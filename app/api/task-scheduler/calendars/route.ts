@@ -14,6 +14,9 @@ import {
   normalizeHexColor,
 } from "@/lib/taskSchedulerValidation";
 
+const DEFAULT_CALENDAR_NAME = "Study";
+const DEFAULT_CALENDAR_COLOR = "#8b5cf6";
+
 async function requireUserId() {
   const session = await auth();
   const id = (session?.user as any)?.id;
@@ -41,7 +44,31 @@ export async function GET() {
     );
   }
 
-  const rows = (data ?? []) as TaskCalendarRow[];
+  let rows = (data ?? []) as TaskCalendarRow[];
+  if (rows.length === 0) {
+    const { data: created, error: createError } = await sb
+      .from("task_calendars")
+      .insert({
+        user_id: userId,
+        name: DEFAULT_CALENDAR_NAME,
+        color: DEFAULT_CALENDAR_COLOR,
+        is_default: true,
+        is_visible: true,
+        sort_order: 0,
+      })
+      .select(TASK_CALENDAR_COLUMNS)
+      .maybeSingle();
+
+    if (createError || !created) {
+      return NextResponse.json(
+        { error: createError?.message || "Failed to create default calendar" },
+        { status: 500 },
+      );
+    }
+
+    rows = [created as TaskCalendarRow];
+  }
+
   return NextResponse.json({ calendars: rows.map(serializeCalendar) });
 }
 
