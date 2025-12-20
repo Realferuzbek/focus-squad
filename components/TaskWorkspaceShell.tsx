@@ -4,7 +4,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TaskSchedulerCalendar from "@/components/TaskSchedulerCalendar";
 import PlannerSidebar from "@/components/task-scheduler/PlannerSidebar";
-import { Calendar as CalendarIcon, List as ListIcon } from "lucide-react";
+import PlannerInspector from "@/components/task-scheduler/PlannerInspector";
+import {
+  Calendar as CalendarIcon,
+  ChevronDown,
+  List as ListIcon,
+} from "lucide-react";
 import { csrfFetch } from "@/lib/csrf-client";
 import {
   StudentHabitRepeatRule,
@@ -28,6 +33,11 @@ type Section = "home" | "private" | "settings";
 type SurfaceView = "planner" | "calendar";
 type PlannerPage = "home" | "planner" | `privateItem:${string}`;
 type PlannerTab = "today" | "next" | "projects" | "done";
+type SelectedEntity =
+  | { kind: "none" }
+  | { kind: "task"; id: string }
+  | { kind: "calendar"; id: string }
+  | { kind: "privateItem"; id: string };
 type TaskViewFilter =
   | "all"
   | "assignments"
@@ -43,6 +53,8 @@ type TaskDraft = {
 
 type TaskUpdatePayload = Partial<{
   title: string;
+  description: string | null;
+  estimatedMinutes: number | null;
   category: StudentTaskCategory;
   status: StudentTaskStatus;
   priority: StudentTaskPriority;
@@ -307,6 +319,13 @@ export default function TaskWorkspaceShell() {
     null,
   );
   const [autoPlanTarget, setAutoPlanTarget] = useState<StudentTask | null>(null);
+  const [selectedEntity, setSelectedEntity] = useState<SelectedEntity>({
+    kind: "none",
+  });
+
+  const handleSelectTask = useCallback((taskId: string) => {
+    setSelectedEntity({ kind: "task", id: taskId });
+  }, []);
 
   const activePrivateItem = useMemo(() => {
     if (!activePrivateItemId) return null;
@@ -867,6 +886,38 @@ export default function TaskWorkspaceShell() {
     }
   }
 
+  async function handleDeleteTask(taskId: string) {
+    const confirmed = window.confirm("Delete this task?");
+    if (!confirmed) return;
+    toggleTaskSaving(taskId, true);
+    try {
+      const res = await csrfFetch(`/api/task-scheduler/tasks/${taskId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to delete task");
+      }
+      setAllTasks((prev) => prev.filter((task) => task.id !== taskId));
+      setTasksByList((prev) => {
+        const next: Record<string, StudentTask[]> = {};
+        Object.entries(prev).forEach(([listId, listTasks]) => {
+          next[listId] = listTasks.filter((task) => task.id !== taskId);
+        });
+        return next;
+      });
+      setEvents((prev) => prev.filter((event) => event.taskId !== taskId));
+      setSelectedEntity((prev) =>
+        prev.kind === "task" && prev.id === taskId ? { kind: "none" } : prev,
+      );
+      setCalendarFocusTaskId((prev) => (prev === taskId ? null : prev));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to delete task");
+    } finally {
+      toggleTaskSaving(taskId, false);
+    }
+  }
+
   async function handleCreateCalendar(input: CalendarCreatePayload) {
     const res = await csrfFetch("/api/task-scheduler/calendars", {
       method: "POST",
@@ -1023,7 +1074,10 @@ export default function TaskWorkspaceShell() {
     }
   }
 
-  function handleScheduleJump(task: StudentTask) {
+  function handleScheduleJump(task: StudentTask, calendarId?: string | null) {
+    if (calendarId) {
+      setActiveCalendarId(calendarId);
+    }
     setCalendarFocusTaskId(task.id);
     setActiveSurface("calendar");
   }
@@ -1241,14 +1295,18 @@ export default function TaskWorkspaceShell() {
     const renderPlannerRow = (task: StudentTask) => {
       const hasEstimate = typeof task.estimatedMinutes === "number";
       const hasDue = !!task.dueDate;
+      const isSelected =
+        selectedEntity.kind === "task" && selectedEntity.id === task.id;
 
       return (
         <div
           key={task.id}
+          onClick={() => handleSelectTask(task.id)}
           className={classNames(
-            "grid items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/80",
+            "grid cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/80",
             plannerGridClass,
             task.status === "done" && "text-white/40",
+            isSelected && "border-white/30 bg-white/10",
           )}
         >
           <span className="font-semibold">{task.title}</span>
@@ -1408,6 +1466,7 @@ export default function TaskWorkspaceShell() {
                   onViewChange={setTaskView}
                   onRepeatRequest={setRepeatEditorTask}
                   onAutoPlanRequest={setAutoPlanTarget}
+                  onSelectTask={handleSelectTask}
                 />
               </div>
             ) : (
@@ -1571,14 +1630,16 @@ export default function TaskWorkspaceShell() {
               </main>
 
               <aside className="min-h-0 lg:w-72 lg:shrink-0 lg:overflow-y-auto">
-                <div className="rounded-3xl border border-white/10 bg-[#0c0c16] p-5">
-                  <p className="text-xs uppercase tracking-[0.35em] text-white/40">
-                    Inspector
-                  </p>
-                  <p className="mt-3 text-sm text-zinc-400">
-                    Select a task or block to see details here.
-                  </p>
-                </div>
+                <PlannerInspector
+                  selectedEntity={selectedEntity}
+                  tasks={allTasks}
+                  calendars={calendars}
+                  calendarsLoading={calendarsLoading}
+                  taskSavingIds={taskSavingIds}
+                  onUpdateTask={handleUpdateTask}
+                  onScheduleTask={handleScheduleJump}
+                  onDeleteTask={handleDeleteTask}
+                />
               </aside>
             </div>
           </div>
@@ -1620,6 +1681,7 @@ type TaskListPaneProps = {
   onViewChange: (view: TaskViewFilter) => void;
   onRepeatRequest: (task: StudentTask) => void;
   onAutoPlanRequest: (task: StudentTask) => void;
+  onSelectTask?: (taskId: string) => void;
 };
 
 function TaskListPane({
@@ -1633,6 +1695,7 @@ function TaskListPane({
   onViewChange,
   onRepeatRequest,
   onAutoPlanRequest,
+  onSelectTask,
 }: TaskListPaneProps) {
   const [draft, setDraft] = useState<TaskDraft>({ title: "" });
   const [creating, setCreating] = useState(false);
@@ -1717,6 +1780,7 @@ function TaskListPane({
                 saving={savingTaskIds.has(task.id)}
                 onRepeat={() => onRepeatRequest(task)}
                 onAutoPlan={() => onAutoPlanRequest(task)}
+                onSelect={() => onSelectTask?.(task.id)}
               />
             ))
           )}
@@ -1761,6 +1825,7 @@ type TaskRowProps = {
   onScheduleTask: (task: StudentTask) => void;
   onRepeat?: () => void;
   onAutoPlan?: () => void;
+  onSelect?: () => void;
 };
 
 function TaskRow({
@@ -1770,6 +1835,7 @@ function TaskRow({
   onScheduleTask,
   onRepeat,
   onAutoPlan,
+  onSelect,
 }: TaskRowProps) {
   const [title, setTitle] = useState(task.title);
   const [category, setCategory] = useState<StudentTaskCategory>(task.category);
@@ -1851,6 +1917,7 @@ function TaskRow({
 
   return (
     <div
+      onClick={onSelect}
       className={classNames(
         "grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm",
         rowMuted && "opacity-60",
