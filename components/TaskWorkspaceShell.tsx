@@ -12,6 +12,7 @@ import {
   List as ListIcon,
   Lock,
   MoreHorizontal,
+  Plus,
   Search,
   Share2,
   SlidersHorizontal,
@@ -2075,6 +2076,9 @@ type TaskListPaneProps = {
   showViewTabs?: boolean;
 };
 
+const PRIVATE_TABLE_GRID =
+  "grid-cols-[64px,minmax(240px,1.2fr),minmax(160px,1fr)]";
+
 function TaskListPane({
   tasks,
   loading,
@@ -2109,6 +2113,85 @@ function TaskListPane({
     } finally {
       setCreating(false);
     }
+  }
+
+  if (!showViewTabs) {
+    return (
+      <div className="flex flex-col gap-2">
+        {loading && (
+          <div className="flex justify-end">
+            <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+              Loading...
+            </span>
+          </div>
+        )}
+        <div className="overflow-x-auto overflow-y-visible [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
+          <div className="min-w-[520px]">
+            <div
+              className={classNames(
+                "grid items-center border-b border-white/10 px-2 py-2 text-[11px] font-medium text-white/50",
+                PRIVATE_TABLE_GRID,
+              )}
+            >
+              <div />
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-semibold text-white/40">
+                  Aa
+                </span>
+                <span>Name</span>
+              </div>
+              <div className="border-l border-white/10 pl-4 text-white/40">
+                + Add property
+              </div>
+            </div>
+            <div className="divide-y divide-white/10">
+              {tasks.map((task) => (
+                <NotionTaskRow
+                  key={task.id}
+                  task={task}
+                  saving={savingTaskIds.has(task.id)}
+                  onUpdate={onUpdateTask}
+                  onSelect={() => onSelectTask?.(task.id)}
+                />
+              ))}
+              <div
+                className={classNames(
+                  "group grid items-center px-2 py-1.5 text-sm text-white/60 transition hover:bg-white/5",
+                  PRIVATE_TABLE_GRID,
+                )}
+              >
+                <div className="pl-2" />
+                <div className="flex min-w-0 items-center">
+                  <input
+                    value={draft.title}
+                    onChange={(event) =>
+                      setDraft({ title: event.target.value })
+                    }
+                    placeholder="+ New page"
+                    className="min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1 py-1 text-sm text-white/80 outline-none transition placeholder:text-white/40 focus:border-white/10 focus:bg-white/5"
+                  />
+                </div>
+                <div className="flex items-center justify-end border-l border-white/10 pl-4">
+                  <button
+                    type="button"
+                    onClick={handleCreate}
+                    disabled={creating}
+                    className={classNames(
+                      "rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/50 transition hover:border-white/30 hover:text-white/80 disabled:opacity-40",
+                      "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+                      creating && "opacity-100",
+                    )}
+                  >
+                    {creating ? "Adding..." : "Add"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {createError && <p className="text-xs text-rose-300">{createError}</p>}
+      </div>
+    );
   }
 
   return (
@@ -2229,6 +2312,13 @@ type TaskRowProps = {
   onSelect?: () => void;
 };
 
+type NotionTaskRowProps = {
+  task: StudentTask;
+  saving: boolean;
+  onUpdate: (taskId: string, updates: TaskUpdatePayload) => Promise<void>;
+  onSelect?: () => void;
+};
+
 type RowSelectProps = {
   value: string;
   options: RowSelectOption[];
@@ -2317,6 +2407,77 @@ function RowSelect({ value, options, disabled, onChange }: RowSelectProps) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function NotionTaskRow({
+  task,
+  saving,
+  onUpdate,
+  onSelect,
+}: NotionTaskRowProps) {
+  const [title, setTitle] = useState(task.title);
+
+  useEffect(() => {
+    setTitle(task.title);
+  }, [task.title]);
+
+  async function commitTitle() {
+    if (title.trim() && title.trim() !== task.title) {
+      await onUpdate(task.id, { title: title.trim() });
+    } else {
+      setTitle(task.title);
+    }
+  }
+
+  const rowMuted = task.status === "done";
+
+  return (
+    <div
+      onClick={onSelect}
+      className={classNames(
+        "group grid items-center px-2 py-1.5 text-sm text-white/80 transition hover:bg-white/5",
+        PRIVATE_TABLE_GRID,
+        rowMuted && "text-white/40",
+        saving && "opacity-60",
+      )}
+    >
+      <div className="flex items-center pl-2">
+        <div className="pointer-events-none flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+          <Plus className="h-3.5 w-3.5 text-white/60" aria-hidden />
+          <span
+            className="grid h-3.5 w-3.5 grid-cols-2 gap-[2px]"
+            aria-hidden
+          >
+            <span className="h-1 w-1 rounded-full bg-white/35" />
+            <span className="h-1 w-1 rounded-full bg-white/35" />
+            <span className="h-1 w-1 rounded-full bg-white/35" />
+            <span className="h-1 w-1 rounded-full bg-white/35" />
+            <span className="h-1 w-1 rounded-full bg-white/35" />
+            <span className="h-1 w-1 rounded-full bg-white/35" />
+          </span>
+          <span className="h-4 w-4 rounded-sm border border-white/30 bg-black/20" />
+        </div>
+      </div>
+      <div className="flex min-w-0 items-center gap-3">
+        <input
+          value={title}
+          disabled={saving}
+          onChange={(event) => setTitle(event.target.value)}
+          onBlur={commitTitle}
+          className="min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1 py-1 text-sm font-medium text-white/80 outline-none transition focus:border-white/10 focus:bg-white/5"
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-hidden
+          className="pointer-events-none rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60 opacity-0 transition-opacity group-hover:opacity-100"
+        >
+          OPEN
+        </button>
+      </div>
+      <div className="h-full border-l border-white/10 pl-4" />
     </div>
   );
 }
