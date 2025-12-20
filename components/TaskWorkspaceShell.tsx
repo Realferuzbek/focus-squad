@@ -10,11 +10,13 @@ import {
   ChevronDown,
   Filter,
   List as ListIcon,
+  Lock,
   MoreHorizontal,
   Search,
   Share2,
   SlidersHorizontal,
   Star,
+  Zap,
 } from "lucide-react";
 import { csrfFetch } from "@/lib/csrf-client";
 import {
@@ -1708,150 +1710,184 @@ export default function TaskWorkspaceShell() {
   }
 
   function renderPrivateView() {
-    return (
-      <section className="flex min-h-full flex-col gap-6 px-3 pb-8 pt-2">
-        {activePrivateItem ? (
-          <>
-            <div className="flex flex-col gap-3 border-b border-white/10 pb-3">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-white/5 text-xl">
-                    {kindMeta[activePrivateItem.kind].icon}
-                  </div>
-                  <input
-                    value={listTitleDraft}
-                    onChange={(event) => setListTitleDraft(event.target.value)}
-                    onBlur={handleRenameList}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.currentTarget.blur();
-                      }
-                    }}
-                    disabled={savingListTitle}
-                    className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-2xl font-semibold leading-tight text-white outline-none focus:border-white/30 sm:text-3xl"
-                  />
-                </div>
-                <div className="flex items-center gap-1 text-white/60">
-                  <button
-                    type="button"
-                    className="rounded-md border border-white/10 bg-transparent p-2 transition hover:bg-white/5 hover:text-white"
-                    aria-label="Share"
-                    title="Share"
-                  >
-                    <Share2 className="h-4 w-4" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-white/10 bg-transparent p-2 transition hover:bg-white/5 hover:text-white"
-                    aria-label="Favorite"
-                    title="Favorite"
-                  >
-                    <Star className="h-4 w-4" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-white/10 bg-transparent p-2 transition hover:bg-white/5 hover:text-white"
-                    aria-label="More options"
-                    title="More"
-                  >
-                    <MoreHorizontal className="h-4 w-4" aria-hidden />
-                  </button>
-                </div>
-              </div>
-              <p className="text-[11px] uppercase tracking-[0.32em] text-white/40">
-                Private / {kindMeta[activePrivateItem.kind].label} /{" "}
-                {activeTasks.length} tasks
-              </p>
-            </div>
+    if (!activePrivateItem) {
+      return (
+        <section className="flex min-h-full flex-col items-center justify-center px-6 pb-12 pt-6 text-center text-white/60 sm:px-10 lg:px-12">
+          <p className="text-lg font-medium">Select a private item</p>
+          <p className="mt-2 text-sm">
+            We’ll open a blank sheet so you can picture what’s coming.
+          </p>
+        </section>
+      );
+    }
 
-            {activePrivateItem.kind === "task_list" ? (
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
+    const privateTitle =
+      listTitleDraft || activePrivateItem.title || "Untitled";
+
+    return (
+      <section className="min-h-full w-full px-6 pb-12 pt-6 sm:px-10 lg:px-12">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="truncate text-sm font-medium text-white/60">
+                {privateTitle}
+              </span>
+              <button
+                type="button"
+                className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/60 transition hover:bg-white/10"
+              >
+                <Lock className="h-3 w-3" aria-hidden />
+                Private
+                <ChevronDown className="h-3 w-3 text-white/50" aria-hidden />
+              </button>
+            </div>
+            <div className="flex items-center gap-1 text-white/50">
+              <button
+                type="button"
+                className="rounded-md p-2 transition hover:bg-white/5 hover:text-white/70"
+                aria-label="Share"
+                title="Share"
+              >
+                <Share2 className="h-4 w-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="rounded-md p-2 transition hover:bg-white/5 hover:text-white/70"
+                aria-label="Favorite"
+                title="Favorite"
+              >
+                <Star className="h-4 w-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="rounded-md p-2 transition hover:bg-white/5 hover:text-white/70"
+                aria-label="More options"
+                title="More"
+              >
+                <MoreHorizontal className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 text-xs text-white/50">
+            {["Add icon", "Add cover", "Verify", "Add description"].map(
+              (label) => (
+                <button
+                  key={label}
+                  type="button"
+                  className="rounded-md px-1 py-0.5 transition hover:text-white/70"
+                >
+                  {label}
+                </button>
+              ),
+            )}
+          </div>
+
+          <input
+            value={listTitleDraft || activePrivateItem.title || ""}
+            onChange={(event) => setListTitleDraft(event.target.value)}
+            onBlur={handleRenameList}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.currentTarget.blur();
+              }
+            }}
+            disabled={savingListTitle}
+            className="w-full max-w-[960px] rounded-md border border-transparent bg-transparent px-1 py-1 text-4xl font-semibold leading-tight text-white/85 outline-none transition focus:border-white/20 focus:bg-white/5"
+          />
+
+          {activePrivateItem.kind === "task_list" ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  className="flex h-7 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2.5 text-xs font-medium text-white/80 transition hover:bg-white/10"
+                >
+                  <ListIcon className="h-4 w-4" aria-hidden />
+                  Table
+                  <ChevronDown
+                    className="h-3.5 w-3.5 text-white/60"
+                    aria-hidden
+                  />
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 text-white/60">
                     <button
                       type="button"
-                      className="flex h-7 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2.5 text-xs font-medium text-white/80 transition hover:bg-white/10"
+                      className="rounded-md p-1.5 transition hover:bg-white/5 hover:text-white"
+                      aria-label="Filter"
+                      title="Filter"
                     >
-                      <ListIcon className="h-4 w-4" aria-hidden />
-                      Table
-                      <ChevronDown
-                        className="h-4 w-4 text-white/60"
-                        aria-hidden
-                      />
+                      <Filter className="h-4 w-4" aria-hidden />
                     </button>
-                    <div className="flex items-center gap-1.5 text-white/60">
-                      <button
-                        type="button"
-                        className="rounded-md border border-white/10 bg-transparent p-1.5 transition hover:bg-white/5 hover:text-white"
-                        aria-label="Filter"
-                        title="Filter"
-                      >
-                        <Filter className="h-4 w-4" aria-hidden />
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-md border border-white/10 bg-transparent p-1.5 transition hover:bg-white/5 hover:text-white"
-                        aria-label="Sort"
-                        title="Sort"
-                      >
-                        <ArrowUpDown className="h-4 w-4" aria-hidden />
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-md border border-white/10 bg-transparent p-1.5 transition hover:bg-white/5 hover:text-white"
-                        aria-label="Search"
-                        title="Search"
-                      >
-                        <Search className="h-4 w-4" aria-hidden />
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-md border border-white/10 bg-transparent p-1.5 transition hover:bg-white/5 hover:text-white"
-                        aria-label="Properties"
-                        title="Properties"
-                      >
-                        <SlidersHorizontal className="h-4 w-4" aria-hidden />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 transition hover:bg-white/5 hover:text-white"
+                      aria-label="Sort"
+                      title="Sort"
+                    >
+                      <ArrowUpDown className="h-4 w-4" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 transition hover:bg-white/5 hover:text-white"
+                      aria-label="Lightning"
+                      title="Lightning"
+                    >
+                      <Zap className="h-4 w-4" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 transition hover:bg-white/5 hover:text-white"
+                      aria-label="Search"
+                      title="Search"
+                    >
+                      <Search className="h-4 w-4" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 transition hover:bg-white/5 hover:text-white"
+                      aria-label="Properties"
+                      title="Properties"
+                    >
+                      <SlidersHorizontal className="h-4 w-4" aria-hidden />
+                    </button>
                   </div>
                   <button
                     type="button"
-                    className="flex h-7 items-center gap-2 rounded-md border border-white/10 bg-white/15 px-3 text-xs font-semibold text-white transition hover:bg-white/25"
+                    className="flex h-7 items-center gap-2 rounded-md border border-white/10 bg-white/10 px-3 text-xs font-semibold text-white transition hover:bg-white/20"
                   >
                     New
-                    <ChevronDown className="h-4 w-4 text-white/70" aria-hidden />
+                    <ChevronDown
+                      className="h-4 w-4 text-white/70"
+                      aria-hidden
+                    />
                   </button>
                 </div>
-                <TaskListPane
-                  tasks={filteredTasks}
-                  loading={tasksLoading}
-                  onCreateTask={handleCreateTask}
-                  onUpdateTask={handleUpdateTask}
-                  onScheduleTask={handleScheduleJump}
-                  savingTaskIds={taskSavingIds}
-                  view={taskView}
-                  onViewChange={setTaskView}
-                  onRepeatRequest={setRepeatEditorTask}
-                  onAutoPlanRequest={setAutoPlanTarget}
-                  onSelectTask={handleSelectTask}
-                />
               </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-white/15 bg-black/10 p-5 text-sm text-white/60">
-                Imagine checklists, task boards, and habit charts living here
-                in a few updates. Use the left sidebar to add as many
-                placeholder entries as you want so your structure is ready.
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center text-center text-white/60">
-            <p className="text-lg font-medium">Select a private item</p>
-            <p className="mt-2 text-sm">
-              We’ll open a blank sheet so you can picture what’s coming.
-            </p>
-          </div>
-        )}
+              <TaskListPane
+                tasks={filteredTasks}
+                loading={tasksLoading}
+                onCreateTask={handleCreateTask}
+                onUpdateTask={handleUpdateTask}
+                onScheduleTask={handleScheduleJump}
+                savingTaskIds={taskSavingIds}
+                view={taskView}
+                onViewChange={setTaskView}
+                onRepeatRequest={setRepeatEditorTask}
+                onAutoPlanRequest={setAutoPlanTarget}
+                onSelectTask={handleSelectTask}
+                showViewTabs={false}
+              />
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-white/15 bg-black/10 p-5 text-sm text-white/60">
+              Imagine checklists, task boards, and habit charts living here in a
+              few updates. Use the left sidebar to add as many placeholder
+              entries as you want so your structure is ready.
+            </div>
+          )}
+        </div>
       </section>
     );
   }
@@ -2036,6 +2072,7 @@ type TaskListPaneProps = {
   onRepeatRequest: (task: StudentTask) => void;
   onAutoPlanRequest: (task: StudentTask) => void;
   onSelectTask?: (taskId: string) => void;
+  showViewTabs?: boolean;
 };
 
 function TaskListPane({
@@ -2050,10 +2087,12 @@ function TaskListPane({
   onRepeatRequest,
   onAutoPlanRequest,
   onSelectTask,
+  showViewTabs = true,
 }: TaskListPaneProps) {
   const [draft, setDraft] = useState<TaskDraft>({ title: "" });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const showToolbar = showViewTabs || loading;
 
   async function handleCreate() {
     if (!draft.title.trim()) {
@@ -2073,43 +2112,52 @@ function TaskListPane({
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-          {[
-            { id: "all", label: "All" },
-            { id: "assignments", label: "Assignments" },
-            { id: "exams", label: "Exams" },
-            { id: "projects", label: "Projects" },
-            { id: "habits", label: "Habits" },
-            { id: "today", label: "Today" },
-            { id: "week", label: "This week" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onViewChange(tab.id as TaskViewFilter)}
+    <div className="flex flex-col gap-3">
+      {showToolbar && (
+        <div className="flex flex-wrap items-center gap-2">
+          {showViewTabs && (
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              {[
+                { id: "all", label: "All" },
+                { id: "assignments", label: "Assignments" },
+                { id: "exams", label: "Exams" },
+                { id: "projects", label: "Projects" },
+                { id: "habits", label: "Habits" },
+                { id: "today", label: "Today" },
+                { id: "week", label: "This week" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => onViewChange(tab.id as TaskViewFilter)}
+                  className={classNames(
+                    "rounded-md border px-2 py-0.5 text-[11px] font-medium transition",
+                    view === tab.id
+                      ? "border-white/30 bg-white/10 text-white"
+                      : "border-white/10 text-white/60 hover:border-white/20 hover:bg-white/5 hover:text-white",
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {loading && (
+            <span
               className={classNames(
-                "rounded-md border px-2 py-0.5 text-[11px] font-medium transition",
-                view === tab.id
-                  ? "border-white/30 bg-white/10 text-white"
-                  : "border-white/10 text-white/60 hover:border-white/20 hover:bg-white/5 hover:text-white",
+                "text-[10px] uppercase tracking-[0.3em] text-white/40",
+                showViewTabs && "ml-auto",
               )}
             >
-              {tab.label}
-            </button>
-          ))}
+              Loading...
+            </span>
+          )}
         </div>
-        {loading && (
-          <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-            Loading...
-          </span>
-        )}
-      </div>
-      <div className="rounded-md border border-white/10 bg-transparent">
+      )}
+      <div className="border border-white/10 bg-transparent">
         <div className="overflow-x-auto overflow-y-visible [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
           <div className="min-w-[780px]">
-            <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 border-b border-white/10 bg-white/5 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/45">
+            <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 border-b border-white/10 bg-white/5 px-4 py-2 text-[11px] font-medium text-white/45">
               <span>Status</span>
               <span>Title</span>
               <span>Category</span>
@@ -2138,17 +2186,17 @@ function TaskListPane({
                   />
                 ))
               )}
-              <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 px-4 py-2 text-sm text-white/70 transition hover:bg-white/5">
-                <span className="text-xs uppercase tracking-[0.3em] text-white/40">
-                  + New
+              <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 px-4 py-2 text-sm text-white/60 transition hover:bg-white/5">
+                <span className="text-xs font-medium text-white/40">
+                  + New page
                 </span>
                 <input
                   value={draft.title}
                   onChange={(event) => setDraft({ title: event.target.value })}
-                  placeholder="Add a task title..."
-                  className="rounded-md border border-white/10 bg-transparent px-2 py-1 text-sm text-white outline-none focus:border-white/40"
+                  placeholder="New page title..."
+                  className="rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-white/80 outline-none transition focus:border-white/20 focus:bg-white/5"
                 />
-                <span className="col-span-5 text-xs uppercase tracking-[0.3em] text-white/30">
+                <span className="col-span-5 text-[11px] text-white/35">
                   Defaults: Assignment · Medium priority · Unscheduled
                 </span>
                 <div className="flex items-center justify-center">
@@ -2156,7 +2204,7 @@ function TaskListPane({
                     type="button"
                     onClick={handleCreate}
                     disabled={creating}
-                    className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20 disabled:opacity-50"
+                    className="rounded-md border border-white/10 bg-transparent px-3 py-1.5 text-[11px] font-semibold text-white/60 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
                   >
                     {creating ? "Adding..." : "Add"}
                   </button>
