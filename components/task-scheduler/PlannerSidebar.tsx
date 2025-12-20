@@ -252,108 +252,96 @@ export default function PlannerSidebar({
 
   return (
     <>
-      <div className="flex h-full flex-col gap-4 rounded-3xl border border-white/10 bg-[#0c0c16] p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-xs font-semibold uppercase text-white/80">
-            {workspaceInitial}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">
+      <div className="flex h-full flex-col bg-[#0c0c16] px-2.5 py-3 text-sm text-white">
+        <div className="flex h-9 items-center justify-between rounded-md px-2 transition hover:bg-white/5">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold uppercase text-white/70">
+              {workspaceInitial}
+            </div>
+            <p className="truncate text-sm font-medium text-white">
               {workspaceName}
             </p>
           </div>
-        </div>
-        <button
-          type="button"
-          aria-label="Workspace menu"
-          className="rounded-lg border border-white/10 bg-white/5 p-2 text-white/60 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-        >
-          <ChevronDown className="h-4 w-4" aria-hidden />
-        </button>
-      </div>
-
-      <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2">
-        <input
-          type="text"
-          placeholder="Search"
-          aria-label="Search"
-          className="w-full bg-transparent text-sm text-white placeholder:text-white/40 outline-none"
-        />
-      </div>
-
-      <div>
-        <p className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-          Navigation
-        </p>
-        <div className="mt-2 space-y-1">
           <button
             type="button"
-            onClick={() => onSectionChange("home")}
-            title={homeItem?.description}
-            className={classNames(
-              "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
-              isHomeActive
-                ? "bg-white/10 text-white"
-                : "text-white/70 hover:bg-white/5 hover:text-white",
-            )}
+            aria-label="Workspace menu"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/5 text-base">
-              {homeItem?.icon ?? "H"}
-            </span>
-            <span className="font-medium">{homeItem?.label ?? "Home"}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onSectionChange("private")}
-            title={privateItem?.description}
-            className={classNames(
-              "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
-              isPlannerActive
-                ? "bg-white/10 text-white"
-                : "text-white/70 hover:bg-white/5 hover:text-white",
-            )}
-          >
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/5">
-              <ListIcon className="h-4 w-4" aria-hidden />
-            </span>
-            <span className="font-medium">Planner</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onSurfaceChange("calendar")}
-            className={classNames(
-              "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
-              isCalendarActive
-                ? "bg-white/10 text-white"
-                : "text-white/70 hover:bg-white/5 hover:text-white",
-            )}
-          >
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/5">
-              <CalendarIcon className="h-4 w-4" aria-hidden />
-            </span>
-            <span className="font-medium">Calendar</span>
+            <ChevronDown className="h-4 w-4" aria-hidden />
           </button>
         </div>
-      </div>
 
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+        <div className="mt-3 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+            <p className="px-2 text-[11px] uppercase tracking-[0.2em] text-white/35">
+              Navigation
+            </p>
+            <div className="mt-1 space-y-1">
+              <button
+                type="button"
+                onClick={() => onSectionChange("home")}
+                title={homeItem?.description}
+                className={classNames(
+                  "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition",
+                  isHomeActive
+                    ? "bg-white/10 text-white font-medium"
+                    : "text-white/70 hover:bg-white/5 hover:text-white",
+                )}
+              >
+                <span className="flex h-5 w-5 items-center justify-center text-[15px]">
+                  {homeItem?.icon ?? "H"}
+                </span>
+                <span className="truncate">{homeItem?.label ?? "Home"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onSectionChange("private")}
+                title={privateItem?.description}
+                className={classNames(
+                  "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition",
+                  isPlannerActive
+                    ? "bg-white/10 text-white font-medium"
+                    : "text-white/70 hover:bg-white/5 hover:text-white",
+                )}
+              >
+                <span className="flex h-5 w-5 items-center justify-center">
+                  <ListIcon className="h-[18px] w-[18px]" aria-hidden />
+                </span>
+                <span className="truncate">Planner</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onSurfaceChange("calendar")}
+                className={classNames(
+                  "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition",
+                  isCalendarActive
+                    ? "bg-white/10 text-white font-medium"
+                    : "text-white/70 hover:bg-white/5 hover:text-white",
+                )}
+              >
+                <span className="flex h-5 w-5 items-center justify-center">
+                  <CalendarIcon className="h-[18px] w-[18px]" aria-hidden />
+                </span>
+                <span className="truncate">Calendar</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <p className="px-2 text-[11px] uppercase tracking-[0.2em] text-white/35">
               {privateItem?.label ?? "Private"}
             </p>
-            <div className="mt-2 space-y-1">
+            <div className="mt-1 space-y-1">
               {privateLoading ? (
-                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/50">
+                <div className="rounded-md bg-white/5 px-2 py-2 text-xs text-white/45">
                   Loading private items...
                 </div>
               ) : privateError ? (
-                <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                <div className="rounded-md bg-rose-500/10 px-2 py-2 text-xs text-rose-200">
                   {privateError}
                 </div>
               ) : privateItems.length === 0 ? (
-                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/50">
+                <div className="rounded-md bg-white/5 px-2 py-2 text-xs text-white/45">
                   No private items yet.
                 </div>
               ) : (
@@ -366,17 +354,17 @@ export default function PlannerSidebar({
                       type="button"
                       onClick={() => handlePrivateSelect(item.id)}
                       className={classNames(
-                        "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
+                        "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition",
                         isActive
-                          ? "bg-white/10 text-white"
+                          ? "bg-white/10 text-white font-medium"
                           : "text-white/70 hover:bg-white/5 hover:text-white",
                       )}
                     >
-                      <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/5 text-base">
+                      <span className="flex h-5 w-5 items-center justify-center text-[14px]">
                         {meta.icon}
                       </span>
                       <span className="truncate">{item.title}</span>
-                      <span className="ml-auto text-[10px] uppercase tracking-[0.3em] text-white/40">
+                      <span className="ml-auto text-[9px] uppercase tracking-[0.2em] text-white/35">
                         {meta.label}
                       </span>
                     </button>
@@ -387,33 +375,34 @@ export default function PlannerSidebar({
             <button
               type="button"
               onClick={handleAddPrivateItem}
-              className="mt-2 flex items-center gap-2 rounded-xl border border-dashed border-white/20 px-3 py-2 text-xs uppercase tracking-[0.3em] text-white/60 transition hover:border-white/40 hover:text-white"
+              className="mt-1 flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm text-white/60 transition hover:bg-white/5 hover:text-white"
             >
               + Add new
             </button>
           </div>
 
           <div>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-white/40">
+            <p className="px-2 text-[11px] uppercase tracking-[0.2em] text-white/35">
               CALENDARS
             </p>
-            <div className="mt-2 space-y-1">
+            <div className="mt-1 space-y-1">
               {calendarsLoading ? (
-                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/50">
+                <div className="rounded-md bg-white/5 px-2 py-2 text-xs text-white/45">
                   Loading calendars...
                 </div>
               ) : calendars.length === 0 ? (
-                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/50">
+                <div className="rounded-md bg-white/5 px-2 py-2 text-xs text-white/45">
                   No calendars yet.
                 </div>
               ) : (
                 calendars.map((calendar) => {
                   const isMuted = !calendar.isVisible;
+                  const isMenuOpen = menuOpenId === calendar.id;
                   return (
                     <div
                       key={calendar.id}
                       className={classNames(
-                        "flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm transition",
+                        "group flex h-9 items-center gap-2 rounded-md px-2 text-sm transition",
                         isMuted
                           ? "text-white/40"
                           : "text-white/70 hover:bg-white/5 hover:text-white",
@@ -429,17 +418,27 @@ export default function PlannerSidebar({
                       />
                       <span className="truncate">{calendar.name}</span>
                       {calendar.isDefault && (
-                        <span className="rounded-full border border-white/20 px-2 py-0.5 text-[9px] uppercase tracking-[0.2em] text-white/60">
+                        <span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.2em] text-white/50">
                           Default
                         </span>
                       )}
-                      <div className="ml-auto flex items-center gap-1">
+                      <div
+                        className={classNames(
+                          "ml-auto flex w-[60px] items-center justify-end gap-1 transition",
+                          isMenuOpen
+                            ? "opacity-100"
+                            : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+                          isMenuOpen
+                            ? "pointer-events-auto"
+                            : "pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto",
+                        )}
+                      >
                         <button
                           type="button"
                           onClick={() => handleToggleVisibility(calendar)}
                           className={classNames(
-                            "rounded-lg border border-white/10 p-2 text-white/60 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
-                            isMuted && "border-white/5 text-white/40",
+                            "flex h-7 w-7 items-center justify-center rounded-md text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
+                            isMuted && "text-white/40",
                           )}
                           aria-label={
                             calendar.isVisible
@@ -473,21 +472,21 @@ export default function PlannerSidebar({
                                 prev === calendar.id ? null : calendar.id,
                               )
                             }
-                            className="rounded-lg border border-white/10 p-2 text-white/60 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                             aria-label="Calendar actions"
                             title="Calendar actions"
                           >
                             <MoreHorizontal className="h-4 w-4" aria-hidden />
                           </button>
                           {menuOpenId === calendar.id && (
-                            <div className="absolute right-0 top-7 z-20 w-36 rounded-xl border border-white/10 bg-[#10101c] p-1 text-xs text-white shadow-lg">
+                            <div className="absolute right-0 top-8 z-20 w-36 rounded-lg border border-white/10 bg-[#10101c] p-1 text-xs text-white shadow-lg">
                               <button
                                 type="button"
                                 onClick={() => {
                                   setMenuOpenId(null);
                                   setRenameTarget(calendar);
                                 }}
-                                className="w-full rounded-lg px-2 py-2 text-left transition hover:bg-white/10"
+                                className="w-full rounded-md px-2 py-1.5 text-left transition hover:bg-white/10"
                               >
                                 Rename
                               </button>
@@ -499,8 +498,9 @@ export default function PlannerSidebar({
                                 }}
                                 disabled={calendar.isDefault}
                                 className={classNames(
-                                  "w-full rounded-lg px-2 py-2 text-left transition hover:bg-white/10",
-                                  calendar.isDefault && "cursor-not-allowed text-white/40",
+                                  "w-full rounded-md px-2 py-1.5 text-left transition hover:bg-white/10",
+                                  calendar.isDefault &&
+                                    "cursor-not-allowed text-white/40",
                                 )}
                               >
                                 Set as default
@@ -511,7 +511,7 @@ export default function PlannerSidebar({
                                   setMenuOpenId(null);
                                   handleDelete(calendar);
                                 }}
-                                className="w-full rounded-lg px-2 py-2 text-left text-rose-200 transition hover:bg-rose-500/10"
+                                className="w-full rounded-md px-2 py-1.5 text-left text-rose-200 transition hover:bg-rose-500/10"
                               >
                                 Delete
                               </button>
@@ -527,47 +527,46 @@ export default function PlannerSidebar({
             <button
               type="button"
               onClick={handleOpenCreateCalendar}
-              className="mt-2 flex items-center gap-2 rounded-xl border border-dashed border-white/20 px-3 py-2 text-xs uppercase tracking-[0.3em] text-white/60 transition hover:border-white/40 hover:text-white"
+              className="mt-1 flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm text-white/60 transition hover:bg-white/5 hover:text-white"
             >
               + New calendar
             </button>
           </div>
         </div>
-      </div>
 
-      <div className="border-t border-white/10 pt-3">
-        <div className="space-y-1">
-          <button
-            type="button"
-            onClick={() => onSectionChange("settings")}
-            title={settingsItem?.description}
-            className={classNames(
-              "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition",
-              isSettingsActive
-                ? "bg-white/10 text-white"
-                : "text-white/60 hover:bg-white/5 hover:text-white",
-            )}
-          >
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/5 text-base">
-              {settingsItem?.icon ?? "S"}
-            </span>
-            <span className="font-medium">
-              {settingsItem?.label ?? "Settings"}
-            </span>
-          </button>
-          <button
-            type="button"
-            aria-disabled="true"
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-white/40"
-          >
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/5 text-xs font-semibold text-white/40">
-              T
-            </span>
-            <span className="font-medium">Trash</span>
-          </button>
+        <div className="mt-auto border-t border-white/5 pt-2">
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={() => onSectionChange("settings")}
+              title={settingsItem?.description}
+              className={classNames(
+                "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition",
+                isSettingsActive
+                  ? "bg-white/10 text-white font-medium"
+                  : "text-white/60 hover:bg-white/5 hover:text-white",
+              )}
+            >
+              <span className="flex h-5 w-5 items-center justify-center text-[13px]">
+                {settingsItem?.icon ?? "S"}
+              </span>
+              <span className="truncate">
+                {settingsItem?.label ?? "Settings"}
+              </span>
+            </button>
+            <button
+              type="button"
+              aria-disabled="true"
+              className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-white/40"
+            >
+              <span className="flex h-5 w-5 items-center justify-center text-[11px] font-semibold text-white/40">
+                T
+              </span>
+              <span className="truncate">Trash</span>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
       {createCalendarOpen && (
         <CalendarDialog
           title="New calendar"
