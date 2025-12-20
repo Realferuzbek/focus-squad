@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import TaskSchedulerCalendar from "@/components/TaskSchedulerCalendar";
+import PlannerSidebar from "@/components/task-scheduler/PlannerSidebar";
 import { Calendar as CalendarIcon, List as ListIcon } from "lucide-react";
 import { csrfFetch } from "@/lib/csrf-client";
 import {
@@ -967,134 +968,69 @@ export default function TaskWorkspaceShell() {
 
   function renderPrivateView() {
     return (
-      <div className="grid gap-6 lg:grid-cols-[280px,1fr]">
-        <section className="rounded-3xl border border-white/10 bg-[#0c0c16] p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.4em] text-white/40">
-                Private
-              </p>
-              <h3 className="mt-1 text-xl font-semibold">Personal boards</h3>
-              <p className="text-sm text-zinc-400">
-                Keep uni, routines, and habits under wraps.
-              </p>
-            </div>
-            <button
-              onClick={handleCreatePrivateItem}
-              className="rounded-2xl bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/20"
-            >
-              + Add new
-            </button>
-          </div>
-
-          <div className="mt-5 space-y-2">
-            {privateLoading ? (
-              <p className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
-                Loading your lists…
-              </p>
-            ) : privateError ? (
-              <p className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
-                {privateError}
-              </p>
-            ) : privateItems.length === 0 ? (
-              <p className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
-                Nothing here yet. Start a list to blueprint your study rituals.
-              </p>
-            ) : (
-              privateItems.map((item) => {
-                const active = activePrivateItem?.id === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActivePrivateItemId(item.id)}
-                    className={classNames(
-                      "flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition",
-                      active
-                        ? "border-[#9b7bff] bg-[#1a1a2f]"
-                        : "border-white/10 bg-transparent hover:border-white/30 hover:bg-white/5",
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">{kindMeta[item.kind].icon}</span>
-                      <div>
-                        <p className="font-medium">{item.title}</p>
-                        <p className="text-xs uppercase tracking-[0.35em] text-zinc-500">
-                          {kindMeta[item.kind].label}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-xs text-zinc-500">Open</span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-white/10 bg-[#0c0c16] p-6">
-          {activePrivateItem ? (
-            <>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-2xl">
-                    {kindMeta[activePrivateItem.kind].icon}
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.35em] text-white/50">
-                      {kindMeta[activePrivateItem.kind].label}
-                    </p>
-                    <input
-                      value={listTitleDraft}
-                      onChange={(event) => setListTitleDraft(event.target.value)}
-                      onBlur={handleRenameList}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.currentTarget.blur();
-                        }
-                      }}
-                      disabled={savingListTitle}
-                      className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-lg font-semibold text-white outline-none focus:border-white/40"
-                    />
-                  </div>
+      <section className="rounded-3xl border border-white/10 bg-[#0c0c16] p-6">
+        {activePrivateItem ? (
+          <>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-2xl">
+                  {kindMeta[activePrivateItem.kind].icon}
                 </div>
-                <div className="text-xs uppercase tracking-[0.3em] text-white/40">
-                  {activeTasks.length} tasks
-                </div>
-              </div>
-
-              {activePrivateItem.kind === "task_list" ? (
-                <div className="mt-6">
-                  <TaskListPane
-                    tasks={filteredTasks}
-                    loading={tasksLoading}
-                    onCreateTask={handleCreateTask}
-                    onUpdateTask={handleUpdateTask}
-                    onScheduleTask={handleScheduleJump}
-                    savingTaskIds={taskSavingIds}
-                    view={taskView}
-                    onViewChange={setTaskView}
-                    onRepeatRequest={setRepeatEditorTask}
-                    onAutoPlanRequest={setAutoPlanTarget}
+                <div>
+                  <p className="text-xs uppercase tracking-[0.35em] text-white/50">
+                    {kindMeta[activePrivateItem.kind].label}
+                  </p>
+                  <input
+                    value={listTitleDraft}
+                    onChange={(event) => setListTitleDraft(event.target.value)}
+                    onBlur={handleRenameList}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.currentTarget.blur();
+                      }
+                    }}
+                    disabled={savingListTitle}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-lg font-semibold text-white outline-none focus:border-white/40"
                   />
                 </div>
-              ) : (
-                <div className="mt-8 rounded-2xl border border-dashed border-white/15 bg-black/20 p-5 text-sm text-zinc-400">
-                  Imagine checklists, task boards, and habit charts living here
-                  in a few updates. Use the left sidebar to add as many
-                  placeholder entries as you want so your structure is ready.
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center text-center text-zinc-400">
-              <p className="text-lg font-medium">Select a private item</p>
-              <p className="mt-2 text-sm">
-                We’ll open a blank sheet so you can picture what’s coming.
-              </p>
+              </div>
+              <div className="text-xs uppercase tracking-[0.3em] text-white/40">
+                {activeTasks.length} tasks
+              </div>
             </div>
-          )}
-        </section>
-      </div>
+
+            {activePrivateItem.kind === "task_list" ? (
+              <div className="mt-6">
+                <TaskListPane
+                  tasks={filteredTasks}
+                  loading={tasksLoading}
+                  onCreateTask={handleCreateTask}
+                  onUpdateTask={handleUpdateTask}
+                  onScheduleTask={handleScheduleJump}
+                  savingTaskIds={taskSavingIds}
+                  view={taskView}
+                  onViewChange={setTaskView}
+                  onRepeatRequest={setRepeatEditorTask}
+                  onAutoPlanRequest={setAutoPlanTarget}
+                />
+              </div>
+            ) : (
+              <div className="mt-8 rounded-2xl border border-dashed border-white/15 bg-black/20 p-5 text-sm text-zinc-400">
+                Imagine checklists, task boards, and habit charts living here
+                in a few updates. Use the left sidebar to add as many
+                placeholder entries as you want so your structure is ready.
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center text-center text-zinc-400">
+            <p className="text-lg font-medium">Select a private item</p>
+            <p className="mt-2 text-sm">
+              We’ll open a blank sheet so you can picture what’s coming.
+            </p>
+          </div>
+        )}
+      </section>
     );
   }
 
@@ -1245,36 +1181,21 @@ export default function TaskWorkspaceShell() {
           <div className="flex-1 min-h-0">
             <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4 px-4 py-4 lg:flex-row">
               <aside className="min-h-0 lg:w-64 lg:shrink-0 lg:overflow-y-auto">
-                <div className="rounded-3xl border border-white/10 bg-[#0c0c16] p-4">
-                  <p className="text-xs uppercase tracking-[0.4em] text-white/40">
-                    Navigate
-                  </p>
-                  <div className="mt-4 space-y-2">
-                    {navItems.map((item) => {
-                      const active = activeSection === item.id;
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => setActiveSection(item.id)}
-                          className={classNames(
-                            "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition",
-                            active
-                              ? "border-[#9b7bff] bg-[#171729]"
-                              : "border-white/10 hover:border-white/30 hover:bg-white/5",
-                          )}
-                        >
-                          <span className="text-xl">{item.icon}</span>
-                          <div>
-                            <p className="text-sm font-semibold">{item.label}</p>
-                            <p className="text-xs text-zinc-500">
-                              {item.description}
-                            </p>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                <PlannerSidebar
+                  navItems={navItems}
+                  activeSection={activeSection}
+                  onSectionChange={setActiveSection}
+                  activeSurface={activeSurface}
+                  onSurfaceChange={setActiveSurface}
+                  privateItems={privateItems}
+                  privateLoading={privateLoading}
+                  privateError={privateError}
+                  activePrivateItemId={activePrivateItemId}
+                  onSelectPrivateItem={setActivePrivateItemId}
+                  onAddPrivateItem={handleCreatePrivateItem}
+                  kindMeta={kindMeta}
+                  workspaceTitle="Workspace"
+                />
               </aside>
 
               <main className="min-h-0 flex-1 overflow-y-auto">
