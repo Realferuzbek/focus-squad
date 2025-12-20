@@ -116,37 +116,6 @@ function normalizePositiveInt(value: unknown, min: number, max: number) {
   return null;
 }
 
-function normalizeMonthdayArray(value: unknown) {
-  if (!value) return null;
-  const days = Array.isArray(value) ? value : [];
-  const normalized = days
-    .map((entry) => {
-      if (typeof entry === "number" && Number.isInteger(entry)) {
-        return entry;
-      }
-      if (typeof entry === "string" && entry.trim() !== "") {
-        const parsed = Number(entry);
-        if (!Number.isNaN(parsed)) {
-          return Math.trunc(parsed);
-        }
-      }
-      return null;
-    })
-    .filter((entry): entry is number => entry !== null)
-    .map((entry) => Math.max(1, Math.min(31, entry)));
-  if (!normalized.length) return null;
-  const unique = Array.from(new Set(normalized)).sort((a, b) => a - b);
-  return unique;
-}
-
-function normalizeUntilInput(value: unknown) {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (ISO_DATE_RE.test(trimmed)) return trimmed;
-  return normalizeTimestampInput(trimmed);
-}
-
 export function normalizeRecurrenceInput(
   value: unknown,
 ): TaskCalendarRecurrence | null | undefined {
@@ -160,47 +129,46 @@ export function normalizeRecurrenceInput(
   const interval = normalizePositiveInt(input.interval ?? 1, 1, 365);
   if (!interval) return undefined;
 
-  const hasByweekday = Object.prototype.hasOwnProperty.call(
+  const hasByWeekday = Object.prototype.hasOwnProperty.call(
     input,
-    "byweekday",
+    "byWeekday",
   );
-  const byweekday = hasByweekday
-    ? normalizeWeekdayArray(input.byweekday)
+  const byWeekday = hasByWeekday
+    ? normalizeWeekdayArray(input.byWeekday)
     : null;
-  if (hasByweekday && !byweekday) return undefined;
+  if (hasByWeekday && !byWeekday) return undefined;
 
-  const hasMonthday = Object.prototype.hasOwnProperty.call(
-    input,
-    "bymonthday",
-  );
-  const bymonthday = hasMonthday
-    ? normalizeMonthdayArray(input.bymonthday)
-    : null;
-  if (hasMonthday && !bymonthday) return undefined;
+  if (byWeekday && freq !== "weekly" && freq !== "monthly") {
+    return undefined;
+  }
 
-  const hasSetpos = Object.prototype.hasOwnProperty.call(input, "bysetpos");
-  const bysetpos = hasSetpos
-    ? normalizePositiveInt(input.bysetpos, 1, 5)
-    : null;
-  if (hasSetpos && !bysetpos) return undefined;
+  const hasEnds = Object.prototype.hasOwnProperty.call(input, "ends");
+  if (!hasEnds || !input.ends || typeof input.ends !== "object") {
+    return undefined;
+  }
+  const endsInput = input.ends as Record<string, unknown>;
+  const endsType = normalizeEnum(endsInput.type, ["never", "on", "after"]);
+  if (!endsType) return undefined;
 
-  const hasUntil = Object.prototype.hasOwnProperty.call(input, "until");
-  const until = hasUntil ? normalizeUntilInput(input.until) : null;
-  if (hasUntil && until === null) return undefined;
-
-  const hasCount = Object.prototype.hasOwnProperty.call(input, "count");
-  const count = hasCount ? normalizePositiveInt(input.count, 1, 1000) : null;
-  if (hasCount && count === null) return undefined;
+  let ends: TaskCalendarRecurrence["ends"];
+  if (endsType === "never") {
+    ends = { type: "never" };
+  } else if (endsType === "on") {
+    const until = normalizeDateInput(endsInput.until);
+    if (!until) return undefined;
+    ends = { type: "on", until };
+  } else {
+    const count = normalizePositiveInt(endsInput.count, 1, 1000);
+    if (!count) return undefined;
+    ends = { type: "after", count };
+  }
 
   const recurrence: TaskCalendarRecurrence = {
     freq,
     interval,
+    ends,
   };
-  if (byweekday) recurrence.byweekday = byweekday;
-  if (bymonthday) recurrence.bymonthday = bymonthday;
-  if (bysetpos) recurrence.bysetpos = bysetpos;
-  if (until) recurrence.until = until;
-  if (count) recurrence.count = count;
+  if (byWeekday) recurrence.byWeekday = byWeekday;
 
   return recurrence;
 }

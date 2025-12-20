@@ -42,11 +42,11 @@ export type TaskCalendarRecurrenceFrequency =
 export type TaskCalendarRecurrence = {
   freq: TaskCalendarRecurrenceFrequency;
   interval: number;
-  byweekday?: number[];
-  bymonthday?: number[];
-  bysetpos?: number;
-  until?: string | null;
-  count?: number | null;
+  byWeekday?: number[];
+  ends:
+    | { type: "never" }
+    | { type: "on"; until: string }
+    | { type: "after"; count: number };
 };
 
 export type TaskPrivateItem = {

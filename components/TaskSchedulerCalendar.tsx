@@ -19,6 +19,7 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import { generateHabitInstances } from "@/lib/taskSchedulerHabits";
+import { normalizeRecurrenceInput } from "@/lib/taskSchedulerValidation";
 
 const START_HOUR = 1;
 const END_HOUR = 24;
@@ -131,9 +132,7 @@ type SurfaceView = "planner" | "calendar";
 type RecurrenceDraft = {
   freq: TaskCalendarRecurrenceFrequency;
   interval: number;
-  byweekday: number[];
-  bymonthday: number[] | null;
-  bysetpos: number | null;
+  byWeekday: number[];
   endMode: "never" | "on" | "after";
   until: string;
   count: number;
@@ -324,7 +323,7 @@ function normalizeRecurrenceWeekdays(
     startDate && !Number.isNaN(startDate.getTime())
       ? [startDate.getDay()]
       : [1];
-  const days = recurrence?.byweekday?.slice() ?? [];
+  const days = recurrence?.byWeekday?.slice() ?? [];
   const normalized = Array.from(new Set(days))
     .map((day) => Math.max(0, Math.min(6, Math.trunc(day))))
     .sort((a, b) => a - b);
@@ -335,16 +334,17 @@ function buildRecurrenceSummary(
   recurrence: TaskCalendarRecurrence | null,
   startDate: Date | null,
 ) {
-  if (!recurrence) return "Never";
-  const interval = Math.max(1, recurrence.interval || 1);
+  const normalized = normalizeRecurrenceInput(recurrence);
+  if (!normalized) return "Never";
+  const interval = Math.max(1, normalized.interval || 1);
   const start = startDate && !Number.isNaN(startDate.getTime())
     ? startDate
     : null;
-  if (recurrence.freq === "daily") {
+  if (normalized.freq === "daily") {
     return interval === 1 ? "Every day" : `Every ${interval} days`;
   }
-  if (recurrence.freq === "weekly") {
-    const days = normalizeRecurrenceWeekdays(recurrence, start);
+  if (normalized.freq === "weekly") {
+    const days = normalizeRecurrenceWeekdays(normalized, start);
     const isWeekdaySet =
       days.length === 5 &&
       [1, 2, 3, 4, 5].every((day, index) => days[index] === day);
@@ -364,22 +364,16 @@ function buildRecurrenceSummary(
       ? `Every week on ${label}`
       : `Every ${interval} weeks on ${label}`;
   }
-  if (recurrence.freq === "monthly") {
-    const monthDays = recurrence.bymonthday ?? [];
-    if (monthDays.length) {
-      const label = formatOrdinal(monthDays[0]);
-      return interval === 1
-        ? `Every month on the ${label}`
-        : `Every ${interval} months on the ${label}`;
-    }
-    if (recurrence.bysetpos && recurrence.byweekday?.length) {
-      const weekday = getWeekdayLabel(recurrence.byweekday[0]);
-      const ordinal = formatOrdinal(recurrence.bysetpos);
-      return interval === 1
-        ? `Every month on the ${ordinal} ${weekday}`
-        : `Every ${interval} months on the ${ordinal} ${weekday}`;
-    }
+  if (normalized.freq === "monthly") {
     if (start) {
+      const usesWeekday = !!normalized.byWeekday?.length;
+      if (usesWeekday) {
+        const weekday = getWeekdayLabel(start.getDay());
+        const ordinal = formatOrdinal(getNthWeekdayInMonth(start));
+        return interval === 1
+          ? `Every month on the ${ordinal} ${weekday}`
+          : `Every ${interval} months on the ${ordinal} ${weekday}`;
+      }
       const label = formatOrdinal(start.getDate());
       return interval === 1
         ? `Every month on the ${label}`
@@ -387,7 +381,7 @@ function buildRecurrenceSummary(
     }
     return interval === 1 ? "Every month" : `Every ${interval} months`;
   }
-  if (recurrence.freq === "yearly") {
+  if (normalized.freq === "yearly") {
     const label = start ? formatMonthDayLabel(start) : "that day";
     return interval === 1
       ? `Every year on ${label}`
@@ -416,12 +410,12 @@ function isSameRecurrenceShape(
 ) {
   if (!left && !right) return true;
   if (!left || !right) return false;
+  if (left.ends?.type !== right.ends?.type) return false;
+  if (left.ends?.type !== "never") return false;
   return (
     left.freq === right.freq &&
     (left.interval || 1) === (right.interval || 1) &&
-    (left.bysetpos ?? null) === (right.bysetpos ?? null) &&
-    isSameNumberArray(left.byweekday, right.byweekday) &&
-    isSameNumberArray(left.bymonthday, right.bymonthday)
+    isSameNumberArray(left.byWeekday, right.byWeekday)
   );
 }
 
@@ -442,7 +436,7 @@ function buildRepeatOptions(startDate: Date | null): RepeatOption[] {
     {
       id: "daily",
       label: "Every day",
-      recurrence: { freq: "daily", interval: 1 },
+      recurrence: { freq: "daily", interval: 1, ends: { type: "never" } },
     },
     {
       id: "weekdays",
@@ -450,7 +444,8 @@ function buildRepeatOptions(startDate: Date | null): RepeatOption[] {
       recurrence: {
         freq: "weekly",
         interval: 1,
-        byweekday: [1, 2, 3, 4, 5],
+        byWeekday: [1, 2, 3, 4, 5],
+        ends: { type: "never" },
       },
     },
     {
@@ -459,7 +454,8 @@ function buildRepeatOptions(startDate: Date | null): RepeatOption[] {
       recurrence: {
         freq: "weekly",
         interval: 1,
-        byweekday: [weekday],
+        byWeekday: [weekday],
+        ends: { type: "never" },
       },
     },
     {
@@ -468,7 +464,8 @@ function buildRepeatOptions(startDate: Date | null): RepeatOption[] {
       recurrence: {
         freq: "weekly",
         interval: 2,
-        byweekday: [weekday],
+        byWeekday: [weekday],
+        ends: { type: "never" },
       },
     },
     {
@@ -477,7 +474,7 @@ function buildRepeatOptions(startDate: Date | null): RepeatOption[] {
       recurrence: {
         freq: "monthly",
         interval: 1,
-        bymonthday: [dayOfMonth],
+        ends: { type: "never" },
       },
     },
     {
@@ -486,8 +483,8 @@ function buildRepeatOptions(startDate: Date | null): RepeatOption[] {
       recurrence: {
         freq: "monthly",
         interval: 1,
-        byweekday: [weekday],
-        bysetpos: nth,
+        byWeekday: [weekday],
+        ends: { type: "never" },
       },
     },
     {
@@ -496,7 +493,7 @@ function buildRepeatOptions(startDate: Date | null): RepeatOption[] {
       recurrence: {
         freq: "yearly",
         interval: 1,
-        bymonthday: [dayOfMonth],
+        ends: { type: "never" },
       },
     },
     { id: "custom", label: "Custom...", recurrence: null, isCustom: true },
@@ -511,27 +508,33 @@ function buildRepeatDraft(
     ? startDate
     : new Date();
   const baseWeekday = base.getDay();
-  const baseMonthday = base.getDate();
-  const byweekday = normalizeNumberArray(recurrence?.byweekday);
-  const bymonthday = normalizeNumberArray(recurrence?.bymonthday);
+  const normalized = normalizeRecurrenceInput(recurrence);
+  const byWeekday = normalizeNumberArray(normalized?.byWeekday);
 
   let endMode: RecurrenceDraft["endMode"] = "never";
   let until = "";
   let count = 1;
-  if (recurrence?.count) {
+  if (normalized?.ends?.type === "after") {
     endMode = "after";
-    count = recurrence.count;
-  } else if (recurrence?.until) {
+    count = normalized.ends.count;
+  } else if (normalized?.ends?.type === "on") {
     endMode = "on";
-    until = formatDateInput(recurrence.until);
+    until = formatDateInput(normalized.ends.until);
   }
 
+  const freq = normalized?.freq ?? "weekly";
+  const interval = normalized?.interval ?? 1;
+  const draftWeekdays =
+    freq === "weekly"
+      ? byWeekday.length
+        ? byWeekday
+        : [baseWeekday]
+      : byWeekday;
+
   return {
-    freq: recurrence?.freq ?? "weekly",
-    interval: recurrence?.interval ?? 1,
-    byweekday: byweekday.length ? byweekday : [baseWeekday],
-    bymonthday: bymonthday.length ? bymonthday : [baseMonthday],
-    bysetpos: recurrence?.bysetpos ?? null,
+    freq,
+    interval,
+    byWeekday: draftWeekdays,
     endMode,
     until,
     count,
@@ -549,37 +552,28 @@ function buildRecurrenceFromDraft(
   const recurrence: TaskCalendarRecurrence = {
     freq: draft.freq,
     interval,
+    ends: { type: "never" },
   };
 
   if (draft.freq === "weekly") {
-    const days = normalizeNumberArray(draft.byweekday);
-    recurrence.byweekday = days.length ? days : [base.getDay()];
+    const days = normalizeNumberArray(draft.byWeekday);
+    recurrence.byWeekday = days.length ? days : [base.getDay()];
   }
 
   if (draft.freq === "monthly") {
-    const days = normalizeNumberArray(draft.byweekday);
-    if (draft.bysetpos) {
-      recurrence.byweekday = days.length ? days : [base.getDay()];
-      recurrence.bysetpos = draft.bysetpos;
-    } else {
-      const monthDays = normalizeNumberArray(draft.bymonthday);
-      recurrence.bymonthday = monthDays.length
-        ? monthDays
-        : [base.getDate()];
+    const days = normalizeNumberArray(draft.byWeekday);
+    if (days.length) {
+      recurrence.byWeekday = [days[0]];
     }
   }
 
-  if (draft.freq === "yearly") {
-    const monthDays = normalizeNumberArray(draft.bymonthday);
-    recurrence.bymonthday = monthDays.length
-      ? monthDays
-      : [base.getDate()];
-  }
-
   if (draft.endMode === "on" && draft.until) {
-    recurrence.until = draft.until;
+    recurrence.ends = { type: "on", until: draft.until };
   } else if (draft.endMode === "after") {
-    recurrence.count = Math.max(1, Math.round(draft.count || 1));
+    recurrence.ends = {
+      type: "after",
+      count: Math.max(1, Math.round(draft.count || 1)),
+    };
   }
 
   return recurrence;
@@ -784,7 +778,8 @@ function expandRecurringEventsForWeek(
   let remaining = maxOccurrences;
 
   events.forEach((eventItem) => {
-    if (!eventItem.recurrence) {
+    const normalized = normalizeRecurrenceInput(eventItem.recurrence);
+    if (!normalized) {
       expanded.push(eventItem);
       return;
     }
@@ -801,11 +796,18 @@ function expandRecurringEventsForWeek(
     const durationMs = baseEnd.getTime() - baseStart.getTime();
     if (durationMs <= 0) return;
 
-    const recurrence = eventItem.recurrence;
+    const recurrence = normalized;
     const interval = Math.max(1, recurrence.interval || 1);
-    const until = parseUntilDate(recurrence.until);
+    const ends = recurrence.ends;
+    const until =
+      ends.type === "on" ? parseUntilDate(ends.until) : null;
     const weekdays = normalizeRecurrenceWeekdays(recurrence, baseStart);
-    const monthdays = normalizeNumberArray(recurrence.bymonthday);
+    const monthlyWeekdays = normalizeNumberArray(recurrence.byWeekday);
+    const hasMonthlyWeekday =
+      Array.isArray(recurrence.byWeekday) && recurrence.byWeekday.length > 0;
+    const monthlyWeekdayValue =
+      monthlyWeekdays[0] ?? baseStart.getDay();
+    const monthlySetpos = getNthWeekdayInMonth(baseStart);
 
     weekDays.forEach((day) => {
       if (remaining <= 0) return;
@@ -815,6 +817,7 @@ function expandRecurringEventsForWeek(
         : applyTimeToDate(dayStart, baseStart);
       if (candidateStart.getTime() < baseStart.getTime()) return;
       if (until && candidateStart.getTime() > until.getTime()) return;
+      if (ends.type === "on" && !until) return;
 
       let occurrenceIndex: number | null = null;
       if (recurrence.freq === "daily") {
@@ -831,39 +834,33 @@ function expandRecurringEventsForWeek(
           weekdays,
         );
       } else if (recurrence.freq === "monthly") {
-        if (recurrence.bysetpos && weekdays.length) {
+        if (hasMonthlyWeekday) {
           occurrenceIndex = getMonthlyBysetposOccurrenceIndex(
             baseStart,
             candidateStart,
             interval,
-            weekdays[0],
-            recurrence.bysetpos,
+            monthlyWeekdayValue,
+            monthlySetpos,
           );
         } else {
-          const monthDays = monthdays.length
-            ? monthdays
-            : [baseStart.getDate()];
           occurrenceIndex = getMonthlyMonthdayOccurrenceIndex(
             baseStart,
             candidateStart,
             interval,
-            monthDays,
+            [baseStart.getDate()],
           );
         }
       } else if (recurrence.freq === "yearly") {
-        const yearDays = monthdays.length
-          ? monthdays
-          : [baseStart.getDate()];
         occurrenceIndex = getYearlyOccurrenceIndex(
           baseStart,
           candidateStart,
           interval,
-          yearDays,
+          [baseStart.getDate()],
         );
       }
 
       if (!occurrenceIndex) return;
-      if (recurrence.count && occurrenceIndex > recurrence.count) return;
+      if (ends.type === "after" && occurrenceIndex > ends.count) return;
 
       const occurrenceEnd = new Date(
         candidateStart.getTime() + durationMs,
@@ -998,6 +995,7 @@ function mapPersistedEvent(
   const color =
     (colorSourceId ? calendarColorById.get(colorSourceId) : null) ??
     fallbackColor;
+  const normalizedRecurrence = normalizeRecurrenceInput(event.recurrence) ?? null;
   return {
     id: event.id,
     title: event.title,
@@ -1009,7 +1007,7 @@ function mapPersistedEvent(
     calendarId,
     description: event.description ?? null,
     eventKind: event.eventKind,
-    recurrence: event.recurrence ?? null,
+    recurrence: normalizedRecurrence,
   };
 }
 
@@ -2702,15 +2700,15 @@ export default function TaskSchedulerCalendar({
     function toggleWeekday(value: number) {
       setRepeatDraft((prev) => {
         if (!prev) return prev;
-        const exists = prev.byweekday.includes(value);
+        const exists = prev.byWeekday.includes(value);
         let nextDays = exists
-          ? prev.byweekday.filter((day) => day !== value)
-          : [...prev.byweekday, value];
+          ? prev.byWeekday.filter((day) => day !== value)
+          : [...prev.byWeekday, value];
         nextDays = normalizeNumberArray(nextDays);
         if (!nextDays.length) {
           nextDays = [fallbackWeekday];
         }
-        return { ...prev, byweekday: nextDays };
+        return { ...prev, byWeekday: nextDays };
       });
     }
 
@@ -2805,13 +2803,19 @@ export default function TaskSchedulerCalendar({
                             onClick={() => {
                               setRepeatDraft((prev) => {
                                 if (!prev) return prev;
-                                const nextWeekdays = prev.byweekday.length
-                                  ? prev.byweekday
-                                  : [fallbackWeekday];
+                                if (unit.value === prev.freq) {
+                                  return prev;
+                                }
+                                const nextWeekdays =
+                                  unit.value === "weekly"
+                                    ? prev.byWeekday.length
+                                      ? prev.byWeekday
+                                      : [fallbackWeekday]
+                                    : [];
                                 return {
                                   ...prev,
                                   freq: unit.value,
-                                  byweekday: nextWeekdays,
+                                  byWeekday: nextWeekdays,
                                 };
                               });
                               setRepeatUnitOpen(false);
@@ -2839,7 +2843,7 @@ export default function TaskSchedulerCalendar({
                 </p>
                 <div className="mt-2 grid grid-cols-7 gap-2">
                   {WEEKDAY_CHIPS.map((day) => {
-                    const isSelected = repeatDraft.byweekday.includes(day.value);
+                    const isSelected = repeatDraft.byWeekday.includes(day.value);
                     return (
                       <button
                         key={day.label}
