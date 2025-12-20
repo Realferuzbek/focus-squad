@@ -953,43 +953,14 @@ export default function TaskWorkspaceShell() {
   }
   function renderHomeView() {
     return (
-      <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#1d1d30] via-[#121223] to-[#090912] p-8 shadow-[0_25px_70px_rgba(8,8,16,0.55)]">
-        <p className="text-sm uppercase tracking-[0.3em] text-fuchsia-200/70">
-          Welcome back
+      <div className="rounded-3xl border border-white/10 bg-[#0c0c16] p-6">
+        <p className="text-xs uppercase tracking-[0.35em] text-white/40">
+          Home
         </p>
-        <h2 className="mt-3 text-3xl font-semibold">Student Control Center</h2>
-        <p className="mt-3 max-w-2xl text-base text-zinc-300">
-          Plan your study sessions, group projects, and personal rituals in one
-          calm space. This dashboard will soon power streak tracking, calendar
-          sync, and deep work reminders.
+        <h2 className="mt-2 text-xl font-semibold">Planner overview</h2>
+        <p className="mt-2 text-sm text-zinc-400">
+          Select a section from the left to get started.
         </p>
-
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          {[
-            {
-              title: "Workspace Shell",
-              detail: "Just launched",
-            },
-            {
-              title: "Private Boards",
-              detail: "Add placeholder pages",
-            },
-            {
-              title: "Settings",
-              detail: "Prep for themes & automations",
-            },
-          ].map((item) => (
-            <div
-              key={item.title}
-              className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-200"
-            >
-              <p className="text-xs uppercase tracking-[0.28em] text-white/70">
-                {item.detail}
-              </p>
-              <p className="mt-2 text-lg font-medium">{item.title}</p>
-            </div>
-          ))}
-        </div>
       </div>
     );
   }
@@ -1235,56 +1206,45 @@ export default function TaskWorkspaceShell() {
           </div>
         </div>
       ) : (
-        <div className="mx-auto flex w-full max-w-6xl flex-col px-4 py-10">
-          <header className="rounded-[32px] border border-white/10 bg-gradient-to-r from-[#1f1f33] via-[#151524] to-[#0a0a14] p-6 shadow-[0_25px_70px_rgba(11,11,20,.55)]">
-            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-2xl">
-                  🎓
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.45em] text-fuchsia-200/80">
-                    Workspace
-                  </p>
-                  <h1 className="mt-1 text-2xl font-semibold">
-                    Study Workspace
-                  </h1>
-                  <p className="text-sm text-zinc-400">
-                    Minimal shell for the Task Scheduler feature.
-                  </p>
-                </div>
+        <div className="flex h-[100dvh] flex-col overflow-hidden">
+          <div className="border-b border-white/10 bg-[#07070d]">
+            <div className="mx-auto flex w-full max-w-6xl items-center gap-4 px-4 py-3">
+              <button
+                type="button"
+                aria-label="Toggle sidebar"
+                className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:bg-white/10"
+              >
+                Menu
+              </button>
+              <div className="flex-1 text-center text-lg font-semibold">
+                Planner
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-300">
-                Built for calm focus. No calendar, tasks, or AI yet—just a home
-                base to grow from.
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {surfaceTabs.map((surface) => {
+                  const isActive = surface.id === activeSurface;
+                  return (
+                    <button
+                      key={surface.id}
+                      onClick={() => setActiveSurface(surface.id)}
+                      className={classNames(
+                        "rounded-xl border px-3 py-2 text-left transition",
+                        isActive
+                          ? "border-[#9b7bff] bg-white/10 text-white"
+                          : "border-white/10 text-white/70 hover:border-white/30 hover:text-white",
+                      )}
+                    >
+                      <p className="text-sm font-semibold">{surface.label}</p>
+                      <p className="text-xs text-white/60">{surface.detail}</p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          </header>
+          </div>
 
-          <div className="mt-8">
-            <div className="flex flex-wrap gap-3">
-              {surfaceTabs.map((surface) => {
-                const isActive = surface.id === activeSurface;
-                return (
-                  <button
-                    key={surface.id}
-                    onClick={() => setActiveSurface(surface.id)}
-                    className={classNames(
-                      "rounded-2xl border px-5 py-3 text-left transition",
-                      isActive
-                        ? "border-[#9b7bff] bg-white/10 text-white"
-                        : "border-white/10 text-white/70 hover:border-white/30 hover:text-white",
-                    )}
-                  >
-                    <p className="text-sm font-semibold">{surface.label}</p>
-                    <p className="text-xs text-white/60">{surface.detail}</p>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-6 flex flex-1 flex-col gap-6 lg:flex-row">
-              <nav className="w-full lg:w-64">
+          <div className="flex-1 min-h-0">
+            <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4 px-4 py-4 lg:flex-row">
+              <aside className="min-h-0 lg:w-64 lg:shrink-0 lg:overflow-y-auto">
                 <div className="rounded-3xl border border-white/10 bg-[#0c0c16] p-4">
                   <p className="text-xs uppercase tracking-[0.4em] text-white/40">
                     Navigate
@@ -1315,9 +1275,22 @@ export default function TaskWorkspaceShell() {
                     })}
                   </div>
                 </div>
-              </nav>
+              </aside>
 
-              <section className="flex-1">{renderActiveSection()}</section>
+              <main className="min-h-0 flex-1 overflow-y-auto">
+                {renderActiveSection()}
+              </main>
+
+              <aside className="min-h-0 lg:w-72 lg:shrink-0 lg:overflow-y-auto">
+                <div className="rounded-3xl border border-white/10 bg-[#0c0c16] p-5">
+                  <p className="text-xs uppercase tracking-[0.35em] text-white/40">
+                    Inspector
+                  </p>
+                  <p className="mt-3 text-sm text-zinc-400">
+                    Select a task or block to see details here.
+                  </p>
+                </div>
+              </aside>
             </div>
           </div>
         </div>
