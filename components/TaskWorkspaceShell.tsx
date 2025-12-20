@@ -4,7 +4,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TaskSchedulerCalendar from "@/components/TaskSchedulerCalendar";
 import PlannerSidebar from "@/components/task-scheduler/PlannerSidebar";
-import PlannerInspector from "@/components/task-scheduler/PlannerInspector";
 import {
   ArrowUpDown,
   Calendar as CalendarIcon,
@@ -1710,15 +1709,15 @@ export default function TaskWorkspaceShell() {
 
   function renderPrivateView() {
     return (
-      <section className="flex min-h-full flex-col gap-5 px-1 pb-6 pt-2">
+      <section className="flex min-h-full flex-col gap-6 px-3 pb-8 pt-2">
         {activePrivateItem ? (
           <>
-            <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 text-lg">
-                  {kindMeta[activePrivateItem.kind].icon}
-                </div>
-                <div className="min-w-0">
+            <div className="flex flex-col gap-3 border-b border-white/10 pb-3">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-white/5 text-xl">
+                    {kindMeta[activePrivateItem.kind].icon}
+                  </div>
                   <input
                     value={listTitleDraft}
                     onChange={(event) => setListTitleDraft(event.target.value)}
@@ -1729,49 +1728,49 @@ export default function TaskWorkspaceShell() {
                       }
                     }}
                     disabled={savingListTitle}
-                    className="w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 text-2xl font-semibold text-white outline-none focus:border-white/30"
+                    className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-2xl font-semibold leading-tight text-white outline-none focus:border-white/30 sm:text-3xl"
                   />
-                  <p className="mt-1 text-xs uppercase tracking-[0.3em] text-white/40">
-                    Private / {kindMeta[activePrivateItem.kind].label} /{" "}
-                    {activeTasks.length} tasks
-                  </p>
+                </div>
+                <div className="flex items-center gap-1 text-white/60">
+                  <button
+                    type="button"
+                    className="rounded-md border border-white/10 bg-transparent p-2 transition hover:bg-white/5 hover:text-white"
+                    aria-label="Share"
+                    title="Share"
+                  >
+                    <Share2 className="h-4 w-4" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md border border-white/10 bg-transparent p-2 transition hover:bg-white/5 hover:text-white"
+                    aria-label="Favorite"
+                    title="Favorite"
+                  >
+                    <Star className="h-4 w-4" aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md border border-white/10 bg-transparent p-2 transition hover:bg-white/5 hover:text-white"
+                    aria-label="More options"
+                    title="More"
+                  >
+                    <MoreHorizontal className="h-4 w-4" aria-hidden />
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-white/60">
-                <button
-                  type="button"
-                  className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
-                  aria-label="Share"
-                  title="Share"
-                >
-                  <Share2 className="h-4 w-4" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
-                  aria-label="Favorite"
-                  title="Favorite"
-                >
-                  <Star className="h-4 w-4" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
-                  aria-label="More options"
-                  title="More"
-                >
-                  <MoreHorizontal className="h-4 w-4" aria-hidden />
-                </button>
-              </div>
+              <p className="text-[11px] uppercase tracking-[0.32em] text-white/40">
+                Private / {kindMeta[activePrivateItem.kind].label} /{" "}
+                {activeTasks.length} tasks
+              </p>
             </div>
 
             {activePrivateItem.kind === "task_list" ? (
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      className="flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10"
+                      className="flex h-7 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2.5 text-xs font-medium text-white/80 transition hover:bg-white/10"
                     >
                       <ListIcon className="h-4 w-4" aria-hidden />
                       Table
@@ -1780,10 +1779,10 @@ export default function TaskWorkspaceShell() {
                         aria-hidden
                       />
                     </button>
-                    <div className="flex items-center gap-1 text-white/60">
+                    <div className="flex items-center gap-1.5 text-white/60">
                       <button
                         type="button"
-                        className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
+                        className="rounded-md border border-white/10 bg-transparent p-1.5 transition hover:bg-white/5 hover:text-white"
                         aria-label="Filter"
                         title="Filter"
                       >
@@ -1791,7 +1790,7 @@ export default function TaskWorkspaceShell() {
                       </button>
                       <button
                         type="button"
-                        className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
+                        className="rounded-md border border-white/10 bg-transparent p-1.5 transition hover:bg-white/5 hover:text-white"
                         aria-label="Sort"
                         title="Sort"
                       >
@@ -1799,7 +1798,7 @@ export default function TaskWorkspaceShell() {
                       </button>
                       <button
                         type="button"
-                        className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
+                        className="rounded-md border border-white/10 bg-transparent p-1.5 transition hover:bg-white/5 hover:text-white"
                         aria-label="Search"
                         title="Search"
                       >
@@ -1807,7 +1806,7 @@ export default function TaskWorkspaceShell() {
                       </button>
                       <button
                         type="button"
-                        className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
+                        className="rounded-md border border-white/10 bg-transparent p-1.5 transition hover:bg-white/5 hover:text-white"
                         aria-label="Properties"
                         title="Properties"
                       >
@@ -1817,7 +1816,7 @@ export default function TaskWorkspaceShell() {
                   </div>
                   <button
                     type="button"
-                    className="flex items-center gap-2 rounded-md bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20"
+                    className="flex h-7 items-center gap-2 rounded-md border border-white/10 bg-white/15 px-3 text-xs font-semibold text-white transition hover:bg-white/25"
                   >
                     New
                     <ChevronDown className="h-4 w-4 text-white/70" aria-hidden />
@@ -1969,7 +1968,7 @@ export default function TaskWorkspaceShell() {
       ) : (
         <div className="flex h-[100dvh] flex-col overflow-y-auto lg:overflow-hidden">
           <div className="flex-1 min-h-0">
-            <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4 lg:h-full lg:flex-row">
+            <div className="flex w-full flex-col gap-4 px-4 py-4 lg:h-full lg:flex-row">
               <aside className="min-h-0 lg:w-64 lg:shrink-0 lg:overflow-y-auto">
                 <PlannerSidebar
                   navItems={navItems}
@@ -1996,19 +1995,6 @@ export default function TaskWorkspaceShell() {
               <main className="min-h-0 flex-1 lg:overflow-y-auto">
                 {renderActiveSection()}
               </main>
-
-              <aside className="min-h-0 lg:w-72 lg:shrink-0 lg:overflow-y-auto">
-                <PlannerInspector
-                  selectedEntity={selectedEntity}
-                  tasks={allTasks}
-                  calendars={calendars}
-                  calendarsLoading={calendarsLoading}
-                  taskSavingIds={taskSavingIds}
-                  onUpdateTask={handleUpdateTask}
-                  onScheduleTask={handleScheduleJump}
-                  onDeleteTask={handleDeleteTask}
-                />
-              </aside>
             </div>
           </div>
         </div>
@@ -2087,9 +2073,9 @@ function TaskListPane({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
           {[
             { id: "all", label: "All" },
             { id: "assignments", label: "Assignments" },
@@ -2104,10 +2090,10 @@ function TaskListPane({
               type="button"
               onClick={() => onViewChange(tab.id as TaskViewFilter)}
               className={classNames(
-                "rounded-md border px-2.5 py-1 text-xs font-medium transition",
+                "rounded-md border px-2 py-0.5 text-[11px] font-medium transition",
                 view === tab.id
                   ? "border-white/30 bg-white/10 text-white"
-                  : "border-white/10 text-white/60 hover:border-white/30 hover:text-white",
+                  : "border-white/10 text-white/60 hover:border-white/20 hover:bg-white/5 hover:text-white",
               )}
             >
               {tab.label}
@@ -2115,15 +2101,15 @@ function TaskListPane({
           ))}
         </div>
         {loading && (
-          <span className="text-xs uppercase tracking-[0.3em] text-white/40">
+          <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
             Loading...
           </span>
         )}
       </div>
-      <div className="rounded-lg border border-white/10 bg-black/20">
+      <div className="rounded-md border border-white/10 bg-transparent">
         <div className="overflow-x-auto overflow-y-visible [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
           <div className="min-w-[780px]">
-            <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 border-b border-white/10 bg-white/5 px-4 py-2 text-[10px] uppercase tracking-[0.25em] text-white/50">
+            <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 border-b border-white/10 bg-white/5 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/45">
               <span>Status</span>
               <span>Title</span>
               <span>Category</span>
