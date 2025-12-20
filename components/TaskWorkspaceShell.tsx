@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TaskSchedulerCalendar from "@/components/TaskSchedulerCalendar";
 import PlannerSidebar from "@/components/task-scheduler/PlannerSidebar";
 import { Calendar as CalendarIcon, List as ListIcon } from "lucide-react";
@@ -26,6 +26,8 @@ import { generateHabitInstances } from "@/lib/taskSchedulerHabits";
 
 type Section = "home" | "private" | "settings";
 type SurfaceView = "planner" | "calendar";
+type PlannerPage = "home" | "planner" | `privateItem:${string}`;
+type PlannerTab = "today" | "next" | "projects" | "done";
 type TaskViewFilter =
   | "all"
   | "assignments"
@@ -122,6 +124,13 @@ const surfaceTabs: Array<{
     label: "Calendar",
     detail: "Time blocking grid",
   },
+];
+
+const plannerTabs: Array<{ id: PlannerTab; label: string }> = [
+  { id: "today", label: "Today" },
+  { id: "next", label: "Next" },
+  { id: "projects", label: "Projects" },
+  { id: "done", label: "Done" },
 ];
 
 const kindMeta: Record<
@@ -235,9 +244,39 @@ function getDefaultCalendarId(calendars: TaskCalendar[]) {
     null
   );
 }
+
+function formatTimeLabel(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatDateLabel(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatEventRange(event: TaskCalendarEvent) {
+  if (event.isAllDay) return "All day";
+  const start = formatTimeLabel(event.start);
+  const end = formatTimeLabel(event.end);
+  if (start && end) return `${start} - ${end}`;
+  return start || end;
+}
+
 export default function TaskWorkspaceShell() {
   const [activeSection, setActiveSection] = useState<Section>("home");
   const [activeSurface, setActiveSurface] = useState<SurfaceView>("planner");
+  const [plannerPage, setPlannerPage] = useState<PlannerPage>("home");
+  const [plannerTab, setPlannerTab] = useState<PlannerTab>("today");
+  const privateSelectionRef = useRef(false);
   const [privateItems, setPrivateItems] = useState<TaskPrivateItem[]>([]);
   const [privateLoading, setPrivateLoading] = useState(true);
   const [privateError, setPrivateError] = useState<string | null>(null);
@@ -362,6 +401,11 @@ export default function TaskWorkspaceShell() {
     return base;
   }, []);
   const todayKey = useMemo(() => toDateKey(today), [today]);
+  const todayEnd = useMemo(() => {
+    const end = new Date(today);
+    end.setHours(23, 59, 59, 999);
+    return end;
+  }, [today]);
   const weekStart = useMemo(() => getStartOfWeek(today), [today]);
   const weekEnd = useMemo(() => {
     const next = new Date(weekStart);
@@ -488,6 +532,88 @@ export default function TaskWorkspaceShell() {
     weekDateKeySet,
     weekEnd,
     weekStart,
+  ]);
+
+  const tasksWithFutureEvents = useMemo(() => {
+    const set = new Set<string>();
+    events.forEach((event) => {
+      if (!event.taskId) return;
+      const start = new Date(event.start);
+      if (Number.isNaN(start.getTime())) return;
+      if (start > todayEnd) {
+        set.add(event.taskId);
+      }
+    });
+    return set;
+  }, [events, todayEnd]);
+
+  const upcomingEvents = useMemo(() => {
+    const now = new Date();
+    return events
+      .filter((event) => {
+        const end = new Date(event.end);
+        if (Number.isNaN(end.getTime())) return false;
+        return end >= now;
+      })
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+  }, [events]);
+
+  const nextEvents = useMemo(
+    () => upcomingEvents.slice(0, 3),
+    [upcomingEvents],
+  );
+
+  const incompleteTasks = useMemo(
+    () => allTasks.filter((task) => task.status !== "done"),
+    [allTasks],
+  );
+
+  const topTasks = useMemo(
+    () => incompleteTasks.slice(0, 3),
+    [incompleteTasks],
+  );
+
+  const plannerTasks = useMemo(() => {
+    const baseTasks = plannerTab === "done" ? allTasks : incompleteTasks;
+    return baseTasks.filter((task) => {
+      switch (plannerTab) {
+        case "today": {
+          const dueToday = task.dueDate === todayKey;
+          const scheduledToday = intersectsDayRange(
+            task.scheduledStart,
+            task.scheduledEnd,
+            today,
+          );
+          return dueToday || scheduledToday || tasksWithEventsToday.has(task.id);
+        }
+        case "next": {
+          const dueLater = task.dueDate ? task.dueDate > todayKey : false;
+          const scheduledLater = task.scheduledStart
+            ? new Date(task.scheduledStart) > todayEnd
+            : false;
+          return (
+            dueLater ||
+            scheduledLater ||
+            tasksWithFutureEvents.has(task.id)
+          );
+        }
+        case "projects":
+          return task.category === "project";
+        case "done":
+          return task.status === "done";
+        default:
+          return true;
+      }
+    });
+  }, [
+    allTasks,
+    incompleteTasks,
+    plannerTab,
+    tasksWithEventsToday,
+    tasksWithFutureEvents,
+    today,
+    todayEnd,
+    todayKey,
   ]);
 
   useEffect(() => {
@@ -632,6 +758,9 @@ export default function TaskWorkspaceShell() {
   }
 
   async function handleCreatePrivateItem() {
+    if (activeSection !== "private") {
+      privateSelectionRef.current = true;
+    }
     try {
       const res = await csrfFetch("/api/task-scheduler/private-items", {
         method: "POST",
@@ -646,6 +775,7 @@ export default function TaskWorkspaceShell() {
       const item: TaskPrivateItem = data.item;
       setPrivateItems((prev) => [...prev, item]);
       setActivePrivateItemId(item.id);
+      setPlannerPage(`privateItem:${item.id}`);
       setListTitleDraft(item.title);
     } catch (error) {
       alert(error instanceof Error ? error.message : "Failed to create list");
@@ -952,17 +1082,229 @@ export default function TaskWorkspaceShell() {
       );
     }
   }
+
+  const handleSectionChange = useCallback((section: Section) => {
+    setActiveSection(section);
+    setPlannerPage((prev) => {
+      const shouldPreservePrivate =
+        section === "private" &&
+        privateSelectionRef.current &&
+        prev.startsWith("privateItem:");
+      privateSelectionRef.current = false;
+      if (section === "home") return "home";
+      if (section === "private") {
+        return shouldPreservePrivate ? prev : "planner";
+      }
+      return prev;
+    });
+  }, []);
+
+  const handleSelectPrivateItem = useCallback(
+    (id: string) => {
+      if (activeSection !== "private") {
+        privateSelectionRef.current = true;
+      }
+      setActivePrivateItemId(id);
+      setPlannerPage(`privateItem:${id}`);
+    },
+    [activeSection],
+  );
+
   function renderHomeView() {
     return (
-      <div className="rounded-3xl border border-white/10 bg-[#0c0c16] p-6">
-        <p className="text-xs uppercase tracking-[0.35em] text-white/40">
-          Home
-        </p>
-        <h2 className="mt-2 text-xl font-semibold">Planner overview</h2>
-        <p className="mt-2 text-sm text-zinc-400">
-          Select a section from the left to get started.
-        </p>
+      <div className="flex flex-col gap-6">
+        <section className="rounded-3xl border border-white/10 bg-[#0c0c16] p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.35em] text-white/40">
+                Today
+              </p>
+              <h2 className="mt-2 text-xl font-semibold">
+                Your focus snapshot
+              </h2>
+              <p className="mt-2 text-sm text-zinc-400">
+                Keep an eye on what is scheduled next.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <p className="text-sm font-semibold">Next scheduled blocks</p>
+            {eventsLoading ? (
+              <p className="mt-3 text-sm text-white/60">
+                Loading schedule...
+              </p>
+            ) : nextEvents.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {nextEvents.map((event) => {
+                  const dateLabel = formatDateLabel(event.start);
+                  const timeLabel = formatEventRange(event);
+                  const meta = [dateLabel, timeLabel]
+                    .filter(Boolean)
+                    .join(" | ");
+                  return (
+                    <div
+                      key={event.id}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                    >
+                      <p className="text-sm font-semibold text-white">
+                        {event.title}
+                      </p>
+                      <p className="mt-1 text-xs text-white/50">
+                        {meta || "Scheduled block"}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-3 rounded-2xl border border-dashed border-white/15 bg-black/20 px-4 py-5 text-sm text-white/60">
+                No scheduled blocks yet.
+              </div>
+            )}
+          </div>
+        </section>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="rounded-3xl border border-white/10 bg-[#0c0c16] p-6">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.35em] text-white/40">
+                Top tasks
+              </p>
+              {!allTasksLoaded && (
+                <span className="text-xs uppercase tracking-[0.3em] text-white/40">
+                  Loading...
+                </span>
+              )}
+            </div>
+            {!allTasksLoaded ? (
+              <p className="mt-3 text-sm text-white/60">Loading tasks...</p>
+            ) : topTasks.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {topTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                  >
+                    <p className="text-sm font-semibold text-white">
+                      {task.title}
+                    </p>
+                    <p className="mt-1 text-xs text-white/50">
+                      {task.dueDate ? `Due ${task.dueDate}` : "No due date"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-3 rounded-2xl border border-dashed border-white/15 bg-black/20 px-4 py-5 text-sm text-white/60">
+                No tasks yet.
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-3xl border border-white/10 bg-[#0c0c16] p-6">
+            <p className="text-xs uppercase tracking-[0.35em] text-white/40">
+              Habits today
+            </p>
+            <div className="mt-3 rounded-2xl border border-dashed border-white/15 bg-black/20 px-4 py-5 text-sm text-white/60">
+              Habit tracking lands in step 7.
+            </div>
+          </section>
+        </div>
       </div>
+    );
+  }
+
+  function renderPlannerView() {
+    return (
+      <section className="rounded-3xl border border-white/10 bg-[#0c0c16] p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.35em] text-white/40">
+              Planner
+            </p>
+            <h2 className="mt-2 text-xl font-semibold">Tasks database</h2>
+            <p className="mt-2 text-sm text-zinc-400">
+              Sort by what matters most right now.
+            </p>
+          </div>
+          {!allTasksLoaded && (
+            <span className="text-xs uppercase tracking-[0.3em] text-white/40">
+              Loading...
+            </span>
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2 text-sm">
+          {plannerTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setPlannerTab(tab.id)}
+              className={classNames(
+                "rounded-full border px-3 py-1",
+                plannerTab === tab.id
+                  ? "border-white bg-white/10 text-white"
+                  : "border-white/10 text-white/70 hover:border-white/30",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          <div className="min-w-[640px] space-y-2">
+            <div className="grid grid-cols-[1.5fr,140px,140px,140px,120px] gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.2em] text-white/50">
+              <span>Title</span>
+              <span>Status</span>
+              <span>Estimate</span>
+              <span>Due</span>
+              <span className="text-right">Action</span>
+            </div>
+
+            {!allTasksLoaded ? (
+              <p className="rounded-xl border border-dashed border-white/15 bg-black/20 px-4 py-6 text-sm text-white/60">
+                Loading tasks...
+              </p>
+            ) : plannerTasks.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-white/15 bg-black/20 px-4 py-6 text-sm text-white/60">
+                No tasks found for this view.
+              </p>
+            ) : (
+              plannerTasks.map((task) => {
+                const estimateLabel = task.estimatedMinutes
+                  ? `${task.estimatedMinutes} min`
+                  : "No estimate";
+                const dueLabel = task.dueDate || "No due date";
+                return (
+                  <div
+                    key={task.id}
+                    className={classNames(
+                      "grid grid-cols-[1.5fr,140px,140px,140px,120px] items-center gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/80",
+                      task.status === "done" && "text-white/40",
+                    )}
+                  >
+                    <span className="font-semibold">{task.title}</span>
+                    <span>{statusLabels[task.status]}</span>
+                    <span>{estimateLabel}</span>
+                    <span>{dueLabel}</span>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleScheduleJump(task)}
+                        className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-white/30 hover:text-white"
+                      >
+                        Schedule
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </section>
     );
   }
 
@@ -1083,9 +1425,11 @@ export default function TaskWorkspaceShell() {
   }
 
   function renderActiveSection() {
+    if (activeSection === "settings") return renderSettingsView();
     if (activeSection === "home") return renderHomeView();
-    if (activeSection === "private") return renderPrivateView();
-    return renderSettingsView();
+    if (plannerPage === "planner") return renderPlannerView();
+    if (plannerPage.startsWith("privateItem:")) return renderPrivateView();
+    return renderHomeView();
   }
 
   return (
@@ -1143,55 +1487,20 @@ export default function TaskWorkspaceShell() {
         </div>
       ) : (
         <div className="flex h-[100dvh] flex-col overflow-hidden">
-          <div className="border-b border-white/10 bg-[#07070d]">
-            <div className="mx-auto flex w-full max-w-6xl items-center gap-4 px-4 py-3">
-              <button
-                type="button"
-                aria-label="Toggle sidebar"
-                className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:bg-white/10"
-              >
-                Menu
-              </button>
-              <div className="flex-1 text-center text-lg font-semibold">
-                Planner
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {surfaceTabs.map((surface) => {
-                  const isActive = surface.id === activeSurface;
-                  return (
-                    <button
-                      key={surface.id}
-                      onClick={() => setActiveSurface(surface.id)}
-                      className={classNames(
-                        "rounded-xl border px-3 py-2 text-left transition",
-                        isActive
-                          ? "border-[#9b7bff] bg-white/10 text-white"
-                          : "border-white/10 text-white/70 hover:border-white/30 hover:text-white",
-                      )}
-                    >
-                      <p className="text-sm font-semibold">{surface.label}</p>
-                      <p className="text-xs text-white/60">{surface.detail}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
           <div className="flex-1 min-h-0">
             <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4 px-4 py-4 lg:flex-row">
               <aside className="min-h-0 lg:w-64 lg:shrink-0 lg:overflow-y-auto">
                 <PlannerSidebar
                   navItems={navItems}
                   activeSection={activeSection}
-                  onSectionChange={setActiveSection}
+                  onSectionChange={handleSectionChange}
                   activeSurface={activeSurface}
                   onSurfaceChange={setActiveSurface}
                   privateItems={privateItems}
                   privateLoading={privateLoading}
                   privateError={privateError}
                   activePrivateItemId={activePrivateItemId}
-                  onSelectPrivateItem={setActivePrivateItemId}
+                  onSelectPrivateItem={handleSelectPrivateItem}
                   onAddPrivateItem={handleCreatePrivateItem}
                   kindMeta={kindMeta}
                   calendars={calendars}
