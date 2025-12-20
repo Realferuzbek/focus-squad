@@ -38,6 +38,24 @@
   }
 }
 
+.planner-sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+.planner-sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.planner-sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.planner-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+}
+.planner-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
 /* Composer should not show resize handles or number spinners ever */
 .chat-input {
   resize: none;

@@ -5,19 +5,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TaskSchedulerCalendar from "@/components/TaskSchedulerCalendar";
 import PlannerSidebar from "@/components/task-scheduler/PlannerSidebar";
 import {
-  ArrowUpDown,
   Calendar as CalendarIcon,
   ChevronDown,
-  Filter,
   List as ListIcon,
-  Lock,
   MoreHorizontal,
   Plus,
-  Search,
   Share2,
-  SlidersHorizontal,
   Star,
-  Zap,
 } from "lucide-react";
 import { csrfFetch } from "@/lib/csrf-client";
 import {
@@ -1733,14 +1727,6 @@ export default function TaskWorkspaceShell() {
               <span className="truncate text-sm font-medium text-white/60">
                 {privateTitle}
               </span>
-              <button
-                type="button"
-                className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/60 transition hover:bg-white/10"
-              >
-                <Lock className="h-3 w-3" aria-hidden />
-                Private
-                <ChevronDown className="h-3 w-3 text-white/50" aria-hidden />
-              </button>
             </div>
             <div className="flex items-center gap-1 text-white/50">
               <button
@@ -1770,20 +1756,6 @@ export default function TaskWorkspaceShell() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-xs text-white/50">
-            {["Add icon", "Add cover", "Verify", "Add description"].map(
-              (label) => (
-                <button
-                  key={label}
-                  type="button"
-                  className="rounded-md px-1 py-0.5 transition hover:text-white/70"
-                >
-                  {label}
-                </button>
-              ),
-            )}
-          </div>
-
           <input
             value={listTitleDraft || activePrivateItem.title || ""}
             onChange={(event) => setListTitleDraft(event.target.value)}
@@ -1799,7 +1771,7 @@ export default function TaskWorkspaceShell() {
 
           {activePrivateItem.kind === "task_list" ? (
             <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   className="flex h-7 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2.5 text-xs font-medium text-white/80 transition hover:bg-white/10"
@@ -1811,60 +1783,6 @@ export default function TaskWorkspaceShell() {
                     aria-hidden
                   />
                 </button>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 text-white/60">
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 transition hover:bg-white/5 hover:text-white"
-                      aria-label="Filter"
-                      title="Filter"
-                    >
-                      <Filter className="h-4 w-4" aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 transition hover:bg-white/5 hover:text-white"
-                      aria-label="Sort"
-                      title="Sort"
-                    >
-                      <ArrowUpDown className="h-4 w-4" aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 transition hover:bg-white/5 hover:text-white"
-                      aria-label="Lightning"
-                      title="Lightning"
-                    >
-                      <Zap className="h-4 w-4" aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 transition hover:bg-white/5 hover:text-white"
-                      aria-label="Search"
-                      title="Search"
-                    >
-                      <Search className="h-4 w-4" aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 transition hover:bg-white/5 hover:text-white"
-                      aria-label="Properties"
-                      title="Properties"
-                    >
-                      <SlidersHorizontal className="h-4 w-4" aria-hidden />
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    className="flex h-7 items-center gap-2 rounded-md border border-white/10 bg-white/10 px-3 text-xs font-semibold text-white transition hover:bg-white/20"
-                  >
-                    New
-                    <ChevronDown
-                      className="h-4 w-4 text-white/70"
-                      aria-hidden
-                    />
-                  </button>
-                </div>
               </div>
               <TaskListPane
                 tasks={filteredTasks}
@@ -2134,17 +2052,53 @@ function TaskListPane({
               )}
             >
               <div />
-              <div className="flex items-center gap-2">
+              <div className="flex h-full items-center gap-2 border-l border-white/10 pl-4">
                 <span className="text-[10px] font-semibold text-white/40">
                   Aa
                 </span>
                 <span>Name</span>
               </div>
-              <div className="border-l border-white/10 pl-4 text-white/40">
+              <div className="flex h-full items-center border-l border-white/10 pl-4 text-white/40">
                 + Add property
               </div>
             </div>
             <div className="divide-y divide-white/10">
+              <div
+                className={classNames(
+                  "group grid items-center px-2 py-1.5 text-sm text-white/60 transition hover:bg-white/5",
+                  PRIVATE_TABLE_GRID,
+                )}
+              >
+                <div className="flex items-center pl-2">
+                  <div className="pointer-events-none flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Plus className="h-3.5 w-3.5 text-white/60" aria-hidden />
+                    <span
+                      className="grid h-3.5 w-3.5 grid-cols-2 gap-[2px]"
+                      aria-hidden
+                    >
+                      <span className="h-1 w-1 rounded-full bg-white/35" />
+                      <span className="h-1 w-1 rounded-full bg-white/35" />
+                      <span className="h-1 w-1 rounded-full bg-white/35" />
+                      <span className="h-1 w-1 rounded-full bg-white/35" />
+                      <span className="h-1 w-1 rounded-full bg-white/35" />
+                      <span className="h-1 w-1 rounded-full bg-white/35" />
+                    </span>
+                    <span className="h-4 w-4 rounded-sm border border-white/30 bg-black/20" />
+                  </div>
+                </div>
+                <div className="flex h-full min-w-0 items-center gap-3 border-l border-white/10 pl-4">
+                  <span className="h-4 w-full" aria-hidden />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    aria-hidden
+                    className="pointer-events-none rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60 opacity-0 transition-opacity group-hover:opacity-100"
+                  >
+                    OPEN
+                  </button>
+                </div>
+                <div className="h-full border-l border-white/10" />
+              </div>
               {tasks.map((task) => (
                 <NotionTaskRow
                   key={task.id}
@@ -2161,7 +2115,7 @@ function TaskListPane({
                 )}
               >
                 <div className="pl-2" />
-                <div className="flex min-w-0 items-center">
+                <div className="flex h-full min-w-0 items-center border-l border-white/10 pl-4">
                   <input
                     value={draft.title}
                     onChange={(event) =>
@@ -2171,7 +2125,7 @@ function TaskListPane({
                     className="min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1 py-1 text-sm text-white/80 outline-none transition placeholder:text-white/40 focus:border-white/10 focus:bg-white/5"
                   />
                 </div>
-                <div className="flex items-center justify-end border-l border-white/10 pl-4">
+                <div className="flex h-full items-center justify-end border-l border-white/10 pl-4">
                   <button
                     type="button"
                     onClick={handleCreate}
@@ -2460,7 +2414,7 @@ function NotionTaskRow({
           <span className="h-4 w-4 rounded-sm border border-white/30 bg-black/20" />
         </div>
       </div>
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex h-full min-w-0 items-center gap-3 border-l border-white/10 pl-4">
         <input
           value={title}
           disabled={saving}

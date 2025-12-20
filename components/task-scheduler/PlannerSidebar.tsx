@@ -1,13 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Calendar as CalendarIcon,
   ChevronDown,
-  Eye,
-  EyeOff,
   List as ListIcon,
-  MoreHorizontal,
 } from "lucide-react";
 import type {
   TaskCalendar,
@@ -84,11 +81,8 @@ export default function PlannerSidebar({
   onSelectPrivateItem,
   onAddPrivateItem,
   kindMeta,
-  calendars,
-  calendarsLoading,
   onCreateCalendar,
   onUpdateCalendar,
-  onDeleteCalendar,
   workspaceTitle,
 }: PlannerSidebarProps) {
   const homeItem = navItems.find((item) => item.id === "home");
@@ -114,38 +108,12 @@ export default function PlannerSidebar({
   const [renameDraft, setRenameDraft] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
   const [renameSaving, setRenameSaving] = useState(false);
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const menuWrapperRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!renameTarget) return;
     setRenameDraft(renameTarget.name);
     setRenameError(null);
   }, [renameTarget]);
-
-  useEffect(() => {
-    if (!menuOpenId) {
-      menuWrapperRef.current = null;
-      return;
-    }
-    function handleClick(event: MouseEvent) {
-      if (menuWrapperRef.current?.contains(event.target as Node)) {
-        return;
-      }
-      setMenuOpenId(null);
-    }
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setMenuOpenId(null);
-      }
-    }
-    window.addEventListener("mousedown", handleClick);
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      window.removeEventListener("mousedown", handleClick);
-      window.removeEventListener("keydown", handleKey);
-    };
-  }, [menuOpenId]);
 
   const handlePrivateSelect = (id: string) => {
     onSelectPrivateItem(id);
@@ -159,13 +127,6 @@ export default function PlannerSidebar({
     if (activeSection !== "private") {
       onSectionChange("private");
     }
-  };
-
-  const handleOpenCreateCalendar = () => {
-    setCreateCalendarName("");
-    setCreateCalendarColor(CALENDAR_COLORS[0]);
-    setCreateCalendarError(null);
-    setCreateCalendarOpen(true);
   };
 
   async function handleCreateCalendarSubmit() {
@@ -213,43 +174,6 @@ export default function PlannerSidebar({
     }
   }
 
-  async function handleToggleVisibility(calendar: TaskCalendar) {
-    try {
-      await onUpdateCalendar(calendar.id, {
-        isVisible: !calendar.isVisible,
-      });
-    } catch (error) {
-      alert(
-        error instanceof Error ? error.message : "Failed to update visibility",
-      );
-    }
-  }
-
-  async function handleSetDefault(calendar: TaskCalendar) {
-    if (calendar.isDefault) return;
-    try {
-      await onUpdateCalendar(calendar.id, { isDefault: true });
-    } catch (error) {
-      alert(
-        error instanceof Error ? error.message : "Failed to set default",
-      );
-    }
-  }
-
-  async function handleDelete(calendar: TaskCalendar) {
-    const confirmed = window.confirm(
-      calendar.isDefault
-        ? "Delete the default calendar? Events will move to another calendar."
-        : "Delete this calendar?",
-    );
-    if (!confirmed) return;
-    try {
-      await onDeleteCalendar(calendar.id);
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to delete calendar");
-    }
-  }
-
   return (
     <>
       <div className="flex h-full flex-col bg-[#0c0c16] px-2.5 py-3 text-sm text-white">
@@ -271,7 +195,7 @@ export default function PlannerSidebar({
           </button>
         </div>
 
-        <div className="mt-3 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+        <div className="planner-sidebar-scroll mt-3 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
           <div>
             <p className="px-2 text-[11px] uppercase tracking-[0.2em] text-white/35">
               Navigation
@@ -381,157 +305,6 @@ export default function PlannerSidebar({
             </button>
           </div>
 
-          <div>
-            <p className="px-2 text-[11px] uppercase tracking-[0.2em] text-white/35">
-              CALENDARS
-            </p>
-            <div className="mt-1 space-y-1">
-              {calendarsLoading ? (
-                <div className="rounded-md bg-white/5 px-2 py-2 text-xs text-white/45">
-                  Loading calendars...
-                </div>
-              ) : calendars.length === 0 ? (
-                <div className="rounded-md bg-white/5 px-2 py-2 text-xs text-white/45">
-                  No calendars yet.
-                </div>
-              ) : (
-                calendars.map((calendar) => {
-                  const isMuted = !calendar.isVisible;
-                  const isMenuOpen = menuOpenId === calendar.id;
-                  return (
-                    <div
-                      key={calendar.id}
-                      className={classNames(
-                        "group flex h-9 items-center gap-2 rounded-md px-2 text-sm transition",
-                        isMuted
-                          ? "text-white/40"
-                          : "text-white/70 hover:bg-white/5 hover:text-white",
-                      )}
-                    >
-                      <span
-                        className={classNames(
-                          "h-2.5 w-2.5 rounded-full",
-                          isMuted && "opacity-40",
-                        )}
-                        style={{ backgroundColor: calendar.color }}
-                        aria-hidden
-                      />
-                      <span className="truncate">{calendar.name}</span>
-                      {calendar.isDefault && (
-                        <span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.2em] text-white/50">
-                          Default
-                        </span>
-                      )}
-                      <div
-                        className={classNames(
-                          "ml-auto flex w-[60px] items-center justify-end gap-1 transition",
-                          isMenuOpen
-                            ? "opacity-100"
-                            : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
-                          isMenuOpen
-                            ? "pointer-events-auto"
-                            : "pointer-events-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto",
-                        )}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleToggleVisibility(calendar)}
-                          className={classNames(
-                            "flex h-7 w-7 items-center justify-center rounded-md text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30",
-                            isMuted && "text-white/40",
-                          )}
-                          aria-label={
-                            calendar.isVisible
-                              ? "Hide calendar"
-                              : "Show calendar"
-                          }
-                          title={
-                            calendar.isVisible
-                              ? "Hide calendar"
-                              : "Show calendar"
-                          }
-                        >
-                          {calendar.isVisible ? (
-                            <Eye className="h-4 w-4" aria-hidden />
-                          ) : (
-                            <EyeOff className="h-4 w-4" aria-hidden />
-                          )}
-                        </button>
-                        <div
-                          ref={(node) => {
-                            if (menuOpenId === calendar.id) {
-                              menuWrapperRef.current = node;
-                            }
-                          }}
-                          className="relative"
-                        >
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setMenuOpenId((prev) =>
-                                prev === calendar.id ? null : calendar.id,
-                              )
-                            }
-                            className="flex h-7 w-7 items-center justify-center rounded-md text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-                            aria-label="Calendar actions"
-                            title="Calendar actions"
-                          >
-                            <MoreHorizontal className="h-4 w-4" aria-hidden />
-                          </button>
-                          {menuOpenId === calendar.id && (
-                            <div className="absolute right-0 top-8 z-20 w-36 rounded-lg border border-white/10 bg-[#10101c] p-1 text-xs text-white shadow-lg">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setMenuOpenId(null);
-                                  setRenameTarget(calendar);
-                                }}
-                                className="w-full rounded-md px-2 py-1.5 text-left transition hover:bg-white/10"
-                              >
-                                Rename
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setMenuOpenId(null);
-                                  handleSetDefault(calendar);
-                                }}
-                                disabled={calendar.isDefault}
-                                className={classNames(
-                                  "w-full rounded-md px-2 py-1.5 text-left transition hover:bg-white/10",
-                                  calendar.isDefault &&
-                                    "cursor-not-allowed text-white/40",
-                                )}
-                              >
-                                Set as default
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setMenuOpenId(null);
-                                  handleDelete(calendar);
-                                }}
-                                className="w-full rounded-md px-2 py-1.5 text-left text-rose-200 transition hover:bg-rose-500/10"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={handleOpenCreateCalendar}
-              className="mt-1 flex h-9 w-full items-center gap-2 rounded-md px-2 text-sm text-white/60 transition hover:bg-white/5 hover:text-white"
-            >
-              + New calendar
-            </button>
-          </div>
         </div>
 
         <div className="mt-auto border-t border-white/5 pt-2">
