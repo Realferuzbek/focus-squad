@@ -6,9 +6,16 @@ import TaskSchedulerCalendar from "@/components/TaskSchedulerCalendar";
 import PlannerSidebar from "@/components/task-scheduler/PlannerSidebar";
 import PlannerInspector from "@/components/task-scheduler/PlannerInspector";
 import {
+  ArrowUpDown,
   Calendar as CalendarIcon,
   ChevronDown,
+  Filter,
   List as ListIcon,
+  MoreHorizontal,
+  Search,
+  Share2,
+  SlidersHorizontal,
+  Star,
 } from "lucide-react";
 import { csrfFetch } from "@/lib/csrf-client";
 import {
@@ -1703,18 +1710,15 @@ export default function TaskWorkspaceShell() {
 
   function renderPrivateView() {
     return (
-      <section className="rounded-3xl border border-white/10 bg-[#0c0c16] p-6">
+      <section className="flex min-h-full flex-col gap-5 px-1 pb-6 pt-2">
         {activePrivateItem ? (
           <>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-2xl">
+            <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="mt-1 flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 text-lg">
                   {kindMeta[activePrivateItem.kind].icon}
                 </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.35em] text-white/50">
-                    {kindMeta[activePrivateItem.kind].label}
-                  </p>
+                <div className="min-w-0">
                   <input
                     value={listTitleDraft}
                     onChange={(event) => setListTitleDraft(event.target.value)}
@@ -1725,17 +1729,100 @@ export default function TaskWorkspaceShell() {
                       }
                     }}
                     disabled={savingListTitle}
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-lg font-semibold text-white outline-none focus:border-white/40"
+                    className="w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 text-2xl font-semibold text-white outline-none focus:border-white/30"
                   />
+                  <p className="mt-1 text-xs uppercase tracking-[0.3em] text-white/40">
+                    Private / {kindMeta[activePrivateItem.kind].label} /{" "}
+                    {activeTasks.length} tasks
+                  </p>
                 </div>
               </div>
-              <div className="text-xs uppercase tracking-[0.3em] text-white/40">
-                {activeTasks.length} tasks
+              <div className="flex items-center gap-1 text-white/60">
+                <button
+                  type="button"
+                  className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
+                  aria-label="Share"
+                  title="Share"
+                >
+                  <Share2 className="h-4 w-4" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
+                  aria-label="Favorite"
+                  title="Favorite"
+                >
+                  <Star className="h-4 w-4" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
+                  aria-label="More options"
+                  title="More"
+                >
+                  <MoreHorizontal className="h-4 w-4" aria-hidden />
+                </button>
               </div>
             </div>
 
             {activePrivateItem.kind === "task_list" ? (
-              <div className="mt-6">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10"
+                    >
+                      <ListIcon className="h-4 w-4" aria-hidden />
+                      Table
+                      <ChevronDown
+                        className="h-4 w-4 text-white/60"
+                        aria-hidden
+                      />
+                    </button>
+                    <div className="flex items-center gap-1 text-white/60">
+                      <button
+                        type="button"
+                        className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
+                        aria-label="Filter"
+                        title="Filter"
+                      >
+                        <Filter className="h-4 w-4" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
+                        aria-label="Sort"
+                        title="Sort"
+                      >
+                        <ArrowUpDown className="h-4 w-4" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
+                        aria-label="Search"
+                        title="Search"
+                      >
+                        <Search className="h-4 w-4" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md border border-white/10 bg-white/5 p-2 transition hover:bg-white/10"
+                        aria-label="Properties"
+                        title="Properties"
+                      >
+                        <SlidersHorizontal className="h-4 w-4" aria-hidden />
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 rounded-md bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20"
+                  >
+                    New
+                    <ChevronDown className="h-4 w-4 text-white/70" aria-hidden />
+                  </button>
+                </div>
                 <TaskListPane
                   tasks={filteredTasks}
                   loading={tasksLoading}
@@ -1751,7 +1838,7 @@ export default function TaskWorkspaceShell() {
                 />
               </div>
             ) : (
-              <div className="mt-8 rounded-2xl border border-dashed border-white/15 bg-black/20 p-5 text-sm text-zinc-400">
+              <div className="rounded-lg border border-dashed border-white/15 bg-black/10 p-5 text-sm text-white/60">
                 Imagine checklists, task boards, and habit charts living here
                 in a few updates. Use the left sidebar to add as many
                 placeholder entries as you want so your structure is ready.
@@ -1759,7 +1846,7 @@ export default function TaskWorkspaceShell() {
             )}
           </>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center text-center text-zinc-400">
+          <div className="flex h-full flex-col items-center justify-center text-center text-white/60">
             <p className="text-lg font-medium">Select a private item</p>
             <p className="mt-2 text-sm">
               We’ll open a blank sheet so you can picture what’s coming.
@@ -2000,101 +2087,100 @@ function TaskListPane({
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-      <div className="flex items-center justify-between">
-        <h4 className="text-lg font-semibold">Student tasks</h4>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {[
+            { id: "all", label: "All" },
+            { id: "assignments", label: "Assignments" },
+            { id: "exams", label: "Exams" },
+            { id: "projects", label: "Projects" },
+            { id: "habits", label: "Habits" },
+            { id: "today", label: "Today" },
+            { id: "week", label: "This week" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onViewChange(tab.id as TaskViewFilter)}
+              className={classNames(
+                "rounded-md border px-2.5 py-1 text-xs font-medium transition",
+                view === tab.id
+                  ? "border-white/30 bg-white/10 text-white"
+                  : "border-white/10 text-white/60 hover:border-white/30 hover:text-white",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
         {loading && (
           <span className="text-xs uppercase tracking-[0.3em] text-white/40">
-            Loading…
+            Loading...
           </span>
         )}
       </div>
-      <div className="mt-3 flex flex-wrap gap-2 text-sm">
-        {[
-          { id: "all", label: "All" },
-          { id: "assignments", label: "Assignments" },
-          { id: "exams", label: "Exams" },
-          { id: "projects", label: "Projects" },
-          { id: "habits", label: "Habits" },
-          { id: "today", label: "Today" },
-          { id: "week", label: "This week" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => onViewChange(tab.id as TaskViewFilter)}
-            className={classNames(
-              "rounded-full border px-3 py-1",
-              view === tab.id
-                ? "border-white bg-white/10 text-white"
-                : "border-white/10 text-white/70 hover:border-white/30",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      <div className="mt-4 overflow-x-auto overflow-y-visible">
-        <div className="min-w-[780px] space-y-2">
-          <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.2em] text-white/50">
-            <span>Status</span>
-            <span>Title</span>
-            <span>Category</span>
-            <span>Priority</span>
-            <span>Due date</span>
-            <span>Start</span>
-            <span>End</span>
-            <span className="text-center">Plan</span>
-          </div>
-
-          {tasks.length === 0 && !loading ? (
-            <p className="rounded-xl border border-dashed border-white/15 bg-transparent px-4 py-6 text-sm text-zinc-400">
-              No tasks yet. Add your first study mission below.
-            </p>
-          ) : (
-            tasks.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                onUpdate={onUpdateTask}
-                onScheduleTask={onScheduleTask}
-                saving={savingTaskIds.has(task.id)}
-                onRepeat={() => onRepeatRequest(task)}
-                onAutoPlan={() => onAutoPlanRequest(task)}
-                onSelect={() => onSelectTask?.(task.id)}
-              />
-            ))
-          )}
-
-          <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 rounded-xl border border-dashed border-white/15 bg-black/10 px-4 py-3 text-sm text-white/80">
-            <span className="text-xs uppercase tracking-[0.3em] text-white/40">
-              New
-            </span>
-            <input
-              value={draft.title}
-              onChange={(event) => setDraft({ title: event.target.value })}
-              placeholder="Add a task title…"
-              className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white outline-none focus:border-white/40"
-            />
-            <span className="col-span-5 text-xs uppercase tracking-[0.3em] text-white/30">
-              Defaults: Assignment · Medium priority · Unscheduled
-            </span>
-            <div className="flex items-center justify-center">
-              <button
-                type="button"
-                onClick={handleCreate}
-                disabled={creating}
-                className="rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-50"
-              >
-                {creating ? "Adding…" : "Add"}
-              </button>
+      <div className="rounded-lg border border-white/10 bg-black/20">
+        <div className="overflow-x-auto overflow-y-visible [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
+          <div className="min-w-[780px]">
+            <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 border-b border-white/10 bg-white/5 px-4 py-2 text-[10px] uppercase tracking-[0.25em] text-white/50">
+              <span>Status</span>
+              <span>Title</span>
+              <span>Category</span>
+              <span>Priority</span>
+              <span>Due date</span>
+              <span>Start</span>
+              <span>End</span>
+              <span className="text-center">Plan</span>
+            </div>
+            <div className="divide-y divide-white/10">
+              {tasks.length === 0 && !loading ? (
+                <div className="px-4 py-6 text-sm text-white/50">
+                  No tasks yet. Add your first study mission below.
+                </div>
+              ) : (
+                tasks.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    onUpdate={onUpdateTask}
+                    onScheduleTask={onScheduleTask}
+                    saving={savingTaskIds.has(task.id)}
+                    onRepeat={() => onRepeatRequest(task)}
+                    onAutoPlan={() => onAutoPlanRequest(task)}
+                    onSelect={() => onSelectTask?.(task.id)}
+                  />
+                ))
+              )}
+              <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 px-4 py-2 text-sm text-white/70 transition hover:bg-white/5">
+                <span className="text-xs uppercase tracking-[0.3em] text-white/40">
+                  + New
+                </span>
+                <input
+                  value={draft.title}
+                  onChange={(event) => setDraft({ title: event.target.value })}
+                  placeholder="Add a task title..."
+                  className="rounded-md border border-white/10 bg-transparent px-2 py-1 text-sm text-white outline-none focus:border-white/40"
+                />
+                <span className="col-span-5 text-xs uppercase tracking-[0.3em] text-white/30">
+                  Defaults: Assignment · Medium priority · Unscheduled
+                </span>
+                <div className="flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={handleCreate}
+                    disabled={creating}
+                    className="rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20 disabled:opacity-50"
+                  >
+                    {creating ? "Adding..." : "Add"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-          {createError && (
-            <p className="text-xs text-rose-300">{createError}</p>
-          )}
         </div>
       </div>
+      {createError && <p className="text-xs text-rose-300">{createError}</p>}
     </div>
   );
 }
@@ -2154,7 +2240,7 @@ function RowSelect({ value, options, disabled, onChange }: RowSelectProps) {
         disabled={disabled || options.length === 0}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white outline-none transition focus:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex w-full items-center justify-between gap-2 rounded-md border border-white/10 bg-transparent px-2 py-1.5 text-xs text-white/80 outline-none transition focus:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span className="truncate text-left">
           {selectedOption?.label ?? "Select"}
@@ -2170,7 +2256,7 @@ function RowSelect({ value, options, disabled, onChange }: RowSelectProps) {
       {open && !disabled && options.length > 0 && (
         <div
           role="listbox"
-          className="absolute left-0 right-0 z-30 mt-2 max-h-56 overflow-auto rounded-xl border border-white/10 bg-[#0b0b0f] p-1 text-sm shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+          className="absolute left-0 right-0 z-30 mt-2 max-h-56 overflow-auto rounded-md border border-white/10 bg-[#0b0b0f] p-1 text-xs shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
         >
           {options.map((option) => {
             const isSelected = option.value === value;
@@ -2185,7 +2271,7 @@ function RowSelect({ value, options, disabled, onChange }: RowSelectProps) {
                   setOpen(false);
                 }}
                 className={classNames(
-                  "flex w-full items-center rounded-lg px-2 py-2 text-left text-sm transition",
+                  "flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs transition",
                   isSelected
                     ? "bg-white/10 text-white"
                     : "text-white/70 hover:bg-white/10 hover:text-white",
@@ -2301,7 +2387,7 @@ function TaskRow({
     <div
       onClick={onSelect}
       className={classNames(
-        "grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm",
+        "grid cursor-pointer grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 px-4 py-2 text-sm text-white/90 transition hover:bg-white/5",
         rowMuted && "opacity-60",
       )}
     >
@@ -2309,7 +2395,7 @@ function TaskRow({
         type="button"
         disabled={saving}
         onClick={cycleStatus}
-        className="rounded-lg border border-white/20 bg-black/30 px-2 py-1 text-xs uppercase tracking-[0.2em] text-white hover:border-white/40"
+        className="rounded-md border border-white/20 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.25em] text-white/70 hover:border-white/40"
       >
         {statusLabels[task.status]}
       </button>
@@ -2318,7 +2404,7 @@ function TaskRow({
         disabled={saving}
         onChange={(event) => setTitle(event.target.value)}
         onBlur={commitTitle}
-        className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white outline-none focus:border-white/40"
+        className="rounded-md border border-transparent bg-transparent px-2 py-1 font-medium text-white outline-none focus:border-white/30 focus:bg-white/5"
       />
       <div>
         <RowSelect
@@ -2333,7 +2419,7 @@ function TaskRow({
           <button
             type="button"
             onClick={onRepeat}
-            className="mt-2 text-xs text-white/60 underline-offset-2 hover:underline"
+            className="mt-1 text-[11px] text-white/50 hover:text-white/70"
           >
             Repeat: {task.repeatRule === "none" ? "Off" : repeatDisplay}
           </button>
@@ -2353,7 +2439,7 @@ function TaskRow({
         disabled={saving}
         onChange={(event) => setDueDate(event.target.value)}
         onBlur={commitDueDate}
-        className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white outline-none focus:border-white/40"
+        className="rounded-md border border-white/10 bg-transparent px-2 py-1 text-xs text-white/80 outline-none focus:border-white/40"
       />
       <input
         type="datetime-local"
@@ -2367,7 +2453,7 @@ function TaskRow({
           }
           commitScheduleChange(start, nextEnd);
         }}
-        className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white outline-none focus:border-white/40"
+        className="rounded-md border border-white/10 bg-transparent px-2 py-1 text-xs text-white/80 outline-none focus:border-white/40"
       />
       <input
         type="datetime-local"
@@ -2375,14 +2461,14 @@ function TaskRow({
         disabled={saving}
         onChange={(event) => setEnd(event.target.value)}
         onBlur={() => commitScheduleChange(start, end)}
-        className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white outline-none focus:border-white/40"
+        className="rounded-md border border-white/10 bg-transparent px-2 py-1 text-xs text-white/80 outline-none focus:border-white/40"
       />
       <div className="flex items-center gap-2">
         <button
           type="button"
           disabled={saving}
           onClick={() => onScheduleTask(task)}
-          className="rounded-full border border-white/20 bg-white/10 px-3 py-2 text-lg text-white/80 transition hover:bg-white/20 disabled:opacity-50"
+          className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm text-white/80 transition hover:bg-white/10 disabled:opacity-50"
         >
           🗓️
         </button>
@@ -2392,10 +2478,10 @@ function TaskRow({
             onClick={onAutoPlan}
             disabled={saving}
             className={classNames(
-              "rounded-full border px-3 py-2 text-lg transition disabled:opacity-50",
+              "rounded-md border px-2 py-1 text-sm transition disabled:opacity-50",
               task.autoPlanned
-                ? "border-[#ff5ddd] bg-[#ff5ddd]/20 text-[#ff5ddd]"
-                : "border-white/20 bg-white/10 text-white/80 hover:bg-white/20",
+                ? "border-[#ff5ddd] bg-[#ff5ddd]/15 text-[#ff5ddd]"
+                : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10",
             )}
           >
             ⚡

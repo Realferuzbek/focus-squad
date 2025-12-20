@@ -30,7 +30,6 @@ export type TaskItemRow = {
   scheduled_start: string | null;
   scheduled_end: string | null;
   estimated_minutes: number | null;
-  repeat_rule: string;
   repeat_days: number[] | null;
   repeat_until: string | null;
   auto_planned: boolean;
@@ -74,7 +73,7 @@ export type TaskCalendarRow = {
 export const TASK_PRIVATE_ITEM_COLUMNS =
   "id,user_id,title,kind,created_at,updated_at";
 export const TASK_ITEM_COLUMNS =
-  "id,user_id,private_item_id,title,description,status,priority,category,due_date,scheduled_start,scheduled_end,estimated_minutes,repeat_rule,repeat_days,repeat_until,auto_planned,auto_block_duration_min,auto_daily_max_minutes,auto_start_date,auto_allowed_days,created_at,updated_at";
+  "id,user_id,private_item_id,title,description,status,priority,category,due_date,scheduled_start,scheduled_end,estimated_minutes,repeat_days,repeat_until,auto_planned,auto_block_duration_min,auto_daily_max_minutes,auto_start_date,auto_allowed_days,created_at,updated_at";
 export const TASK_CALENDAR_EVENT_COLUMNS =
   "id,user_id,task_id,calendar_id,title,description,start_at,end_at,is_all_day,color,event_kind,recurrence,created_at,updated_at";
 export const TASK_CALENDAR_COLUMNS =
@@ -103,7 +102,7 @@ export function serializeTask(row: TaskItemRow): StudentTask {
     scheduledStart: row.scheduled_start ?? null,
     scheduledEnd: row.scheduled_end ?? null,
     estimatedMinutes: row.estimated_minutes ?? null,
-    repeatRule: row.repeat_rule as StudentTask["repeatRule"],
+    repeatRule: "none",
     repeatDays: row.repeat_days ?? null,
     repeatUntil: row.repeat_until ?? null,
     autoPlanned: row.auto_planned,
