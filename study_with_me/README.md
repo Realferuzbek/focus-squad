@@ -2,7 +2,7 @@
 
 Next.js 14 app for the Focus Squad community. Features Google authentication via NextAuth, Supabase integration for task tracking, live session status powered by Telegram bot events, and real-time updates through Supabase Realtime!!
 
-## Getting Started
+## Getting Starte
 
 1. Install dependencies:
 
