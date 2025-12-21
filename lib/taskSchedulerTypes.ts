@@ -1,6 +1,12 @@
 ﻿export const TASK_PRIVATE_ITEM_KINDS = ["page", "task_list"] as const;
 export type TaskPrivateItemKind = (typeof TASK_PRIVATE_ITEM_KINDS)[number];
 
+export const TASK_PRIVATE_LIST_TYPES = [
+  "planner_tasks",
+  "habit_tracker",
+] as const;
+export type TaskPrivateListType = (typeof TASK_PRIVATE_LIST_TYPES)[number];
+
 export const TASK_STATUSES = [
   "not_started",
   "in_progress",
@@ -53,6 +59,8 @@ export type TaskPrivateItem = {
   id: string;
   title: string;
   kind: TaskPrivateItemKind;
+  listType: TaskPrivateListType;
+  hiddenColumns: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -65,10 +73,13 @@ export type StudentTask = {
   status: StudentTaskStatus;
   priority: StudentTaskPriority;
   category: StudentTaskCategory;
+  subject: string | null;
   dueDate: string | null;
+  dueAt: string | null;
   scheduledStart: string | null;
   scheduledEnd: string | null;
   estimatedMinutes: number | null;
+  resourceUrl: string | null;
   repeatRule: StudentHabitRepeatRule;
   repeatDays: number[] | null;
   repeatUntil: string | null;
@@ -77,6 +88,32 @@ export type StudentTask = {
   autoDailyMaxMinutes: number;
   autoStartDate: string | null;
   autoAllowedDays: number[] | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const HABIT_SCHEDULE_TYPES = [
+  "daily",
+  "weekdays",
+  "custom",
+] as const;
+export type HabitScheduleType = (typeof HABIT_SCHEDULE_TYPES)[number];
+
+export const HABIT_STATUSES = ["active", "paused"] as const;
+export type HabitStatus = (typeof HABIT_STATUSES)[number];
+
+export type StudentHabit = {
+  id: string;
+  listId: string;
+  name: string;
+  scheduleType: HabitScheduleType;
+  scheduleDays: number[] | null;
+  status: HabitStatus;
+  target: number | null;
+  notes: string | null;
+  resourceUrl: string | null;
+  startDate: string;
   createdAt: string;
   updatedAt: string;
 };

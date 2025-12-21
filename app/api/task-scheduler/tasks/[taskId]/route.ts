@@ -24,6 +24,7 @@ import {
   normalizeEnum,
   normalizeEstimatedMinutes,
   normalizeOptionalString,
+  normalizeTimestampInput,
   normalizeWeekdayArray,
   validateScheduleInput,
 } from "@/lib/taskSchedulerValidation";
@@ -75,6 +76,16 @@ export async function PATCH(
     updates.description = normalizeOptionalString(body.description);
   }
 
+  if (hasProp(body, "subject")) {
+    updates.subject = normalizeOptionalString(body.subject);
+  }
+
+  if (hasProp(body, "resourceUrl") || hasProp(body, "resource_url")) {
+    updates.resource_url = normalizeOptionalString(
+      body?.resourceUrl ?? body?.resource_url,
+    );
+  }
+
   if (hasProp(body, "status")) {
     const nextStatus = normalizeEnum(body.status, TASK_STATUSES);
     if (!nextStatus) {
@@ -84,6 +95,8 @@ export async function PATCH(
       );
     }
     updates.status = nextStatus;
+    updates.completed_at =
+      nextStatus === "done" ? new Date().toISOString() : null;
   }
 
   if (hasProp(body, "priority")) {
@@ -118,6 +131,25 @@ export async function PATCH(
         );
       }
       updates.due_date = normalized;
+    }
+  }
+
+  if (hasProp(body, "dueAt") || hasProp(body, "due_at")) {
+    const raw = body?.dueAt ?? body?.due_at;
+    if (raw === null || raw === "") {
+      updates.due_at = null;
+    } else {
+      const normalized = normalizeTimestampInput(raw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid due date time" },
+          { status: 400 },
+        );
+      }
+      updates.due_at = normalized;
+      if (!hasProp(updates, "due_date")) {
+        updates.due_date = normalized.slice(0, 10);
+      }
     }
   }
 

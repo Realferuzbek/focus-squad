@@ -2,19 +2,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import TaskSchedulerCalendar from "@/components/TaskSchedulerCalendar";
 import PlannerSidebar from "@/components/task-scheduler/PlannerSidebar";
+import NotesInbox, { type NoteEntry } from "@/components/notes/NotesInbox";
 import {
   Calendar as CalendarIcon,
-  ChevronDown,
+  Check,
+  Circle,
   List as ListIcon,
-  MoreHorizontal,
-  Plus,
-  Share2,
-  Star,
+  Search,
 } from "lucide-react";
 import { csrfFetch } from "@/lib/csrf-client";
 import {
+  HabitScheduleType,
+  HabitStatus,
+  StudentHabit,
   StudentHabitRepeatRule,
   StudentTask,
   StudentTaskCategory,
@@ -25,28 +28,19 @@ import {
   TaskCalendarRecurrence,
   TaskPrivateItem,
   TaskPrivateItemKind,
-  TASK_CATEGORIES,
+  TaskPrivateListType,
+  HABIT_SCHEDULE_TYPES,
+  HABIT_STATUSES,
   TASK_PRIORITIES,
-  TASK_REPEAT_RULES,
   TASK_STATUSES,
 } from "@/lib/taskSchedulerTypes";
 import { generateHabitInstances } from "@/lib/taskSchedulerHabits";
 
-type Section = "home" | "private" | "settings";
+type Section = "home" | "notes" | "private" | "settings";
 type SurfaceView = "planner" | "calendar";
-type SelectedEntity =
-  | { kind: "none" }
-  | { kind: "task"; id: string }
-  | { kind: "calendar"; id: string }
-  | { kind: "privateItem"; id: string };
-type TaskViewFilter =
-  | "all"
-  | "assignments"
-  | "exams"
-  | "projects"
-  | "habits"
-  | "today"
-  | "week";
+
+type PlannerViewFilter = "today" | "next" | "projects" | "done";
+type HabitViewFilter = "today" | "week" | "all";
 
 type TaskDraft = {
   title: string;
@@ -62,11 +56,14 @@ type HabitCompletion = {
 type TaskUpdatePayload = Partial<{
   title: string;
   description: string | null;
+  subject: string | null;
+  resourceUrl: string | null;
   estimatedMinutes: number | null;
   category: StudentTaskCategory;
   status: StudentTaskStatus;
   priority: StudentTaskPriority;
   dueDate: string | null;
+  dueAt: string | null;
   scheduledStart: string | null;
   scheduledEnd: string | null;
   repeatRule: StudentHabitRepeatRule;
@@ -74,13 +71,17 @@ type TaskUpdatePayload = Partial<{
   repeatUntil: string | null;
 }>;
 
-type AutoPlanConfig = {
-  blockLength: number;
-  maxMinutesPerDay: number;
+type HabitUpdatePayload = Partial<{
+  name: string;
+  scheduleType: HabitScheduleType;
+  scheduleDays: number[] | null;
+  status: HabitStatus;
+  target: number | null;
+  notes: string | null;
+  resourceUrl: string | null;
   startDate: string;
-  allowedDays: number[];
-  replaceExisting: boolean;
-};
+}>;
+
 
 type CalendarEventInput = {
   title: string;
@@ -103,11 +104,6 @@ type CalendarPatchPayload = Partial<
   Pick<TaskCalendar, "name" | "color" | "isDefault" | "isVisible" | "sortOrder">
 >;
 
-type RowSelectOption = {
-  value: string;
-  label: string;
-};
-
 const navItems: Array<{
   id: Section;
   label: string;
@@ -119,6 +115,12 @@ const navItems: Array<{
     label: "Home",
     description: "Student control center",
     icon: "🏠",
+  },
+  {
+    id: "notes",
+    label: "Notes",
+    description: "Quick capture inbox",
+    icon: "📝",
   },
   {
     id: "private",
@@ -155,13 +157,13 @@ const kindMeta: Record<
   TaskPrivateItemKind,
   { label: string; icon: string }
 > = {
-  page: { label: "Page", icon: "📄" },
-  task_list: { label: "Task list", icon: "🗂️" },
+  page: { label: "PAGE", icon: "📄" },
+  task_list: { label: "TASK LIST", icon: "🗂️" },
 };
 
 const statusLabels: Record<StudentTaskStatus, string> = {
-  not_started: "Not started",
-  in_progress: "In progress",
+  not_started: "To do",
+  in_progress: "Doing",
   done: "Done",
 };
 
@@ -171,46 +173,10 @@ const priorityLabels: Record<StudentTaskPriority, string> = {
   high: "High",
 };
 
-const TASK_CATEGORY_OPTIONS: RowSelectOption[] = TASK_CATEGORIES.map(
-  (category) => ({
-    value: category,
-    label: category[0].toUpperCase() + category.slice(1),
-  }),
-);
-
-const TASK_PRIORITY_OPTIONS: RowSelectOption[] = TASK_PRIORITIES.map(
-  (priority) => ({
-    value: priority,
-    label: priorityLabels[priority],
-  }),
-);
+const SUBJECT_OPTIONS = ["Math", "IELTS", "Physics", "Other", "Projects"];
 
 const WEEKDAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const HABIT_COMPLETION_LOOKBACK_DAYS = 60;
-
-function toDateInput(value: string | null) {
-  if (!value) return "";
-  try {
-    return value.slice(0, 10);
-  } catch {
-    return "";
-  }
-}
-
-function toDateTimeInput(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const iso = date.toISOString();
-  return iso.slice(0, 16);
-}
-
-function fromDateTimeInput(value: string) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString();
-}
 
 function classNames(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -237,48 +203,6 @@ function toLocalDateKey(date: Date) {
 
 function makeHabitCompletionKey(habitId: string, dateKey: string) {
   return `${habitId}:${dateKey}`;
-}
-
-function intersectsDayRange(
-  startISO: string | null,
-  endISO: string | null,
-  day: Date,
-) {
-  if (!startISO || !endISO) return false;
-  const start = new Date(startISO);
-  const end = new Date(endISO);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
-  const dayStart = new Date(day);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setHours(23, 59, 59, 999);
-  return start <= dayEnd && end >= dayStart;
-}
-
-function intersectsRange(
-  startISO: string | null,
-  endISO: string | null,
-  rangeStart: Date,
-  rangeEnd: Date,
-) {
-  if (!startISO || !endISO) return false;
-  const start = new Date(startISO);
-  const end = new Date(endISO);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
-  return start <= rangeEnd && end >= rangeStart;
-}
-
-function buildTaskEventDateMap(events: TaskCalendarEvent[]) {
-  const map = new Map<string, Set<string>>();
-  events.forEach((event) => {
-    if (!event.taskId) return;
-    const dateKey = event.start.slice(0, 10);
-    if (!map.has(event.taskId)) {
-      map.set(event.taskId, new Set());
-    }
-    map.get(event.taskId)!.add(dateKey);
-  });
-  return map;
 }
 
 function getDefaultCalendarId(calendars: TaskCalendar[]) {
@@ -315,8 +239,118 @@ function formatEventRange(event: TaskCalendarEvent) {
   return start || end;
 }
 
+function getTaskDueDate(task: StudentTask) {
+  if (task.dueAt) {
+    const date = new Date(task.dueAt);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (task.dueDate) {
+    const date = new Date(`${task.dueDate}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
+}
+
+function getTaskDueKey(task: StudentTask) {
+  const date = getTaskDueDate(task);
+  if (!date) return null;
+  return toLocalDateKey(date);
+}
+
+function formatTaskDue(task: StudentTask) {
+  const date = getTaskDueDate(task);
+  if (!date) return "—";
+  const dateLabel = date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+  });
+  if (task.dueAt) {
+    const timeLabel = date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return `${dateLabel} · ${timeLabel}`;
+  }
+  return dateLabel;
+}
+
+function isHabitScheduledOn(habit: StudentHabit, date: Date) {
+  const startDate = new Date(habit.startDate);
+  startDate.setHours(0, 0, 0, 0);
+  const day = new Date(date);
+  day.setHours(0, 0, 0, 0);
+  if (day < startDate) return false;
+
+  const weekday = day.getDay();
+  if (habit.scheduleType === "daily") return true;
+  if (habit.scheduleType === "weekdays") {
+    return weekday >= 1 && weekday <= 5;
+  }
+  if (habit.scheduleType === "custom") {
+    return (habit.scheduleDays ?? []).includes(weekday);
+  }
+  return false;
+}
+
+function computeHabitStreak(
+  habit: StudentHabit,
+  completionDates: Set<string>,
+  today: Date,
+) {
+  const startDate = new Date(habit.startDate);
+  startDate.setHours(0, 0, 0, 0);
+  const isPaused = habit.status === "paused";
+
+  let anchorDate: Date | null = null;
+  if (isPaused) {
+    let latest: Date | null = null;
+    completionDates.forEach((dateKey) => {
+      const date = new Date(`${dateKey}T00:00:00`);
+      if (Number.isNaN(date.getTime())) return;
+      if (!latest || date > latest) latest = date;
+    });
+    anchorDate = latest;
+  } else {
+    anchorDate = new Date(today);
+  }
+
+  if (!anchorDate) return 0;
+  anchorDate.setHours(0, 0, 0, 0);
+  if (anchorDate < startDate) return 0;
+
+  let cursor = new Date(anchorDate);
+  if (!isPaused) {
+    while (cursor >= startDate && !isHabitScheduledOn(habit, cursor)) {
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    if (cursor < startDate) return 0;
+    const cursorKey = toLocalDateKey(cursor);
+    if (!completionDates.has(cursorKey)) return 0;
+  }
+
+  let streak = 0;
+  while (cursor >= startDate) {
+    if (isHabitScheduledOn(habit, cursor)) {
+      const key = toLocalDateKey(cursor);
+      if (completionDates.has(key)) {
+        streak += 1;
+      } else {
+        break;
+      }
+    }
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
 export default function TaskWorkspaceShell() {
-  const [activeSection, setActiveSection] = useState<Section>("home");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const isNotesRoute = pathname?.includes("/feature/notes") ?? false;
+  const [activeSection, setActiveSection] = useState<Section>(
+    isNotesRoute ? "notes" : "home",
+  );
   const [activeSurface, setActiveSurface] = useState<SurfaceView>("planner");
   const [privateItems, setPrivateItems] = useState<TaskPrivateItem[]>([]);
   const [privateLoading, setPrivateLoading] = useState(true);
@@ -350,31 +384,87 @@ export default function TaskWorkspaceShell() {
   const [calendarFocusTaskId, setCalendarFocusTaskId] = useState<string | null>(
     null,
   );
-  const [taskView, setTaskView] = useState<TaskViewFilter>("all");
-  const [repeatEditorTask, setRepeatEditorTask] = useState<StudentTask | null>(
+  const [plannerView, setPlannerView] = useState<PlannerViewFilter>("today");
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskSort, setTaskSort] = useState<"due" | "priority">("due");
+  const [plannerPropertiesOpen, setPlannerPropertiesOpen] = useState(false);
+  const [habitView, setHabitView] = useState<HabitViewFilter>("today");
+  const [habitPropertiesOpen, setHabitPropertiesOpen] = useState(false);
+  const [habitsByList, setHabitsByList] = useState<
+    Record<string, StudentHabit[]>
+  >({});
+  const [habitsLoadingMap, setHabitsLoadingMap] = useState<
+    Record<string, boolean>
+  >({});
+  const [habitSavingIds, setHabitSavingIds] = useState<Set<string>>(new Set());
+  const [notes, setNotes] = useState<NoteEntry[]>([]);
+  const [notesLoading, setNotesLoading] = useState(true);
+  const [notesError, setNotesError] = useState<string | null>(null);
+  const [convertTarget, setConvertTarget] = useState<NoteEntry | null>(null);
+  const [convertTitle, setConvertTitle] = useState("");
+  const [convertDueDate, setConvertDueDate] = useState("");
+  const [convertSubject, setConvertSubject] = useState("");
+  const [toast, setToast] = useState<{
+    message: string;
+    actionLabel?: string;
+    action?: () => void;
+  } | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createTemplate, setCreateTemplate] =
+    useState<TaskPrivateListType | null>(null);
+  const [createName, setCreateName] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [createSaving, setCreateSaving] = useState(false);
+  const [lastPlannerListId, setLastPlannerListId] = useState<string | null>(
     null,
   );
-  const [autoPlanTarget, setAutoPlanTarget] = useState<StudentTask | null>(null);
-  const [selectedEntity, setSelectedEntity] = useState<SelectedEntity>({
-    kind: "none",
-  });
-
-  const handleSelectTask = useCallback((taskId: string) => {
-    setSelectedEntity({ kind: "task", id: taskId });
-  }, []);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
+  const devSeededRef = useRef(false);
 
   const activePrivateItem = useMemo(() => {
     if (!activePrivateItemId) return null;
     return privateItems.find((item) => item.id === activePrivateItemId) ?? null;
   }, [activePrivateItemId, privateItems]);
 
+  const selectedTask = useMemo(() => {
+    if (!selectedTaskId) return null;
+    return allTasks.find((task) => task.id === selectedTaskId) ?? null;
+  }, [allTasks, selectedTaskId]);
+
+  const selectedHabit = useMemo(() => {
+    if (!selectedHabitId) return null;
+    for (const list of Object.values(habitsByList)) {
+      const match = list.find((habit) => habit.id === selectedHabitId);
+      if (match) return match;
+    }
+    return null;
+  }, [habitsByList, selectedHabitId]);
+
+  const handleSelectTask = useCallback((taskId: string) => {
+    setSelectedTaskId(taskId);
+  }, []);
+
+  const handleSelectHabit = useCallback((habitId: string) => {
+    setSelectedHabitId(habitId);
+  }, []);
+
   const activeTasks = useMemo(() => {
     if (!activePrivateItemId) return [];
     return tasksByList[activePrivateItemId] ?? [];
   }, [activePrivateItemId, tasksByList]);
 
+  const activeHabits = useMemo(() => {
+    if (!activePrivateItemId) return [];
+    return habitsByList[activePrivateItemId] ?? [];
+  }, [activePrivateItemId, habitsByList]);
+
   const tasksLoading = activePrivateItemId
     ? !!tasksLoadingMap[activePrivateItemId]
+    : false;
+
+  const habitsLoading = activePrivateItemId
+    ? !!habitsLoadingMap[activePrivateItemId]
     : false;
 
   const syncAllTasks = useCallback((tasks: StudentTask[]) => {
@@ -414,8 +504,32 @@ export default function TaskWorkspaceShell() {
     [syncAllTasks],
   );
 
+  const loadHabitsFor = useCallback(async (privateItemId: string) => {
+    setHabitsLoadingMap((prev) => ({ ...prev, [privateItemId]: true }));
+    try {
+      const res = await fetch(
+        `/api/task-scheduler/private-items/${privateItemId}/habits`,
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to load habits");
+      }
+      const data = await res.json();
+      const habits: StudentHabit[] = data?.habits ?? [];
+      setHabitsByList((prev) => ({ ...prev, [privateItemId]: habits }));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to load habits");
+    } finally {
+      setHabitsLoadingMap((prev) => ({ ...prev, [privateItemId]: false }));
+    }
+  }, []);
+
   useEffect(() => {
     loadPrivateItems();
+  }, []);
+
+  useEffect(() => {
+    loadNotes();
   }, []);
 
   useEffect(() => {
@@ -426,8 +540,25 @@ export default function TaskWorkspaceShell() {
 
   useEffect(() => {
     if (activeSurface !== "planner") return;
+    if (isNotesRoute) return;
     setActiveSection("home");
-  }, [activeSurface]);
+  }, [activeSurface, isNotesRoute]);
+
+  useEffect(() => {
+    if (isNotesRoute) {
+      setActiveSection("notes");
+      return;
+    }
+    if (activeSection === "notes") {
+      setActiveSection("home");
+    }
+  }, [isNotesRoute]);
+
+  useEffect(() => {
+    if (isNotesRoute && activeSurface !== "planner") {
+      setActiveSurface("planner");
+    }
+  }, [activeSurface, isNotesRoute]);
 
   useEffect(() => {
     if (activeSection !== "private") return;
@@ -437,10 +568,32 @@ export default function TaskWorkspaceShell() {
   }, [activeSection, activePrivateItemId, privateItems]);
 
   useEffect(() => {
-    if (activePrivateItemId && !tasksByList[activePrivateItemId]) {
-      loadTasksFor(activePrivateItemId);
+    if (isNotesRoute) return;
+    const targetId = searchParams.get("private");
+    if (!targetId) return;
+    if (!privateItems.some((item) => item.id === targetId)) return;
+    setActivePrivateItemId(targetId);
+    setActiveSection("private");
+  }, [isNotesRoute, privateItems, searchParams]);
+
+  useEffect(() => {
+    if (!activePrivateItem) return;
+    if (activePrivateItem.listType === "habit_tracker") {
+      if (!habitsByList[activePrivateItem.id]) {
+        loadHabitsFor(activePrivateItem.id);
+      }
+      return;
     }
-  }, [activePrivateItemId, tasksByList, loadTasksFor]);
+    if (!tasksByList[activePrivateItem.id]) {
+      loadTasksFor(activePrivateItem.id);
+    }
+  }, [activePrivateItem, habitsByList, tasksByList, loadHabitsFor, loadTasksFor]);
+
+  useEffect(() => {
+    if (activePrivateItem?.listType === "planner_tasks") {
+      setLastPlannerListId(activePrivateItem.id);
+    }
+  }, [activePrivateItem]);
 
   useEffect(() => {
     if (calendars.length === 0) {
@@ -457,10 +610,22 @@ export default function TaskWorkspaceShell() {
     }
   }, [activeCalendarId, calendars]);
 
-  const taskEventDates = useMemo(
-    () => buildTaskEventDateMap(events),
-    [events],
-  );
+  useEffect(() => {
+    if (isNotesRoute) return;
+    const taskId = searchParams.get("task");
+    if (!taskId || !activePrivateItemId) return;
+    const listTasks = tasksByList[activePrivateItemId] ?? [];
+    if (!listTasks.some((task) => task.id === taskId)) return;
+    setSelectedTaskId(taskId);
+  }, [isNotesRoute, searchParams, tasksByList, activePrivateItemId]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => {
+      setToast(null);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const today = useMemo(() => {
     const base = new Date();
@@ -488,7 +653,7 @@ export default function TaskWorkspaceShell() {
     return Array.from({ length: 7 }, (_value, index) => {
       const day = new Date(weekStart);
       day.setDate(day.getDate() + index);
-      return toDateKey(day);
+      return toLocalDateKey(day);
     });
   }, [weekStart]);
 
@@ -496,22 +661,6 @@ export default function TaskWorkspaceShell() {
     loadHabitCompletions();
   }, [habitLookbackStartKey, todayLocalKey]);
 
-  const activeHabitInstancesToday = useMemo(
-    () =>
-      generateHabitInstances(activeTasks, {
-        startDate: today,
-        endDate: today,
-      }),
-    [activeTasks, today],
-  );
-  const activeHabitInstancesWeek = useMemo(
-    () =>
-      generateHabitInstances(activeTasks, {
-        startDate: weekStart,
-        endDate: weekEnd,
-      }),
-    [activeTasks, weekStart, weekEnd],
-  );
   const habitInstancesTodayAll = useMemo(
     () =>
       generateHabitInstances(allTasks, {
@@ -529,14 +678,6 @@ export default function TaskWorkspaceShell() {
     [allTasks, habitLookbackStart, today],
   );
 
-  const habitTodayTaskIds = useMemo(
-    () => new Set(activeHabitInstancesToday.map((instance) => instance.taskId)),
-    [activeHabitInstancesToday],
-  );
-  const habitWeekTaskIds = useMemo(
-    () => new Set(activeHabitInstancesWeek.map((instance) => instance.taskId)),
-    [activeHabitInstancesWeek],
-  );
   const habitTasksById = useMemo(
     () => new Map(allTasks.map((task) => [task.id, task])),
     [allTasks],
@@ -583,7 +724,7 @@ export default function TaskWorkspaceShell() {
     map.forEach((keys) => keys.sort());
     return map;
   }, [habitInstancesLookback]);
-  const habitStreaksById = useMemo(() => {
+  const taskHabitStreaksById = useMemo(() => {
     const map = new Map<string, number>();
     habitTodayTasks.forEach((task) => {
       const requiredKeys = requiredHabitKeysById.get(task.id) ?? [];
@@ -604,92 +745,81 @@ export default function TaskWorkspaceShell() {
   }, [habitCompletionDatesById, habitTodayTasks, requiredHabitKeysById]);
   const habitsTodayLoading = !allTasksLoaded || habitCompletionsLoading;
 
-  const tasksWithEventsToday = useMemo(() => {
-    const set = new Set<string>();
-    taskEventDates.forEach((dates, taskId) => {
-      if (dates.has(todayKey)) {
-        set.add(taskId);
-      }
+  const habitStreaksByHabitId = useMemo(() => {
+    const map = new Map<string, number>();
+    activeHabits.forEach((habit) => {
+      const completed = habitCompletionDatesById.get(habit.id) ?? new Set();
+      map.set(habit.id, computeHabitStreak(habit, completed, today));
     });
-    return set;
-  }, [taskEventDates, todayKey]);
+    return map;
+  }, [activeHabits, habitCompletionDatesById, today]);
 
-  const tasksWithEventsWeek = useMemo(() => {
-    const set = new Set<string>();
-    taskEventDates.forEach((dates, taskId) => {
-      for (const key of weekDateKeys) {
-        if (dates.has(key)) {
-          set.add(taskId);
-          break;
-        }
-      }
-    });
-    return set;
-  }, [taskEventDates, weekDateKeys]);
+  const plannerTasks = useMemo(() => {
+    const searchValue = taskSearch.trim().toLowerCase();
+    const matchesSearch = (task: StudentTask) => {
+      if (!searchValue) return true;
+      return [
+        task.title,
+        task.subject ?? "",
+        task.description ?? "",
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(searchValue);
+    };
 
-  const weekDateKeySet = useMemo(
-    () => new Set(weekDateKeys),
-    [weekDateKeys],
-  );
-
-  const filteredTasks = useMemo(() => {
-    return activeTasks.filter((task) => {
-      switch (taskView) {
-        case "assignments":
-          return task.category === "assignment";
-        case "exams":
-          return task.category === "exam";
+    const filtered = activeTasks.filter((task) => {
+      if (!matchesSearch(task)) return false;
+      const dueKey = getTaskDueKey(task);
+      switch (plannerView) {
+        case "today":
+          return (
+            task.status !== "done" && !!dueKey && dueKey === todayLocalKey
+          );
+        case "next":
+          return (
+            task.status !== "done" && !!dueKey && dueKey > todayLocalKey
+          );
         case "projects":
-          return task.category === "project";
-        case "habits":
-          return task.category === "habit";
-        case "today": {
-          const dueToday = task.dueDate === todayKey;
-          const scheduledToday = intersectsDayRange(
-            task.scheduledStart,
-            task.scheduledEnd,
-            today,
-          );
-          return (
-            dueToday ||
-            scheduledToday ||
-            tasksWithEventsToday.has(task.id) ||
-            habitTodayTaskIds.has(task.id)
-          );
-        }
-        case "week": {
-          const dueThisWeek = task.dueDate
-            ? weekDateKeySet.has(task.dueDate)
-            : false;
-          const scheduledThisWeek = intersectsRange(
-            task.scheduledStart,
-            task.scheduledEnd,
-            weekStart,
-            weekEnd,
-          );
-          return (
-            dueThisWeek ||
-            scheduledThisWeek ||
-            tasksWithEventsWeek.has(task.id) ||
-            habitWeekTaskIds.has(task.id)
-          );
-        }
+          return (task.subject ?? "").trim().toLowerCase() === "projects";
+        case "done":
+          return task.status === "done";
         default:
           return true;
       }
     });
+
+    const priorityWeight: Record<StudentTaskPriority, number> = {
+      high: 0,
+      medium: 1,
+      low: 2,
+    };
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (plannerView === "done") {
+        const aDone = a.completedAt
+          ? new Date(a.completedAt).getTime()
+          : 0;
+        const bDone = b.completedAt
+          ? new Date(b.completedAt).getTime()
+          : 0;
+        return bDone - aDone;
+      }
+      if (taskSort === "priority") {
+        return priorityWeight[a.priority] - priorityWeight[b.priority];
+      }
+      const aDue = getTaskDueDate(a)?.getTime() ?? Number.POSITIVE_INFINITY;
+      const bDue = getTaskDueDate(b)?.getTime() ?? Number.POSITIVE_INFINITY;
+      return aDue - bDue;
+    });
+
+    return sorted;
   }, [
     activeTasks,
-    habitTodayTaskIds,
-    habitWeekTaskIds,
-    taskView,
-    tasksWithEventsToday,
-    tasksWithEventsWeek,
-    today,
-    todayKey,
-    weekDateKeySet,
-    weekEnd,
-    weekStart,
+    plannerView,
+    taskSearch,
+    taskSort,
+    todayLocalKey,
   ]);
 
   const nextEvents = useMemo(() => {
@@ -718,20 +848,6 @@ export default function TaskWorkspaceShell() {
     () => incompleteTasks.slice(0, 3),
     [incompleteTasks],
   );
-
-  const todayTaskIds = useMemo(() => {
-    return new Set(
-      incompleteTasks
-        .filter((task) => {
-          const dueToday = task.dueDate === todayKey;
-          const createdToday = task.createdAt
-            ? task.createdAt.slice(0, 10) === todayKey
-            : false;
-          return dueToday || createdToday;
-        })
-        .map((task) => task.id),
-    );
-  }, [incompleteTasks, todayKey]);
 
   useEffect(() => {
     setListTitleDraft(activePrivateItem?.title ?? "");
@@ -794,12 +910,41 @@ export default function TaskWorkspaceShell() {
       }
       const data = await res.json();
       const items: TaskPrivateItem[] = data?.items ?? [];
+      if (
+        items.length === 0 &&
+        process.env.NODE_ENV === "development" &&
+        !devSeededRef.current
+      ) {
+        devSeededRef.current = true;
+        await fetch("/api/task-scheduler/dev-seed", { method: "POST" });
+        await loadPrivateItems();
+        await loadNotes();
+        return;
+      }
       setPrivateItems(items);
       setActivePrivateItemId((prev) => prev ?? items[0]?.id ?? null);
     } catch (error) {
       setPrivateError(error instanceof Error ? error.message : "Failed to load");
     } finally {
       setPrivateLoading(false);
+    }
+  }
+
+  async function loadNotes() {
+    setNotesLoading(true);
+    setNotesError(null);
+    try {
+      const res = await fetch("/api/task-scheduler/notes");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to load notes");
+      }
+      const data = await res.json();
+      setNotes((data?.notes ?? []) as NoteEntry[]);
+    } catch (error) {
+      setNotesError(error instanceof Error ? error.message : "Failed to load");
+    } finally {
+      setNotesLoading(false);
     }
   }
 
@@ -986,11 +1131,32 @@ export default function TaskWorkspaceShell() {
   }
 
   async function handleCreatePrivateItem() {
+    setCreateModalOpen(true);
+    setCreateTemplate(null);
+    setCreateName("");
+    setCreateError(null);
+  }
+
+  async function handleCreateListSubmit() {
+    if (!createTemplate) {
+      setCreateError("Choose a template.");
+      return;
+    }
+    const trimmed = createName.trim();
+    if (!trimmed) {
+      setCreateError("Name is required.");
+      return;
+    }
+    setCreateSaving(true);
+    setCreateError(null);
     try {
       const res = await csrfFetch("/api/task-scheduler/private-items", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title: "Untitled list", kind: "task_list" }),
+        body: JSON.stringify({
+          title: trimmed,
+          listType: createTemplate,
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -1001,8 +1167,21 @@ export default function TaskWorkspaceShell() {
       setPrivateItems((prev) => [...prev, item]);
       setActivePrivateItemId(item.id);
       setListTitleDraft(item.title);
+      setCreateModalOpen(false);
+      if (createTemplate === "planner_tasks") {
+        setLastPlannerListId(item.id);
+      }
+      if (isNotesRoute) {
+        router.push(`/feature/tasks?private=${item.id}`);
+      } else {
+        setActiveSection("private");
+      }
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to create list");
+      setCreateError(
+        error instanceof Error ? error.message : "Failed to create list",
+      );
+    } finally {
+      setCreateSaving(false);
     }
   }
 
@@ -1036,8 +1215,37 @@ export default function TaskWorkspaceShell() {
     }
   }
 
+  async function handleUpdateHiddenColumns(nextHidden: string[]) {
+    if (!activePrivateItemId) return;
+    try {
+      const res = await csrfFetch(
+        `/api/task-scheduler/private-items/${activePrivateItemId}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ hiddenColumns: nextHidden }),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to update properties");
+      }
+      const data = await res.json();
+      setPrivateItems((prev) =>
+        prev.map((item) =>
+          item.id === activePrivateItemId ? data.item : item,
+        ),
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error ? error.message : "Failed to update properties",
+      );
+    }
+  }
+
   async function handleCreateTask(draft: TaskDraft) {
     if (!activePrivateItemId) return;
+    if (activePrivateItem?.listType !== "planner_tasks") return;
     const payload = {
       title: draft.title,
       category: "assignment",
@@ -1088,35 +1296,296 @@ export default function TaskWorkspaceShell() {
     }
   }
 
-  async function handleDeleteTask(taskId: string) {
-    const confirmed = window.confirm("Delete this task?");
-    if (!confirmed) return;
-    toggleTaskSaving(taskId, true);
+  function upsertHabitInState(habit: StudentHabit) {
+    setHabitsByList((prev) => {
+      const listHabits = prev[habit.listId] ?? [];
+      const index = listHabits.findIndex((h) => h.id === habit.id);
+      const nextHabits =
+        index === -1
+          ? [...listHabits, habit]
+          : listHabits.map((h) => (h.id === habit.id ? habit : h));
+      return { ...prev, [habit.listId]: nextHabits };
+    });
+  }
+
+  function toggleHabitSaving(habitId: string, saving: boolean) {
+    setHabitSavingIds((prev) => {
+      const next = new Set(prev);
+      if (saving) next.add(habitId);
+      else next.delete(habitId);
+      return next;
+    });
+  }
+
+  async function handleCreateHabit(name: string) {
+    if (!activePrivateItemId) return;
+    if (activePrivateItem?.listType !== "habit_tracker") return;
+    const payload = {
+      name,
+      scheduleType: "daily",
+    };
+    const res = await csrfFetch(
+      `/api/task-scheduler/private-items/${activePrivateItemId}/habits`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error || "Failed to create habit");
+    }
+    const data = await res.json();
+    if (data?.habit) {
+      upsertHabitInState(data.habit as StudentHabit);
+    }
+  }
+
+  async function handleUpdateHabit(
+    habitId: string,
+    updates: HabitUpdatePayload,
+  ) {
+    toggleHabitSaving(habitId, true);
     try {
-      const res = await csrfFetch(`/api/task-scheduler/tasks/${taskId}`, {
+      const res = await csrfFetch(`/api/task-scheduler/habits/${habitId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to update habit");
+      }
+      const data = await res.json();
+      if (data?.habit) {
+        upsertHabitInState(data.habit as StudentHabit);
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to update habit");
+    } finally {
+      toggleHabitSaving(habitId, false);
+    }
+  }
+
+  function replaceNoteInState(note: NoteEntry, tempId?: string) {
+    setNotes((prev) => {
+      if (tempId) {
+        return prev.map((entry) => (entry.id === tempId ? note : entry));
+      }
+      const index = prev.findIndex((entry) => entry.id === note.id);
+      if (index === -1) return [...prev, note];
+      return prev.map((entry) => (entry.id === note.id ? note : entry));
+    });
+  }
+
+  async function handleSendNote(text: string) {
+    const tempId = `temp-${Date.now()}`;
+    const now = new Date().toISOString();
+    const tempNote: NoteEntry = {
+      id: tempId,
+      text,
+      pinned: false,
+      convertedTaskId: null,
+      createdAt: now,
+      updatedAt: now,
+      pending: true,
+    };
+    setNotes((prev) => [...prev, tempNote]);
+    try {
+      const res = await csrfFetch("/api/task-scheduler/notes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to send note");
+      }
+      const data = await res.json();
+      replaceNoteInState(data.note as NoteEntry, tempId);
+    } catch (error) {
+      setNotes((prev) =>
+        prev.map((note) =>
+          note.id === tempId
+            ? { ...note, pending: false, failed: true }
+            : note,
+        ),
+      );
+    }
+  }
+
+  async function handleRetryNote(note: NoteEntry) {
+    setNotes((prev) =>
+      prev.map((entry) =>
+        entry.id === note.id
+          ? { ...entry, pending: true, failed: false }
+          : entry,
+      ),
+    );
+    try {
+      const res = await csrfFetch("/api/task-scheduler/notes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: note.text }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to send note");
+      }
+      const data = await res.json();
+      replaceNoteInState(data.note as NoteEntry, note.id);
+    } catch (error) {
+      setNotes((prev) =>
+        prev.map((entry) =>
+          entry.id === note.id
+            ? { ...entry, pending: false, failed: true }
+            : entry,
+        ),
+      );
+    }
+  }
+
+  async function handleTogglePin(note: NoteEntry) {
+    const nextPinned = !note.pinned;
+    setNotes((prev) =>
+      prev.map((entry) =>
+        entry.id === note.id ? { ...entry, pinned: nextPinned } : entry,
+      ),
+    );
+    try {
+      const res = await csrfFetch(`/api/task-scheduler/notes/${note.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pinned: nextPinned }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to update note");
+      }
+      const data = await res.json();
+      replaceNoteInState(data.note as NoteEntry);
+    } catch {
+      setNotes((prev) =>
+        prev.map((entry) =>
+          entry.id === note.id ? { ...entry, pinned: note.pinned } : entry,
+        ),
+      );
+    }
+  }
+
+  async function handleDeleteNote(note: NoteEntry) {
+    try {
+      const res = await csrfFetch(`/api/task-scheduler/notes/${note.id}`, {
         method: "DELETE",
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || "Failed to delete task");
+        throw new Error(body?.error || "Failed to delete note");
       }
-      setAllTasks((prev) => prev.filter((task) => task.id !== taskId));
-      setTasksByList((prev) => {
-        const next: Record<string, StudentTask[]> = {};
-        Object.entries(prev).forEach(([listId, listTasks]) => {
-          next[listId] = listTasks.filter((task) => task.id !== taskId);
-        });
-        return next;
-      });
-      setEvents((prev) => prev.filter((event) => event.taskId !== taskId));
-      setSelectedEntity((prev) =>
-        prev.kind === "task" && prev.id === taskId ? { kind: "none" } : prev,
-      );
-      setCalendarFocusTaskId((prev) => (prev === taskId ? null : prev));
+      setNotes((prev) => prev.filter((entry) => entry.id !== note.id));
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to delete task");
-    } finally {
-      toggleTaskSaving(taskId, false);
+      alert(error instanceof Error ? error.message : "Failed to delete note");
+    }
+  }
+
+  function handleConvertRequest(note: NoteEntry) {
+    const firstLine = note.text.split("\n")[0]?.trim() || "New task";
+    setConvertTarget(note);
+    setConvertTitle(firstLine);
+    setConvertDueDate("");
+    setConvertSubject("");
+  }
+
+  async function ensurePlannerList() {
+    const existing =
+      privateItems.find((item) => item.id === lastPlannerListId) ??
+      privateItems.find((item) => item.listType === "planner_tasks") ??
+      null;
+    if (existing) {
+      setLastPlannerListId(existing.id);
+      return existing;
+    }
+
+    const res = await csrfFetch("/api/task-scheduler/private-items", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: "Planner Tasks",
+        listType: "planner_tasks",
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error || "Failed to create Planner list");
+    }
+    const data = await res.json();
+    const item: TaskPrivateItem = data.item;
+    setPrivateItems((prev) => [...prev, item]);
+    setLastPlannerListId(item.id);
+    return item;
+  }
+
+  async function handleConvertConfirm() {
+    if (!convertTarget) return;
+    const trimmedTitle = convertTitle.trim();
+    if (!trimmedTitle) return;
+    try {
+      const plannerList = await ensurePlannerList();
+      const payload: Record<string, unknown> = {
+        title: trimmedTitle,
+        description: convertTarget.text,
+      };
+      if (convertSubject.trim()) {
+        payload.subject = convertSubject.trim();
+      }
+      if (convertDueDate) {
+        payload.dueDate = convertDueDate;
+      }
+      const res = await csrfFetch(
+        `/api/task-scheduler/private-items/${plannerList.id}/tasks`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to create task");
+      }
+      const data = await res.json();
+      if (data?.task) {
+        upsertTaskInState(data.task as StudentTask);
+      }
+      const taskId = data?.task?.id as string | undefined;
+      const patchRes = await csrfFetch(
+        `/api/task-scheduler/notes/${convertTarget.id}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ convertedTaskId: taskId ?? null }),
+        },
+      );
+      if (patchRes.ok) {
+        const patchData = await patchRes.json();
+        replaceNoteInState(patchData.note as NoteEntry);
+      }
+      setToast({
+        message: "Added to Planner Tasks",
+        actionLabel: "Open",
+        action: () => {
+          if (!taskId) return;
+          router.push(`/feature/tasks?private=${plannerList.id}&task=${taskId}`);
+        },
+      });
+      setConvertTarget(null);
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to convert note",
+      );
     }
   }
 
@@ -1284,73 +1753,36 @@ export default function TaskWorkspaceShell() {
     setActiveSurface("calendar");
   }
 
-  async function handleHabitRepeatSave(
-    taskId: string,
-    payload: Pick<
-      TaskUpdatePayload,
-      "repeatRule" | "repeatDays" | "repeatUntil"
-    >,
-  ) {
-    await handleUpdateTask(taskId, payload);
-  }
-
-  async function handleAutoPlanRun(
-    task: StudentTask,
-    config: AutoPlanConfig,
-  ) {
-    try {
-      const res = await csrfFetch(
-        `/api/task-scheduler/tasks/${task.id}/auto-plan`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(config),
-        },
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || "Failed to auto-plan study blocks");
+  const handleSectionChange = useCallback(
+    (section: Section) => {
+      if (section === "notes") {
+        if (!isNotesRoute) {
+          router.push("/feature/notes");
+        }
+        if (activeSurface !== "planner") {
+          setActiveSurface("planner");
+        }
+        setActiveSection("notes");
+        return;
       }
-      const data = await res.json();
-      const createdEvents = (data.createdEvents ??
-        []) as TaskCalendarEvent[];
-      setEvents((prev) => {
-        const filtered = prev.filter(
-          (event) =>
-            !(
-              event.taskId === task.id && event.eventKind === "auto_plan"
-            ),
-        );
-        return [...filtered, ...createdEvents].sort(
-          (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
-        );
-      });
-      if (data.task) {
-        upsertTaskInState(data.task as StudentTask);
+      if (isNotesRoute) {
+        router.push("/feature/tasks");
       }
-      if (typeof data.remainingBlocks === "number" && data.remainingBlocks > 0) {
-        alert(
-          `${data.remainingBlocks} study block(s) could not be scheduled before the deadline.`,
-        );
-      }
-    } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to auto-plan study blocks",
-      );
-    }
-  }
-
-  const handleSectionChange = useCallback((section: Section) => {
-    setActiveSection(section);
-  }, []);
+      setActiveSection(section);
+    },
+    [activeSurface, isNotesRoute, router],
+  );
 
   const handleSelectPrivateItem = useCallback(
     (id: string) => {
+      if (isNotesRoute) {
+        router.push(`/feature/tasks?private=${id}`);
+        return;
+      }
       setActivePrivateItemId(id);
+      setActiveSection("private");
     },
-    [],
+    [isNotesRoute, router],
   );
 
   function renderHomeView() {
@@ -1435,7 +1867,9 @@ export default function TaskWorkspaceShell() {
                           {task.title}
                         </p>
                         <p className="mt-1 text-xs text-white/50">
-                          {task.dueDate ? `Due ${task.dueDate}` : "No due date"}
+                          {task.dueDate || task.dueAt
+                            ? `Due ${formatTaskDue(task)}`
+                            : "No due date"}
                         </p>
                       </div>
                       <button
@@ -1474,7 +1908,7 @@ export default function TaskWorkspaceShell() {
                       key={task.id}
                       task={task}
                       completed={habitCompletionKeySet.has(completionKey)}
-                      streak={habitStreaksById.get(task.id) ?? 0}
+                      streak={taskHabitStreaksById.get(task.id) ?? 0}
                       disabled={habitCompletionSavingKeys.has(completionKey)}
                       onToggle={(nextCompleted) =>
                         handleHabitCompletionToggle(
@@ -1498,6 +1932,29 @@ export default function TaskWorkspaceShell() {
     );
   }
 
+  function renderNotesView() {
+    return (
+      <section className="min-h-full w-full px-6 pb-12 pt-6 sm:px-10 lg:px-12">
+        <div className="mx-auto flex h-full max-w-[760px] flex-col">
+          {notesError && (
+            <div className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+              {notesError}
+            </div>
+          )}
+          <NotesInbox
+            notes={notes}
+            loading={notesLoading}
+            onSend={handleSendNote}
+            onRetry={handleRetryNote}
+            onTogglePin={handleTogglePin}
+            onDelete={handleDeleteNote}
+            onConvert={handleConvertRequest}
+          />
+        </div>
+      </section>
+    );
+  }
+
   function renderPrivateView() {
     if (!activePrivateItem) {
       return (
@@ -1510,95 +1967,83 @@ export default function TaskWorkspaceShell() {
       );
     }
 
-    const privateTitle =
-      listTitleDraft || activePrivateItem.title || "Untitled";
+    const isPlannerList = activePrivateItem.listType === "planner_tasks";
+    const isHabitList = activePrivateItem.listType === "habit_tracker";
+    const hiddenColumns = activePrivateItem.hiddenColumns ?? [];
+    const habitsForView =
+      habitView === "today"
+        ? activeHabits.filter((habit) => isHabitScheduledOn(habit, today))
+        : activeHabits;
 
     return (
       <section className="min-h-full w-full px-6 pb-12 pt-6 sm:px-10 lg:px-12">
         <div className="flex flex-col gap-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="truncate text-sm font-medium text-white/60">
-                {privateTitle}
-              </span>
-            </div>
-            <div className="flex items-center gap-1 text-white/50">
-              <button
-                type="button"
-                className="rounded-md p-2 transition hover:bg-white/5 hover:text-white/70"
-                aria-label="Share"
-                title="Share"
-              >
-                <Share2 className="h-4 w-4" aria-hidden />
-              </button>
-              <button
-                type="button"
-                className="rounded-md p-2 transition hover:bg-white/5 hover:text-white/70"
-                aria-label="Favorite"
-                title="Favorite"
-              >
-                <Star className="h-4 w-4" aria-hidden />
-              </button>
-              <button
-                type="button"
-                className="rounded-md p-2 transition hover:bg-white/5 hover:text-white/70"
-                aria-label="More options"
-                title="More"
-              >
-                <MoreHorizontal className="h-4 w-4" aria-hidden />
-              </button>
-            </div>
+          <div className="flex flex-col gap-2">
+            <input
+              value={listTitleDraft || activePrivateItem.title || ""}
+              onChange={(event) => setListTitleDraft(event.target.value)}
+              onBlur={handleRenameList}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.currentTarget.blur();
+                }
+              }}
+              disabled={savingListTitle}
+              className="w-full max-w-[960px] rounded-md border border-transparent bg-transparent px-1 py-1 text-4xl font-semibold leading-tight text-white/85 outline-none transition focus:border-white/20 focus:bg-white/5"
+            />
+            <span className="text-xs uppercase tracking-[0.3em] text-white/40">
+              {isHabitList ? "PRIVATE / HABITS" : "PRIVATE / TASKS"}
+            </span>
           </div>
 
-          <input
-            value={listTitleDraft || activePrivateItem.title || ""}
-            onChange={(event) => setListTitleDraft(event.target.value)}
-            onBlur={handleRenameList}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.currentTarget.blur();
-              }
-            }}
-            disabled={savingListTitle}
-            className="w-full max-w-[960px] rounded-md border border-transparent bg-transparent px-1 py-1 text-4xl font-semibold leading-tight text-white/85 outline-none transition focus:border-white/20 focus:bg-white/5"
-          />
-
-          {activePrivateItem.kind === "task_list" ? (
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  className="flex h-7 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2.5 text-xs font-medium text-white/80 transition hover:bg-white/10"
-                >
-                  <ListIcon className="h-4 w-4" aria-hidden />
-                  Table
-                  <ChevronDown
-                    className="h-3.5 w-3.5 text-white/60"
-                    aria-hidden
-                  />
-                </button>
-              </div>
-              <TaskListPane
-                tasks={filteredTasks}
-                loading={tasksLoading}
-                onCreateTask={handleCreateTask}
-                onUpdateTask={handleUpdateTask}
-                onScheduleTask={handleScheduleJump}
-                savingTaskIds={taskSavingIds}
-                view={taskView}
-                onViewChange={setTaskView}
-                onRepeatRequest={setRepeatEditorTask}
-                onAutoPlanRequest={setAutoPlanTarget}
-                onSelectTask={handleSelectTask}
-                showViewTabs={false}
-              />
-            </div>
-          ) : (
+          {activePrivateItem.kind !== "task_list" ? (
             <div className="rounded-lg border border-dashed border-white/15 bg-black/10 p-5 text-sm text-white/60">
               Imagine checklists, task boards, and habit charts living here in a
               few updates. Use the left sidebar to add as many placeholder
               entries as you want so your structure is ready.
             </div>
+          ) : isPlannerList ? (
+            <PlannerTasksPanel
+              tasks={plannerTasks}
+              loading={tasksLoading}
+              view={plannerView}
+              onViewChange={setPlannerView}
+              search={taskSearch}
+              onSearchChange={setTaskSearch}
+              sort={taskSort}
+              onSortChange={setTaskSort}
+              hiddenColumns={hiddenColumns}
+              onHiddenColumnsChange={handleUpdateHiddenColumns}
+              propertiesOpen={plannerPropertiesOpen}
+              onPropertiesToggle={setPlannerPropertiesOpen}
+              onCreateTask={handleCreateTask}
+              onUpdateTask={handleUpdateTask}
+              onSelectTask={handleSelectTask}
+              savingIds={taskSavingIds}
+            />
+          ) : (
+            <HabitTrackerPanel
+              habits={habitsForView}
+              allHabits={activeHabits}
+              loading={habitsLoading}
+              view={habitView}
+              onViewChange={setHabitView}
+              hiddenColumns={hiddenColumns}
+              onHiddenColumnsChange={handleUpdateHiddenColumns}
+              propertiesOpen={habitPropertiesOpen}
+              onPropertiesToggle={setHabitPropertiesOpen}
+              completionKeySet={habitCompletionKeySet}
+              streaksById={habitStreaksByHabitId}
+              savingCompletionKeys={habitCompletionSavingKeys}
+              weekDateKeys={weekDateKeys}
+              todayKey={todayLocalKey}
+              todayDate={today}
+              onToggleCompletion={handleHabitCompletionToggle}
+              onCreateHabit={handleCreateHabit}
+              onUpdateHabit={handleUpdateHabit}
+              onSelectHabit={handleSelectHabit}
+              savingIds={habitSavingIds}
+            />
           )}
         </div>
       </section>
@@ -1655,6 +2100,7 @@ export default function TaskWorkspaceShell() {
 
   function renderActiveSection() {
     if (activeSection === "settings") return renderSettingsView();
+    if (activeSection === "notes") return renderNotesView();
     if (activeSection === "home") return renderHomeView();
     if (activeSection === "private") return renderPrivateView();
     return renderHomeView();
@@ -1747,298 +2193,425 @@ export default function TaskWorkspaceShell() {
           </div>
         </div>
       )}
-
-      {repeatEditorTask && (
-        <HabitRepeatDialog
-          task={repeatEditorTask}
-          onClose={() => setRepeatEditorTask(null)}
-          onSave={async (payload) => {
-            await handleHabitRepeatSave(repeatEditorTask.id, payload);
-            setRepeatEditorTask(null);
+      {createModalOpen && (
+        <CreateListModal
+          template={createTemplate}
+          name={createName}
+          error={createError}
+          saving={createSaving}
+          onClose={() => setCreateModalOpen(false)}
+          onSelect={(template) => {
+            setCreateTemplate(template);
+            setCreateName(
+              template === "habit_tracker" ? "Habit Tracker" : "Planner Tasks",
+            );
           }}
+          onNameChange={setCreateName}
+          onSubmit={handleCreateListSubmit}
         />
       )}
-
-      {autoPlanTarget && (
-        <AutoPlanDialog
-          task={autoPlanTarget}
-          onClose={() => setAutoPlanTarget(null)}
-          onSubmit={async (config) => {
-            await handleAutoPlanRun(autoPlanTarget, config);
-            setAutoPlanTarget(null);
-          }}
+      {selectedTask && (
+        <TaskDetailsModal
+          task={selectedTask}
+          saving={taskSavingIds.has(selectedTask.id)}
+          onClose={() => setSelectedTaskId(null)}
+          onUpdate={handleUpdateTask}
         />
       )}
+      {selectedHabit && (
+        <HabitDetailsModal
+          habit={selectedHabit}
+          saving={habitSavingIds.has(selectedHabit.id)}
+          onClose={() => setSelectedHabitId(null)}
+          onUpdate={handleUpdateHabit}
+        />
+      )}
+      {convertTarget && (
+        <ConvertNoteModal
+          title={convertTitle}
+          dueDate={convertDueDate}
+          subject={convertSubject}
+          onTitleChange={setConvertTitle}
+          onDueDateChange={setConvertDueDate}
+          onSubjectChange={setConvertSubject}
+          onClose={() => setConvertTarget(null)}
+          onSubmit={handleConvertConfirm}
+        />
+      )}
+      {toast && (
+        <ToastBanner
+          message={toast.message}
+          actionLabel={toast.actionLabel}
+          onAction={toast.action}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <SubjectDatalist />
     </div>
   );
 }
-type TaskListPaneProps = {
-  tasks: StudentTask[];
-  loading: boolean;
-  onCreateTask: (draft: TaskDraft) => Promise<void>;
-  onUpdateTask: (taskId: string, updates: TaskUpdatePayload) => Promise<void>;
-  onScheduleTask: (task: StudentTask) => void;
-  savingTaskIds: Set<string>;
-  view: TaskViewFilter;
-  onViewChange: (view: TaskViewFilter) => void;
-  onRepeatRequest: (task: StudentTask) => void;
-  onAutoPlanRequest: (task: StudentTask) => void;
-  onSelectTask?: (taskId: string) => void;
-  showViewTabs?: boolean;
+
+type ColumnMeta = {
+  key: string;
+  label: string;
+  width: string;
+  locked?: boolean;
 };
 
-const PRIVATE_TABLE_GRID =
-  "grid-cols-[64px,minmax(240px,1.2fr),minmax(160px,1fr)]";
+const TASK_TABLE_COLUMNS: ColumnMeta[] = [
+  // Keep the primary name column always visible to match existing table patterns.
+  { key: "name", label: "Name", width: "minmax(240px,1.6fr)", locked: true },
+  { key: "status", label: "Status", width: "130px" },
+  { key: "due", label: "Due date", width: "180px" },
+  { key: "subject", label: "Subject", width: "160px" },
+  { key: "priority", label: "Priority", width: "120px" },
+  { key: "estimate", label: "Est. minutes", width: "120px" },
+  { key: "resource", label: "Resource", width: "minmax(180px,1fr)" },
+  { key: "notes", label: "Notes", width: "minmax(200px,1.2fr)" },
+];
 
-function TaskListPane({
+const HABIT_TABLE_COLUMNS: ColumnMeta[] = [
+  // Keep the primary name column always visible to match existing table patterns.
+  { key: "name", label: "Habit name", width: "minmax(220px,1.6fr)", locked: true },
+  { key: "done", label: "Done today", width: "110px" },
+  { key: "streak", label: "Streak", width: "90px" },
+  { key: "schedule", label: "Schedule", width: "150px" },
+  { key: "target", label: "Target", width: "100px" },
+  { key: "notes", label: "Notes", width: "minmax(180px,1fr)" },
+  { key: "resource", label: "Resource", width: "minmax(180px,1fr)" },
+  { key: "start", label: "Start date", width: "130px" },
+  { key: "status", label: "Status", width: "120px" },
+];
+
+const WEEKDAY_NAMES_MON = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function getVisibleColumns(columns: ColumnMeta[], hiddenColumns: string[]) {
+  const hiddenSet = new Set(hiddenColumns);
+  return columns.filter((column) => column.locked || !hiddenSet.has(column.key));
+}
+
+function buildGridTemplate(columns: ColumnMeta[], hiddenColumns: string[]) {
+  return getVisibleColumns(columns, hiddenColumns)
+    .map((column) => column.width)
+    .join(" ");
+}
+
+function getDueDateInput(task: StudentTask) {
+  if (task.dueDate) return task.dueDate;
+  if (task.dueAt) {
+    const date = new Date(task.dueAt);
+    if (!Number.isNaN(date.getTime())) {
+      return toLocalDateKey(date);
+    }
+  }
+  return "";
+}
+
+function getDueTimeInput(task: StudentTask) {
+  if (!task.dueAt) return "";
+  const date = new Date(task.dueAt);
+  if (Number.isNaN(date.getTime())) return "";
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function buildDuePayload(dateValue: string, timeValue: string) {
+  if (!dateValue) {
+    return { dueDate: null, dueAt: null };
+  }
+  if (!timeValue) {
+    return { dueDate: dateValue, dueAt: null };
+  }
+  const next = new Date(`${dateValue}T${timeValue}`);
+  if (Number.isNaN(next.getTime())) {
+    return { dueDate: dateValue, dueAt: null };
+  }
+  return { dueDate: dateValue, dueAt: next.toISOString() };
+}
+
+function formatScheduleSummary(habit: StudentHabit) {
+  switch (habit.scheduleType) {
+    case "daily":
+      return "Daily";
+    case "weekdays":
+      return "Weekdays";
+    case "custom":
+      return "Custom";
+    default:
+      return "Custom";
+  }
+}
+
+function formatScheduleDetail(habit: StudentHabit) {
+  if (habit.scheduleType !== "custom") {
+    return formatScheduleSummary(habit);
+  }
+  const days = habit.scheduleDays ?? [];
+  const labels = days
+    .map((day) => WEEKDAY_NAMES_SHORT[day] ?? "")
+    .filter(Boolean);
+  if (!labels.length) return "Custom";
+  return `Custom (${labels.join(", ")})`;
+}
+
+type PropertiesPanelProps = {
+  columns: ColumnMeta[];
+  hiddenColumns: string[];
+  onChange: (nextHidden: string[]) => void;
+};
+
+function PropertiesPanel({
+  columns,
+  hiddenColumns,
+  onChange,
+}: PropertiesPanelProps) {
+  const hiddenSet = new Set(hiddenColumns);
+
+  function toggleColumn(key: string, locked?: boolean) {
+    if (locked) return;
+    const next = new Set(hiddenColumns);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    onChange(Array.from(next));
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-[#0c0c16] p-4 text-xs">
+      <p className="text-[11px] uppercase tracking-[0.3em] text-white/40">
+        Properties
+      </p>
+      <div className="mt-3 space-y-2">
+        {columns.map((column) => {
+          const visible = column.locked || !hiddenSet.has(column.key);
+          return (
+            <label
+              key={column.key}
+              className={classNames(
+                "flex items-center gap-2",
+                column.locked && "cursor-not-allowed text-white/40",
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={visible}
+                disabled={column.locked}
+                onChange={() => toggleColumn(column.key, column.locked)}
+                className="h-3.5 w-3.5 rounded border border-white/20 bg-black/40 text-white/80"
+              />
+              <span>{column.label}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type PlannerTasksPanelProps = {
+  tasks: StudentTask[];
+  loading: boolean;
+  view: PlannerViewFilter;
+  onViewChange: (view: PlannerViewFilter) => void;
+  search: string;
+  onSearchChange: (value: string) => void;
+  sort: "due" | "priority";
+  onSortChange: (value: "due" | "priority") => void;
+  hiddenColumns: string[];
+  onHiddenColumnsChange: (nextHidden: string[]) => void;
+  propertiesOpen: boolean;
+  onPropertiesToggle: (open: boolean) => void;
+  onCreateTask: (draft: TaskDraft) => Promise<void>;
+  onUpdateTask: (taskId: string, updates: TaskUpdatePayload) => Promise<void>;
+  onSelectTask: (taskId: string) => void;
+  savingIds: Set<string>;
+};
+
+function PlannerTasksPanel({
   tasks,
   loading,
-  onCreateTask,
-  onUpdateTask,
-  onScheduleTask,
-  savingTaskIds,
   view,
   onViewChange,
-  onRepeatRequest,
-  onAutoPlanRequest,
+  search,
+  onSearchChange,
+  sort,
+  onSortChange,
+  hiddenColumns,
+  onHiddenColumnsChange,
+  propertiesOpen,
+  onPropertiesToggle,
+  onCreateTask,
+  onUpdateTask,
   onSelectTask,
-  showViewTabs = true,
-}: TaskListPaneProps) {
-  const [draft, setDraft] = useState<TaskDraft>({ title: "" });
+  savingIds,
+}: PlannerTasksPanelProps) {
+  const [draftTitle, setDraftTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const showToolbar = showViewTabs || loading;
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const visibleColumns = useMemo(
+    () => getVisibleColumns(TASK_TABLE_COLUMNS, hiddenColumns),
+    [hiddenColumns],
+  );
+  const gridTemplate = useMemo(
+    () => buildGridTemplate(TASK_TABLE_COLUMNS, hiddenColumns),
+    [hiddenColumns],
+  );
 
   async function handleCreate() {
-    if (!draft.title.trim()) {
-      setCreateError("Title is required");
+    if (creating) return;
+    const trimmed = draftTitle.trim();
+    if (!trimmed) {
+      setCreateError("Name is required.");
       return;
     }
     setCreateError(null);
     setCreating(true);
     try {
-      await onCreateTask(draft);
-      setDraft({ title: "" });
+      await onCreateTask({ title: trimmed });
+      setDraftTitle("");
+      inputRef.current?.focus();
     } catch (error) {
-      setCreateError(error instanceof Error ? error.message : "Failed to add");
+      setCreateError(
+        error instanceof Error ? error.message : "Failed to create task",
+      );
     } finally {
       setCreating(false);
     }
   }
 
-  if (!showViewTabs) {
-    return (
-      <div className="flex flex-col gap-2">
-        {loading && (
-          <div className="flex justify-end">
-            <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">
-              Loading...
-            </span>
-          </div>
-        )}
-        <div className="overflow-x-auto overflow-y-visible [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
-          <div className="min-w-[520px]">
-            <div
-              className={classNames(
-                "grid items-center border-b border-white/10 px-2 py-2 text-[11px] font-medium text-white/50",
-                PRIVATE_TABLE_GRID,
-              )}
-            >
-              <div />
-              <div className="flex h-full items-center gap-2 border-l border-white/10 pl-4">
-                <span className="text-[10px] font-semibold text-white/40">
-                  Aa
-                </span>
-                <span>Name</span>
-              </div>
-              <div className="flex h-full items-center border-l border-white/10 pl-4 text-white/40">
-                + Add property
-              </div>
-            </div>
-            <div className="divide-y divide-white/10">
-              <div
-                className={classNames(
-                  "group grid items-center px-2 py-1.5 text-sm text-white/60 transition hover:bg-white/5",
-                  PRIVATE_TABLE_GRID,
-                )}
-              >
-                <div className="flex items-center pl-2">
-                  <div className="pointer-events-none flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Plus className="h-3.5 w-3.5 text-white/60" aria-hidden />
-                    <span
-                      className="grid h-3.5 w-3.5 grid-cols-2 gap-[2px]"
-                      aria-hidden
-                    >
-                      <span className="h-1 w-1 rounded-full bg-white/35" />
-                      <span className="h-1 w-1 rounded-full bg-white/35" />
-                      <span className="h-1 w-1 rounded-full bg-white/35" />
-                      <span className="h-1 w-1 rounded-full bg-white/35" />
-                      <span className="h-1 w-1 rounded-full bg-white/35" />
-                      <span className="h-1 w-1 rounded-full bg-white/35" />
-                    </span>
-                    <span className="h-4 w-4 rounded-sm border border-white/30 bg-black/20" />
-                  </div>
-                </div>
-                <div className="flex h-full min-w-0 items-center gap-3 border-l border-white/10 pl-4">
-                  <span className="h-4 w-full" aria-hidden />
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    aria-hidden
-                    className="pointer-events-none rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60 opacity-0 transition-opacity group-hover:opacity-100"
-                  >
-                    OPEN
-                  </button>
-                </div>
-                <div className="h-full border-l border-white/10" />
-              </div>
-              {tasks.map((task) => (
-                <NotionTaskRow
-                  key={task.id}
-                  task={task}
-                  saving={savingTaskIds.has(task.id)}
-                  onUpdate={onUpdateTask}
-                  onSelect={() => onSelectTask?.(task.id)}
-                />
-              ))}
-              <div
-                className={classNames(
-                  "group grid items-center px-2 py-1.5 text-sm text-white/60 transition hover:bg-white/5",
-                  PRIVATE_TABLE_GRID,
-                )}
-              >
-                <div className="pl-2" />
-                <div className="flex h-full min-w-0 items-center border-l border-white/10 pl-4">
-                  <input
-                    value={draft.title}
-                    onChange={(event) =>
-                      setDraft({ title: event.target.value })
-                    }
-                    placeholder="+ New page"
-                    className="min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1 py-1 text-sm text-white/80 outline-none transition placeholder:text-white/40 focus:border-white/10 focus:bg-white/5"
-                  />
-                </div>
-                <div className="flex h-full items-center justify-end border-l border-white/10 pl-4">
-                  <button
-                    type="button"
-                    onClick={handleCreate}
-                    disabled={creating}
-                    className={classNames(
-                      "rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/50 transition hover:border-white/30 hover:text-white/80 disabled:opacity-40",
-                      "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
-                      creating && "opacity-100",
-                    )}
-                  >
-                    {creating ? "Adding..." : "Add"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        {createError && <p className="text-xs text-rose-300">{createError}</p>}
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-3">
-      {showToolbar && (
-        <div className="flex flex-wrap items-center gap-2">
-          {showViewTabs && (
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-              {[
-                { id: "all", label: "All" },
-                { id: "assignments", label: "Assignments" },
-                { id: "exams", label: "Exams" },
-                { id: "projects", label: "Projects" },
-                { id: "habits", label: "Habits" },
-                { id: "today", label: "Today" },
-                { id: "week", label: "This week" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => onViewChange(tab.id as TaskViewFilter)}
-                  className={classNames(
-                    "rounded-md border px-2 py-0.5 text-[11px] font-medium transition",
-                    view === tab.id
-                      ? "border-white/30 bg-white/10 text-white"
-                      : "border-white/10 text-white/60 hover:border-white/20 hover:bg-white/5 hover:text-white",
-                  )}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          )}
-          {loading && (
-            <span
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {[
+            { id: "today", label: "Today" },
+            { id: "next", label: "Next" },
+            { id: "projects", label: "Projects" },
+            { id: "done", label: "Done" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onViewChange(tab.id as PlannerViewFilter)}
               className={classNames(
-                "text-[10px] uppercase tracking-[0.3em] text-white/40",
-                showViewTabs && "ml-auto",
+                "rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] transition",
+                view === tab.id
+                  ? "border-white/40 bg-white/10 text-white"
+                  : "border-white/10 text-white/50 hover:border-white/25 hover:bg-white/5 hover:text-white/80",
               )}
             >
-              Loading...
-            </span>
-          )}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/60">
+            <Search className="h-3.5 w-3.5" aria-hidden />
+            <input
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search tasks..."
+              className="w-40 bg-transparent text-xs text-white/80 outline-none placeholder:text-white/40 md:w-56"
+            />
+          </div>
+          <select
+            value={sort}
+            onChange={(event) =>
+              onSortChange(event.target.value as "due" | "priority")
+            }
+            className="h-9 rounded-xl border border-white/10 bg-white/5 px-3 text-xs text-white/80 outline-none"
+          >
+            <option value="due">Due date</option>
+            <option value="priority">Priority</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => onPropertiesToggle(!propertiesOpen)}
+            className="h-9 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/60 transition hover:border-white/30 hover:text-white"
+          >
+            Properties
+          </button>
+        </div>
+      </div>
+
+      {propertiesOpen && (
+        <div className="flex justify-end">
+          <PropertiesPanel
+            columns={TASK_TABLE_COLUMNS}
+            hiddenColumns={hiddenColumns}
+            onChange={onHiddenColumnsChange}
+          />
         </div>
       )}
-      <div className="border border-white/10 bg-transparent">
-        <div className="overflow-x-auto overflow-y-visible [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
-          <div className="min-w-[780px]">
-            <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 border-b border-white/10 bg-white/5 px-4 py-2 text-[11px] font-medium text-white/45">
-              <span>Status</span>
-              <span>Title</span>
-              <span>Category</span>
-              <span>Priority</span>
-              <span>Due date</span>
-              <span>Start</span>
-              <span>End</span>
-              <span className="text-center">Plan</span>
+
+      <div className="rounded-2xl border border-white/10 bg-[#0c0c16]">
+        <div className="overflow-x-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
+          <div className="min-w-[980px]">
+            <div
+              className="grid h-11 items-center border-b border-white/10 bg-white/5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45"
+              style={{ gridTemplateColumns: gridTemplate }}
+            >
+              {visibleColumns.map((column) => (
+                <div key={column.key} className="flex h-full items-center px-3">
+                  {column.label}
+                </div>
+              ))}
             </div>
             <div className="divide-y divide-white/10">
-              {tasks.length === 0 && !loading ? (
+              {loading && tasks.length === 0 ? (
                 <div className="px-4 py-6 text-sm text-white/50">
-                  No tasks yet. Add your first study mission below.
+                  Loading tasks...
+                </div>
+              ) : tasks.length === 0 ? (
+                <div className="px-4 py-6 text-sm text-white/50">
+                  No tasks yet.
                 </div>
               ) : (
                 tasks.map((task) => (
-                  <TaskRow
+                  <PlannerTaskRow
                     key={task.id}
                     task={task}
+                    visibleColumns={visibleColumns}
+                    gridTemplate={gridTemplate}
                     onUpdate={onUpdateTask}
-                    onScheduleTask={onScheduleTask}
-                    saving={savingTaskIds.has(task.id)}
-                    onRepeat={() => onRepeatRequest(task)}
-                    onAutoPlan={() => onAutoPlanRequest(task)}
-                    onSelect={() => onSelectTask?.(task.id)}
+                    onSelect={() => onSelectTask(task.id)}
+                    isSaving={savingIds.has(task.id)}
                   />
                 ))
               )}
-              <div className="grid grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 px-4 py-2 text-sm text-white/60 transition hover:bg-white/5">
-                <span className="text-xs font-medium text-white/40">
-                  + New page
-                </span>
-                <input
-                  value={draft.title}
-                  onChange={(event) => setDraft({ title: event.target.value })}
-                  placeholder="New page title..."
-                  className="rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-white/80 outline-none transition focus:border-white/20 focus:bg-white/5"
-                />
-                <span className="col-span-5 text-[11px] text-white/35">
-                  Defaults: Assignment · Medium priority · Unscheduled
-                </span>
-                <div className="flex items-center justify-center">
-                  <button
-                    type="button"
-                    onClick={handleCreate}
-                    disabled={creating}
-                    className="rounded-md border border-white/10 bg-transparent px-3 py-1.5 text-[11px] font-semibold text-white/60 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
-                  >
-                    {creating ? "Adding..." : "Add"}
-                  </button>
-                </div>
+              <div
+                className="grid h-11 items-center text-sm text-white/60"
+                style={{ gridTemplateColumns: gridTemplate }}
+                onClick={() => inputRef.current?.focus()}
+              >
+                {visibleColumns.map((column) => {
+                  if (column.key !== "name") {
+                    return <div key={column.key} className="px-3" />;
+                  }
+                  return (
+                    <div key={column.key} className="flex h-full items-center px-3">
+                      <input
+                        ref={inputRef}
+                        value={draftTitle}
+                        disabled={creating}
+                        onChange={(event) => setDraftTitle(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            handleCreate();
+                          }
+                        }}
+                        placeholder="+ New task"
+                        className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-white/80 outline-none transition placeholder:text-white/40 focus:border-white/20 focus:bg-white/5"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -2049,388 +2622,1485 @@ function TaskListPane({
   );
 }
 
-type TaskRowProps = {
+type PlannerTaskRowProps = {
   task: StudentTask;
-  saving: boolean;
+  visibleColumns: ColumnMeta[];
+  gridTemplate: string;
   onUpdate: (taskId: string, updates: TaskUpdatePayload) => Promise<void>;
-  onScheduleTask: (task: StudentTask) => void;
-  onRepeat?: () => void;
-  onAutoPlan?: () => void;
-  onSelect?: () => void;
+  onSelect: () => void;
+  isSaving: boolean;
 };
 
-type NotionTaskRowProps = {
-  task: StudentTask;
-  saving: boolean;
-  onUpdate: (taskId: string, updates: TaskUpdatePayload) => Promise<void>;
-  onSelect?: () => void;
-};
-
-type RowSelectProps = {
-  value: string;
-  options: RowSelectOption[];
-  disabled?: boolean;
-  onChange: (value: string) => void;
-};
-
-function RowSelect({ value, options, disabled, onChange }: RowSelectProps) {
-  const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const selectedOption = options.find((option) => option.value === value) ?? null;
+function PlannerTaskRow({
+  task,
+  visibleColumns,
+  gridTemplate,
+  onUpdate,
+  onSelect,
+  isSaving,
+}: PlannerTaskRowProps) {
+  const [title, setTitle] = useState(task.title);
+  const [status, setStatus] = useState<StudentTaskStatus>(task.status);
+  const [priority, setPriority] = useState<StudentTaskPriority>(task.priority);
+  const [subject, setSubject] = useState(task.subject ?? "");
+  const [estimate, setEstimate] = useState(
+    task.estimatedMinutes !== null && task.estimatedMinutes !== undefined
+      ? String(task.estimatedMinutes)
+      : "",
+  );
+  const [resourceUrl, setResourceUrl] = useState(task.resourceUrl ?? "");
+  const [dueDate, setDueDate] = useState(getDueDateInput(task));
+  const [dueTime, setDueTime] = useState(getDueTimeInput(task));
 
   useEffect(() => {
-    if (!open) return;
-    function handleClick(event: MouseEvent) {
-      if (wrapperRef.current?.contains(event.target as Node)) return;
-      setOpen(false);
-    }
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    }
-    window.addEventListener("mousedown", handleClick);
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      window.removeEventListener("mousedown", handleClick);
-      window.removeEventListener("keydown", handleKey);
-    };
-  }, [open]);
+    setTitle(task.title);
+    setStatus(task.status);
+    setPriority(task.priority);
+    setSubject(task.subject ?? "");
+    setEstimate(
+      task.estimatedMinutes !== null && task.estimatedMinutes !== undefined
+        ? String(task.estimatedMinutes)
+        : "",
+    );
+    setResourceUrl(task.resourceUrl ?? "");
+    setDueDate(getDueDateInput(task));
+    setDueTime(getDueTimeInput(task));
+  }, [task]);
 
-  useEffect(() => {
-    if (disabled) {
-      setOpen(false);
+  async function commitTitle() {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setTitle(task.title);
+      return;
     }
-  }, [disabled]);
+    if (trimmed !== task.title) {
+      await onUpdate(task.id, { title: trimmed });
+    }
+  }
+
+  async function commitSubject() {
+    const trimmed = subject.trim();
+    const nextValue = trimmed ? trimmed : null;
+    if ((task.subject ?? null) !== nextValue) {
+      await onUpdate(task.id, { subject: nextValue });
+    }
+  }
+
+  async function commitEstimate() {
+    const trimmed = estimate.trim();
+    const nextValue = trimmed ? Number(trimmed) : null;
+    if (trimmed && Number.isNaN(nextValue)) {
+      setEstimate(
+        task.estimatedMinutes !== null && task.estimatedMinutes !== undefined
+          ? String(task.estimatedMinutes)
+          : "",
+      );
+      return;
+    }
+    if ((task.estimatedMinutes ?? null) !== nextValue) {
+      await onUpdate(task.id, { estimatedMinutes: nextValue });
+    }
+  }
+
+  async function commitResource() {
+    const trimmed = resourceUrl.trim();
+    const nextValue = trimmed ? trimmed : null;
+    if ((task.resourceUrl ?? null) !== nextValue) {
+      await onUpdate(task.id, { resourceUrl: nextValue });
+    }
+  }
+
+  async function commitDue() {
+    const currentDate = getDueDateInput(task);
+    const currentTime = getDueTimeInput(task);
+    if (currentDate === dueDate && currentTime === dueTime) return;
+    await onUpdate(task.id, buildDuePayload(dueDate, dueTime));
+  }
+
+  const notesPreview = task.description?.trim() || "No notes";
 
   return (
-    <div className="relative" ref={wrapperRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        disabled={disabled || options.length === 0}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 rounded-md border border-white/10 bg-transparent px-2 py-1.5 text-xs text-white/80 outline-none transition focus:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <span className="truncate text-left">
-          {selectedOption?.label ?? "Select"}
-        </span>
-        <ChevronDown
-          className={classNames(
-            "h-4 w-4 text-white/60 transition",
-            open && "rotate-180",
+    <div
+      className={classNames(
+        "grid h-11 items-center text-sm text-white/80 transition hover:bg-white/5",
+        task.status === "done" && "text-white/40",
+        isSaving && "opacity-60",
+      )}
+      style={{ gridTemplateColumns: gridTemplate }}
+      onClick={onSelect}
+    >
+      {visibleColumns.map((column) => {
+        switch (column.key) {
+          case "name":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3">
+                <input
+                  value={title}
+                  disabled={isSaving}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => setTitle(event.target.value)}
+                  onBlur={commitTitle}
+                  className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-white/80 outline-none transition focus:border-white/20 focus:bg-white/5"
+                />
+              </div>
+            );
+          case "status":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3">
+                <select
+                  value={status}
+                  disabled={isSaving}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => {
+                    const next = event.target.value as StudentTaskStatus;
+                    setStatus(next);
+                    if (next !== task.status) {
+                      onUpdate(task.id, { status: next });
+                    }
+                  }}
+                  className="h-8 w-full rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
+                >
+                  {TASK_STATUSES.map((option) => (
+                    <option key={option} value={option}>
+                      {statusLabels[option]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          case "due":
+            return (
+              <div key={column.key} className="flex h-full items-center gap-2 px-3">
+                <input
+                  type="date"
+                  value={dueDate}
+                  disabled={isSaving}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setDueDate(next);
+                    if (!next) {
+                      setDueTime("");
+                    }
+                  }}
+                  onBlur={commitDue}
+                  className="h-8 rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
+                />
+                <input
+                  type="time"
+                  value={dueTime}
+                  disabled={isSaving || !dueDate}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => setDueTime(event.target.value)}
+                  onBlur={commitDue}
+                  className="h-8 w-[88px] rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
+                />
+              </div>
+            );
+          case "subject":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3">
+                <input
+                  list="subject-options"
+                  value={subject}
+                  disabled={isSaving}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => setSubject(event.target.value)}
+                  onBlur={commitSubject}
+                  className="h-8 w-full rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
+                  placeholder="Subject"
+                />
+              </div>
+            );
+          case "priority":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3">
+                <select
+                  value={priority}
+                  disabled={isSaving}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => {
+                    const next = event.target.value as StudentTaskPriority;
+                    setPriority(next);
+                    if (next !== task.priority) {
+                      onUpdate(task.id, { priority: next });
+                    }
+                  }}
+                  className="h-8 w-full rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
+                >
+                  {TASK_PRIORITIES.map((option) => (
+                    <option key={option} value={option}>
+                      {priorityLabels[option]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          case "estimate":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3">
+                <input
+                  type="number"
+                  min={0}
+                  value={estimate}
+                  disabled={isSaving}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => setEstimate(event.target.value)}
+                  onBlur={commitEstimate}
+                  className="h-8 w-full rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
+                />
+              </div>
+            );
+          case "resource":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3">
+                <input
+                  value={resourceUrl}
+                  disabled={isSaving}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => setResourceUrl(event.target.value)}
+                  onBlur={commitResource}
+                  placeholder="https://"
+                  className="h-8 w-full rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
+                />
+              </div>
+            );
+          case "notes":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3">
+                <span className="truncate text-xs text-white/50">
+                  {notesPreview}
+                </span>
+              </div>
+            );
+          default:
+            return <div key={column.key} className="px-3" />;
+        }
+      })}
+    </div>
+  );
+}
+
+type HabitTrackerPanelProps = {
+  habits: StudentHabit[];
+  allHabits: StudentHabit[];
+  loading: boolean;
+  view: HabitViewFilter;
+  onViewChange: (view: HabitViewFilter) => void;
+  hiddenColumns: string[];
+  onHiddenColumnsChange: (nextHidden: string[]) => void;
+  propertiesOpen: boolean;
+  onPropertiesToggle: (open: boolean) => void;
+  completionKeySet: Set<string>;
+  streaksById: Map<string, number>;
+  savingCompletionKeys: Set<string>;
+  weekDateKeys: string[];
+  todayKey: string;
+  todayDate: Date;
+  onToggleCompletion: (habitId: string, dateKey: string, next: boolean) => void;
+  onCreateHabit: (name: string) => Promise<void>;
+  onUpdateHabit: (habitId: string, updates: HabitUpdatePayload) => Promise<void>;
+  onSelectHabit: (habitId: string) => void;
+  savingIds: Set<string>;
+};
+
+function HabitTrackerPanel({
+  habits,
+  allHabits,
+  loading,
+  view,
+  onViewChange,
+  hiddenColumns,
+  onHiddenColumnsChange,
+  propertiesOpen,
+  onPropertiesToggle,
+  completionKeySet,
+  streaksById,
+  savingCompletionKeys,
+  weekDateKeys,
+  todayKey,
+  todayDate,
+  onToggleCompletion,
+  onCreateHabit,
+  onUpdateHabit,
+  onSelectHabit,
+  savingIds,
+}: HabitTrackerPanelProps) {
+  const [draftName, setDraftName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const visibleColumns = useMemo(
+    () => getVisibleColumns(HABIT_TABLE_COLUMNS, hiddenColumns),
+    [hiddenColumns],
+  );
+  const gridTemplate = useMemo(
+    () => buildGridTemplate(HABIT_TABLE_COLUMNS, hiddenColumns),
+    [hiddenColumns],
+  );
+  const weekDates = useMemo(
+    () =>
+      weekDateKeys.map((key) => {
+        const date = new Date(`${key}T00:00:00`);
+        return Number.isNaN(date.getTime()) ? new Date() : date;
+      }),
+    [weekDateKeys],
+  );
+  const rows = view === "week" ? allHabits : habits;
+
+  async function handleCreate() {
+    if (creating) return;
+    const trimmed = draftName.trim();
+    if (!trimmed) {
+      setCreateError("Name is required.");
+      return;
+    }
+    setCreateError(null);
+    setCreating(true);
+    try {
+      await onCreateHabit(trimmed);
+      setDraftName("");
+      inputRef.current?.focus();
+    } catch (error) {
+      setCreateError(
+        error instanceof Error ? error.message : "Failed to create habit",
+      );
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {[
+            { id: "today", label: "Today" },
+            { id: "week", label: "Week" },
+            { id: "all", label: "All habits" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onViewChange(tab.id as HabitViewFilter)}
+              className={classNames(
+                "rounded-md border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] transition",
+                view === tab.id
+                  ? "border-white/40 bg-white/10 text-white"
+                  : "border-white/10 text-white/50 hover:border-white/25 hover:bg-white/5 hover:text-white/80",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-1 justify-end">
+          <button
+            type="button"
+            onClick={() => onPropertiesToggle(!propertiesOpen)}
+            className="h-9 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/60 transition hover:border-white/30 hover:text-white"
+          >
+            Properties
+          </button>
+        </div>
+      </div>
+
+      {propertiesOpen && (
+        <div className="flex justify-end">
+          <PropertiesPanel
+            columns={HABIT_TABLE_COLUMNS}
+            hiddenColumns={hiddenColumns}
+            onChange={onHiddenColumnsChange}
+          />
+        </div>
+      )}
+
+      {view === "week" ? (
+        <div className="rounded-2xl border border-white/10 bg-[#0c0c16]">
+          <div className="overflow-x-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
+            <div className="min-w-[820px]">
+              <div className="grid h-11 grid-cols-[minmax(220px,1.5fr)_repeat(7,70px)_100px] items-center border-b border-white/10 bg-white/5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">
+                <div className="flex h-full items-center px-3">Habit</div>
+                {WEEKDAY_NAMES_MON.map((label) => (
+                  <div key={label} className="flex h-full items-center justify-center">
+                    {label}
+                  </div>
+                ))}
+                <div className="flex h-full items-center justify-center">Streak</div>
+              </div>
+              <div className="divide-y divide-white/10">
+                {loading && rows.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-white/50">
+                    Loading habits...
+                  </div>
+                ) : rows.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-white/50">
+                    No habits yet.
+                  </div>
+                ) : (
+                  rows.map((habit) => (
+                    <div
+                      key={habit.id}
+                      className={classNames(
+                        "grid h-11 grid-cols-[minmax(220px,1.5fr)_repeat(7,70px)_100px] items-center text-sm text-white/80 transition hover:bg-white/5",
+                        habit.status === "paused" && "text-white/40",
+                      )}
+                      onClick={() => onSelectHabit(habit.id)}
+                    >
+                      <div className="flex h-full items-center px-3">
+                        <span className="truncate">{habit.name}</span>
+                      </div>
+                      {weekDateKeys.map((dateKey, index) => {
+                        const date = weekDates[index];
+                        const completionKey = makeHabitCompletionKey(
+                          habit.id,
+                          dateKey,
+                        );
+                        const completed = completionKeySet.has(completionKey);
+                        const saving = savingCompletionKeys.has(completionKey);
+                        const scheduled = isHabitScheduledOn(habit, date);
+                        const disabled =
+                          saving || habit.status === "paused" || !scheduled;
+                        return (
+                          <div
+                            key={dateKey}
+                            className="flex h-full items-center justify-center"
+                          >
+                            <button
+                              type="button"
+                              disabled={disabled}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onToggleCompletion(
+                                  habit.id,
+                                  dateKey,
+                                  !completed,
+                                );
+                              }}
+                              className={classNames(
+                                "flex h-7 w-7 items-center justify-center rounded-full border text-white/70 transition",
+                                completed
+                                  ? "border-emerald-400/60 bg-emerald-400/10 text-emerald-100"
+                                  : "border-white/10 bg-black/20",
+                                disabled && "opacity-40",
+                              )}
+                            >
+                              {completed ? (
+                                <Check className="h-3.5 w-3.5" aria-hidden />
+                              ) : (
+                                <Circle className="h-3.5 w-3.5" aria-hidden />
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
+                      <div className="flex h-full items-center justify-center text-xs text-white/60">
+                        {streaksById.get(habit.id) ?? 0}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-white/10 bg-[#0c0c16]">
+          <div className="overflow-x-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20">
+            <div className="min-w-[980px]">
+              <div
+                className="grid h-11 items-center border-b border-white/10 bg-white/5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45"
+                style={{ gridTemplateColumns: gridTemplate }}
+              >
+                {visibleColumns.map((column) => (
+                  <div key={column.key} className="flex h-full items-center px-3">
+                    {column.label}
+                  </div>
+                ))}
+              </div>
+              <div className="divide-y divide-white/10">
+                {loading && rows.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-white/50">
+                    Loading habits...
+                  </div>
+                ) : rows.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-white/50">
+                    No habits yet.
+                  </div>
+                ) : (
+                  rows.map((habit) => (
+                    <HabitTableRow
+                      key={habit.id}
+                      habit={habit}
+                      visibleColumns={visibleColumns}
+                      gridTemplate={gridTemplate}
+                      completionKeySet={completionKeySet}
+                      streak={streaksById.get(habit.id) ?? 0}
+                      savingCompletionKeys={savingCompletionKeys}
+                      todayKey={todayKey}
+                      todayDate={todayDate}
+                      onToggleCompletion={onToggleCompletion}
+                      onUpdate={onUpdateHabit}
+                      onSelect={() => onSelectHabit(habit.id)}
+                      isSaving={savingIds.has(habit.id)}
+                    />
+                  ))
+                )}
+                <div
+                  className="grid h-11 items-center text-sm text-white/60"
+                  style={{ gridTemplateColumns: gridTemplate }}
+                  onClick={() => inputRef.current?.focus()}
+                >
+                  {visibleColumns.map((column) => {
+                    if (column.key !== "name") {
+                      return <div key={column.key} className="px-3" />;
+                    }
+                    return (
+                      <div key={column.key} className="flex h-full items-center px-3">
+                        <input
+                          ref={inputRef}
+                          value={draftName}
+                          disabled={creating}
+                          onChange={(event) => setDraftName(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              handleCreate();
+                            }
+                          }}
+                          placeholder="+ New habit"
+                          className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-white/80 outline-none transition placeholder:text-white/40 focus:border-white/20 focus:bg-white/5"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {createError && <p className="text-xs text-rose-300">{createError}</p>}
+    </div>
+  );
+}
+
+type HabitTableRowProps = {
+  habit: StudentHabit;
+  visibleColumns: ColumnMeta[];
+  gridTemplate: string;
+  completionKeySet: Set<string>;
+  streak: number;
+  savingCompletionKeys: Set<string>;
+  todayKey: string;
+  todayDate: Date;
+  onToggleCompletion: (habitId: string, dateKey: string, next: boolean) => void;
+  onUpdate: (habitId: string, updates: HabitUpdatePayload) => Promise<void>;
+  onSelect: () => void;
+  isSaving: boolean;
+};
+
+function HabitTableRow({
+  habit,
+  visibleColumns,
+  gridTemplate,
+  completionKeySet,
+  streak,
+  savingCompletionKeys,
+  todayKey,
+  todayDate,
+  onToggleCompletion,
+  onUpdate,
+  onSelect,
+  isSaving,
+}: HabitTableRowProps) {
+  const [name, setName] = useState(habit.name);
+  const [status, setStatus] = useState<HabitStatus>(habit.status);
+
+  useEffect(() => {
+    setName(habit.name);
+    setStatus(habit.status);
+  }, [habit]);
+
+  async function commitName() {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setName(habit.name);
+      return;
+    }
+    if (trimmed !== habit.name) {
+      await onUpdate(habit.id, { name: trimmed });
+    }
+  }
+
+  const completionKey = makeHabitCompletionKey(habit.id, todayKey);
+  const doneToday = completionKeySet.has(completionKey);
+  const saving = savingCompletionKeys.has(completionKey);
+  const scheduledToday = isHabitScheduledOn(habit, todayDate);
+  const disabledToggle =
+    saving || habit.status === "paused" || !scheduledToday;
+  const notesPreview = habit.notes?.trim() || "No notes";
+  const resourcePreview = habit.resourceUrl?.trim() || "No link";
+
+  return (
+    <div
+      className={classNames(
+        "grid h-11 items-center text-sm text-white/80 transition hover:bg-white/5",
+        habit.status === "paused" && "text-white/40",
+        isSaving && "opacity-60",
+      )}
+      style={{ gridTemplateColumns: gridTemplate }}
+      onClick={onSelect}
+    >
+      {visibleColumns.map((column) => {
+        switch (column.key) {
+          case "name":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3">
+                <input
+                  value={name}
+                  disabled={isSaving}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => setName(event.target.value)}
+                  onBlur={commitName}
+                  className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-white/80 outline-none transition focus:border-white/20 focus:bg-white/5"
+                />
+              </div>
+            );
+          case "done":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3">
+                <label
+                  className={classNames(
+                    "flex items-center gap-2 text-xs text-white/70",
+                    disabledToggle && "opacity-50",
+                  )}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={doneToday}
+                    disabled={disabledToggle}
+                    onChange={(event) =>
+                      onToggleCompletion(
+                        habit.id,
+                        todayKey,
+                        event.target.checked,
+                      )
+                    }
+                    className="h-4 w-4 rounded border border-white/30 bg-black/40 text-emerald-300 accent-emerald-400"
+                  />
+                  {doneToday ? "Done" : "Not yet"}
+                </label>
+              </div>
+            );
+          case "streak":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3 text-xs text-white/60">
+                {streak}
+              </div>
+            );
+          case "schedule":
+            return (
+              <div
+                key={column.key}
+                className="flex h-full items-center px-3 text-xs text-white/60"
+                title={formatScheduleDetail(habit)}
+              >
+                {formatScheduleSummary(habit)}
+              </div>
+            );
+          case "target":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3 text-xs text-white/60">
+                {habit.target ?? "-"}
+              </div>
+            );
+          case "notes":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3">
+                <span className="truncate text-xs text-white/50">
+                  {notesPreview}
+                </span>
+              </div>
+            );
+          case "resource":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3">
+                <span className="truncate text-xs text-white/50">
+                  {resourcePreview}
+                </span>
+              </div>
+            );
+          case "start":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3 text-xs text-white/60">
+                {habit.startDate}
+              </div>
+            );
+          case "status":
+            return (
+              <div key={column.key} className="flex h-full items-center px-3">
+                <select
+                  value={status}
+                  disabled={isSaving}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => {
+                    const next = event.target.value as HabitStatus;
+                    setStatus(next);
+                    if (next !== habit.status) {
+                      onUpdate(habit.id, { status: next });
+                    }
+                  }}
+                  className="h-8 w-full rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
+                >
+                  {HABIT_STATUSES.map((option) => (
+                    <option key={option} value={option}>
+                      {option === "active" ? "Active" : "Paused"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          default:
+            return <div key={column.key} className="px-3" />;
+        }
+      })}
+    </div>
+  );
+}
+
+type TaskDetailsModalProps = {
+  task: StudentTask;
+  saving: boolean;
+  onClose: () => void;
+  onUpdate: (taskId: string, updates: TaskUpdatePayload) => Promise<void>;
+};
+
+function TaskDetailsModal({ task, saving, onClose, onUpdate }: TaskDetailsModalProps) {
+  const [title, setTitle] = useState(task.title);
+  const [status, setStatus] = useState<StudentTaskStatus>(task.status);
+  const [priority, setPriority] = useState<StudentTaskPriority>(task.priority);
+  const [subject, setSubject] = useState(task.subject ?? "");
+  const [estimate, setEstimate] = useState(
+    task.estimatedMinutes !== null && task.estimatedMinutes !== undefined
+      ? String(task.estimatedMinutes)
+      : "",
+  );
+  const [resourceUrl, setResourceUrl] = useState(task.resourceUrl ?? "");
+  const [notes, setNotes] = useState(task.description ?? "");
+  const [dueDate, setDueDate] = useState(getDueDateInput(task));
+  const [dueTime, setDueTime] = useState(getDueTimeInput(task));
+
+  useEffect(() => {
+    setTitle(task.title);
+    setStatus(task.status);
+    setPriority(task.priority);
+    setSubject(task.subject ?? "");
+    setEstimate(
+      task.estimatedMinutes !== null && task.estimatedMinutes !== undefined
+        ? String(task.estimatedMinutes)
+        : "",
+    );
+    setResourceUrl(task.resourceUrl ?? "");
+    setNotes(task.description ?? "");
+    setDueDate(getDueDateInput(task));
+    setDueTime(getDueTimeInput(task));
+  }, [task]);
+
+  async function commitTitle() {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      setTitle(task.title);
+      return;
+    }
+    if (trimmed !== task.title) {
+      await onUpdate(task.id, { title: trimmed });
+    }
+  }
+
+  async function commitNotes() {
+    const nextValue = notes.trim() ? notes : null;
+    if ((task.description ?? null) !== nextValue) {
+      await onUpdate(task.id, { description: nextValue });
+    }
+  }
+
+  async function commitSubject() {
+    const trimmed = subject.trim();
+    const nextValue = trimmed ? trimmed : null;
+    if ((task.subject ?? null) !== nextValue) {
+      await onUpdate(task.id, { subject: nextValue });
+    }
+  }
+
+  async function commitEstimate() {
+    const trimmed = estimate.trim();
+    const nextValue = trimmed ? Number(trimmed) : null;
+    if (trimmed && Number.isNaN(nextValue)) {
+      setEstimate(
+        task.estimatedMinutes !== null && task.estimatedMinutes !== undefined
+          ? String(task.estimatedMinutes)
+          : "",
+      );
+      return;
+    }
+    if ((task.estimatedMinutes ?? null) !== nextValue) {
+      await onUpdate(task.id, { estimatedMinutes: nextValue });
+    }
+  }
+
+  async function commitResource() {
+    const trimmed = resourceUrl.trim();
+    const nextValue = trimmed ? trimmed : null;
+    if ((task.resourceUrl ?? null) !== nextValue) {
+      await onUpdate(task.id, { resourceUrl: nextValue });
+    }
+  }
+
+  async function commitDue() {
+    const currentDate = getDueDateInput(task);
+    const currentTime = getDueTimeInput(task);
+    if (currentDate === dueDate && currentTime === dueTime) return;
+    await onUpdate(task.id, buildDuePayload(dueDate, dueTime));
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-[#0b0b16] p-6 text-sm text-white">
+        <div className="flex items-center justify-between gap-3">
+          <input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            onBlur={commitTitle}
+            className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-2xl font-semibold text-white outline-none focus:border-white/20 focus:bg-white/5"
+          />
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/60 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Status
+            <select
+              value={status}
+              onChange={(event) => {
+                const next = event.target.value as StudentTaskStatus;
+                setStatus(next);
+                if (next !== task.status) {
+                  onUpdate(task.id, { status: next });
+                }
+              }}
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            >
+              {TASK_STATUSES.map((option) => (
+                <option key={option} value={option}>
+                  {statusLabels[option]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Priority
+            <select
+              value={priority}
+              onChange={(event) => {
+                const next = event.target.value as StudentTaskPriority;
+                setPriority(next);
+                if (next !== task.priority) {
+                  onUpdate(task.id, { priority: next });
+                }
+              }}
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            >
+              {TASK_PRIORITIES.map((option) => (
+                <option key={option} value={option}>
+                  {priorityLabels[option]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Due date
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setDueDate(next);
+                  if (!next) {
+                    setDueTime("");
+                  }
+                }}
+                onBlur={commitDue}
+                className="h-9 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+              />
+              <input
+                type="time"
+                value={dueTime}
+                disabled={!dueDate}
+                onChange={(event) => setDueTime(event.target.value)}
+                onBlur={commitDue}
+                className="h-9 w-32 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+              />
+            </div>
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Subject
+            <input
+              list="subject-options"
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+              onBlur={commitSubject}
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Est. minutes
+            <input
+              type="number"
+              min={0}
+              value={estimate}
+              onChange={(event) => setEstimate(event.target.value)}
+              onBlur={commitEstimate}
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Resource
+            <input
+              value={resourceUrl}
+              onChange={(event) => setResourceUrl(event.target.value)}
+              onBlur={commitResource}
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            />
+          </label>
+        </div>
+        <label className="mt-5 flex flex-col gap-1 text-xs text-white/50">
+          Notes
+          <textarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            onBlur={commitNotes}
+            rows={4}
+            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
+          />
+        </label>
+        {saving && (
+          <p className="mt-3 text-xs uppercase tracking-[0.3em] text-white/40">
+            Saving...
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type HabitDetailsModalProps = {
+  habit: StudentHabit;
+  saving: boolean;
+  onClose: () => void;
+  onUpdate: (habitId: string, updates: HabitUpdatePayload) => Promise<void>;
+};
+
+function HabitDetailsModal({
+  habit,
+  saving,
+  onClose,
+  onUpdate,
+}: HabitDetailsModalProps) {
+  const [name, setName] = useState(habit.name);
+  const [scheduleType, setScheduleType] = useState<HabitScheduleType>(
+    habit.scheduleType,
+  );
+  const [scheduleDays, setScheduleDays] = useState<number[]>(
+    habit.scheduleDays ?? [],
+  );
+  const [status, setStatus] = useState<HabitStatus>(habit.status);
+  const [target, setTarget] = useState(
+    habit.target !== null && habit.target !== undefined
+      ? String(habit.target)
+      : "",
+  );
+  const [notes, setNotes] = useState(habit.notes ?? "");
+  const [resourceUrl, setResourceUrl] = useState(habit.resourceUrl ?? "");
+  const [startDate, setStartDate] = useState(habit.startDate);
+
+  useEffect(() => {
+    setName(habit.name);
+    setScheduleType(habit.scheduleType);
+    setScheduleDays(habit.scheduleDays ?? []);
+    setStatus(habit.status);
+    setTarget(
+      habit.target !== null && habit.target !== undefined
+        ? String(habit.target)
+        : "",
+    );
+    setNotes(habit.notes ?? "");
+    setResourceUrl(habit.resourceUrl ?? "");
+    setStartDate(habit.startDate);
+  }, [habit]);
+
+  async function commitName() {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setName(habit.name);
+      return;
+    }
+    if (trimmed !== habit.name) {
+      await onUpdate(habit.id, { name: trimmed });
+    }
+  }
+
+  async function commitTarget() {
+    const trimmed = target.trim();
+    const nextValue = trimmed ? Number(trimmed) : null;
+    if (trimmed && Number.isNaN(nextValue)) {
+      setTarget(
+        habit.target !== null && habit.target !== undefined
+          ? String(habit.target)
+          : "",
+      );
+      return;
+    }
+    if ((habit.target ?? null) !== nextValue) {
+      await onUpdate(habit.id, { target: nextValue });
+    }
+  }
+
+  async function commitNotes() {
+    const nextValue = notes.trim() ? notes : null;
+    if ((habit.notes ?? null) !== nextValue) {
+      await onUpdate(habit.id, { notes: nextValue });
+    }
+  }
+
+  async function commitResource() {
+    const trimmed = resourceUrl.trim();
+    const nextValue = trimmed ? trimmed : null;
+    if ((habit.resourceUrl ?? null) !== nextValue) {
+      await onUpdate(habit.id, { resourceUrl: nextValue });
+    }
+  }
+
+  async function commitStartDate() {
+    if (!startDate) {
+      setStartDate(habit.startDate);
+      return;
+    }
+    if (startDate !== habit.startDate) {
+      await onUpdate(habit.id, { startDate });
+    }
+  }
+
+  async function handleScheduleTypeChange(next: HabitScheduleType) {
+    setScheduleType(next);
+    if (next === "custom") {
+      const nextDays = scheduleDays.length ? scheduleDays : [1, 2, 3, 4, 5];
+      setScheduleDays(nextDays);
+      await onUpdate(habit.id, {
+        scheduleType: next,
+        scheduleDays: nextDays,
+      });
+    } else {
+      await onUpdate(habit.id, {
+        scheduleType: next,
+        scheduleDays: null,
+      });
+    }
+  }
+
+  async function toggleScheduleDay(day: number) {
+    if (scheduleType !== "custom") return;
+    if (scheduleDays.length === 1 && scheduleDays.includes(day)) return;
+    const next = scheduleDays.includes(day)
+      ? scheduleDays.filter((entry) => entry !== day)
+      : [...scheduleDays, day].sort((a, b) => a - b);
+    setScheduleDays(next);
+    await onUpdate(habit.id, { scheduleDays: next });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-[#0b0b16] p-6 text-sm text-white">
+        <div className="flex items-center justify-between gap-3">
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            onBlur={commitName}
+            className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-2xl font-semibold text-white outline-none focus:border-white/20 focus:bg-white/5"
+          />
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/60 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Schedule
+            <select
+              value={scheduleType}
+              onChange={(event) =>
+                handleScheduleTypeChange(event.target.value as HabitScheduleType)
+              }
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            >
+              {HABIT_SCHEDULE_TYPES.map((option) => (
+                <option key={option} value={option}>
+                  {option === "daily"
+                    ? "Daily"
+                    : option === "weekdays"
+                      ? "Weekdays"
+                      : "Custom"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Status
+            <select
+              value={status}
+              onChange={(event) => {
+                const next = event.target.value as HabitStatus;
+                setStatus(next);
+                if (next !== habit.status) {
+                  onUpdate(habit.id, { status: next });
+                }
+              }}
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            >
+              {HABIT_STATUSES.map((option) => (
+                <option key={option} value={option}>
+                  {option === "active" ? "Active" : "Paused"}
+                </option>
+              ))}
+            </select>
+          </label>
+          {scheduleType === "custom" && (
+            <div className="md:col-span-2">
+              <p className="text-xs text-white/50">Custom days</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {WEEKDAY_NAMES_SHORT.map((label, index) => {
+                  const selected = scheduleDays.includes(index);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => toggleScheduleDay(index)}
+                      className={classNames(
+                        "rounded-lg border px-3 py-1 text-xs uppercase tracking-[0.2em]",
+                        selected
+                          ? "border-white bg-white/10 text-white"
+                          : "border-white/10 text-white/50 hover:border-white/30 hover:text-white",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
-          aria-hidden
-        />
-      </button>
-      {open && !disabled && options.length > 0 && (
-        <div
-          role="listbox"
-          className="absolute left-0 right-0 z-30 mt-2 max-h-56 overflow-auto rounded-md border border-white/10 bg-[#0b0b0f] p-1 text-xs shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
-        >
-          {options.map((option) => {
-            const isSelected = option.value === value;
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Target
+            <input
+              type="number"
+              min={0}
+              value={target}
+              onChange={(event) => setTarget(event.target.value)}
+              onBlur={commitTarget}
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Start date
+            <input
+              type="date"
+              value={startDate}
+              onChange={(event) => setStartDate(event.target.value)}
+              onBlur={commitStartDate}
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-white/50 md:col-span-2">
+            Resource
+            <input
+              value={resourceUrl}
+              onChange={(event) => setResourceUrl(event.target.value)}
+              onBlur={commitResource}
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            />
+          </label>
+        </div>
+        <label className="mt-5 flex flex-col gap-1 text-xs text-white/50">
+          Notes
+          <textarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            onBlur={commitNotes}
+            rows={4}
+            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
+          />
+        </label>
+        {saving && (
+          <p className="mt-3 text-xs uppercase tracking-[0.3em] text-white/40">
+            Saving...
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type ConvertNoteModalProps = {
+  title: string;
+  dueDate: string;
+  subject: string;
+  onTitleChange: (value: string) => void;
+  onDueDateChange: (value: string) => void;
+  onSubjectChange: (value: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+};
+
+function ConvertNoteModal({
+  title,
+  dueDate,
+  subject,
+  onTitleChange,
+  onDueDateChange,
+  onSubjectChange,
+  onClose,
+  onSubmit,
+}: ConvertNoteModalProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#0b0b16] p-6 text-sm text-white">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Convert to task</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/60 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+        <div className="mt-4 space-y-3">
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Title
+            <input
+              value={title}
+              onChange={(event) => onTitleChange(event.target.value)}
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Due date
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(event) => onDueDateChange(event.target.value)}
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Subject
+            <input
+              list="subject-options"
+              value={subject}
+              onChange={(event) => onSubjectChange(event.target.value)}
+              className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+            />
+          </label>
+        </div>
+        <div className="mt-6 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-white/60 hover:text-white"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            className="rounded-xl bg-white/10 px-4 py-2 font-semibold text-white hover:bg-white/20"
+          >
+            Create task
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type CreateListModalProps = {
+  template: TaskPrivateListType | null;
+  name: string;
+  error: string | null;
+  saving: boolean;
+  onClose: () => void;
+  onSelect: (template: TaskPrivateListType) => void;
+  onNameChange: (value: string) => void;
+  onSubmit: () => void;
+};
+
+function CreateListModal({
+  template,
+  name,
+  error,
+  saving,
+  onClose,
+  onSelect,
+  onNameChange,
+  onSubmit,
+}: CreateListModalProps) {
+  const templates: Array<{
+    id: TaskPrivateListType;
+    title: string;
+    subtitle: string;
+    icon: string;
+  }> = [
+    {
+      id: "planner_tasks",
+      title: "Planner Tasks",
+      subtitle: "Assignments, exams, projects — organized.",
+      icon: "🗂️",
+    },
+    {
+      id: "habit_tracker",
+      title: "Habit Tracker",
+      subtitle: "Daily habits with real streaks.",
+      icon: "🔥",
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-[#0b0b16] p-6 text-sm text-white">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Create new</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/60 hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {templates.map((item) => {
+            const isActive = template === item.id;
             return (
               <button
-                key={option.value}
+                key={item.id}
                 type="button"
-                role="option"
-                aria-selected={isSelected}
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
+                onClick={() => onSelect(item.id)}
                 className={classNames(
-                  "flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs transition",
-                  isSelected
-                    ? "bg-white/10 text-white"
-                    : "text-white/70 hover:bg-white/10 hover:text-white",
+                  "rounded-2xl border p-4 text-left transition",
+                  isActive
+                    ? "border-white/40 bg-white/10"
+                    : "border-white/10 bg-black/20 hover:border-white/30",
                 )}
               >
-                {option.label}
+                <div className="flex items-start gap-3">
+                  <span className="text-xl">{item.icon}</span>
+                  <div>
+                    <p className="text-base font-semibold text-white">
+                      {item.title}
+                    </p>
+                    <p className="mt-1 text-xs text-white/50">
+                      {item.subtitle}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  <div className="h-2 w-full rounded-full bg-white/10" />
+                  <div className="h-2 w-5/6 rounded-full bg-white/10" />
+                  <div className="h-2 w-2/3 rounded-full bg-white/10" />
+                </div>
               </button>
             );
           })}
         </div>
-      )}
+        {template && (
+          <div className="mt-5 flex flex-col gap-3">
+            <label className="flex flex-col gap-1 text-xs text-white/50">
+              Name
+              <input
+                value={name}
+                onChange={(event) => onNameChange(event.target.value)}
+                className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={saving}
+              className="self-end rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-50"
+            >
+              {saving ? "Creating..." : "Create"}
+            </button>
+          </div>
+        )}
+        {error && <p className="mt-3 text-xs text-rose-300">{error}</p>}
+      </div>
     </div>
   );
 }
 
-function NotionTaskRow({
-  task,
-  saving,
-  onUpdate,
-  onSelect,
-}: NotionTaskRowProps) {
-  const [title, setTitle] = useState(task.title);
+type ToastBannerProps = {
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  onClose: () => void;
+};
 
-  useEffect(() => {
-    setTitle(task.title);
-  }, [task.title]);
-
-  async function commitTitle() {
-    if (title.trim() && title.trim() !== task.title) {
-      await onUpdate(task.id, { title: title.trim() });
-    } else {
-      setTitle(task.title);
-    }
-  }
-
-  const rowMuted = task.status === "done";
-
+function ToastBanner({
+  message,
+  actionLabel,
+  onAction,
+  onClose,
+}: ToastBannerProps) {
   return (
-    <div
-      onClick={onSelect}
-      className={classNames(
-        "group grid items-center px-2 py-1.5 text-sm text-white/80 transition hover:bg-white/5",
-        PRIVATE_TABLE_GRID,
-        rowMuted && "text-white/40",
-        saving && "opacity-60",
-      )}
-    >
-      <div className="flex items-center pl-2">
-        <div className="pointer-events-none flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-          <Plus className="h-3.5 w-3.5 text-white/60" aria-hidden />
-          <span
-            className="grid h-3.5 w-3.5 grid-cols-2 gap-[2px]"
-            aria-hidden
-          >
-            <span className="h-1 w-1 rounded-full bg-white/35" />
-            <span className="h-1 w-1 rounded-full bg-white/35" />
-            <span className="h-1 w-1 rounded-full bg-white/35" />
-            <span className="h-1 w-1 rounded-full bg-white/35" />
-            <span className="h-1 w-1 rounded-full bg-white/35" />
-            <span className="h-1 w-1 rounded-full bg-white/35" />
-          </span>
-          <span className="h-4 w-4 rounded-sm border border-white/30 bg-black/20" />
-        </div>
-      </div>
-      <div className="flex h-full min-w-0 items-center gap-3 border-l border-white/10 pl-4">
-        <input
-          value={title}
-          disabled={saving}
-          onChange={(event) => setTitle(event.target.value)}
-          onBlur={commitTitle}
-          className="min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1 py-1 text-sm font-medium text-white/80 outline-none transition focus:border-white/10 focus:bg-white/5"
-        />
+    <div className="fixed bottom-6 right-6 z-50 flex max-w-sm items-center gap-3 rounded-2xl border border-white/10 bg-[#0c0c16] px-4 py-3 text-sm text-white shadow-[0_12px_30px_rgba(0,0,0,0.4)]">
+      <span className="flex-1">{message}</span>
+      {actionLabel && onAction && (
         <button
           type="button"
-          tabIndex={-1}
-          aria-hidden
-          className="pointer-events-none rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60 opacity-0 transition-opacity group-hover:opacity-100"
+          onClick={onAction}
+          className="rounded-lg border border-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 hover:border-white/40"
         >
-          OPEN
+          {actionLabel}
         </button>
-      </div>
-      <div className="h-full border-l border-white/10 pl-4" />
-    </div>
-  );
-}
-
-function TaskRow({
-  task,
-  saving,
-  onUpdate,
-  onScheduleTask,
-  onRepeat,
-  onAutoPlan,
-  onSelect,
-}: TaskRowProps) {
-  const [title, setTitle] = useState(task.title);
-  const [category, setCategory] = useState<StudentTaskCategory>(task.category);
-  const [priority, setPriority] = useState<StudentTaskPriority>(task.priority);
-  const [dueDate, setDueDate] = useState(toDateInput(task.dueDate));
-  const [start, setStart] = useState(toDateTimeInput(task.scheduledStart));
-  const [end, setEnd] = useState(toDateTimeInput(task.scheduledEnd));
-
-  useEffect(() => {
-    setTitle(task.title);
-    setCategory(task.category);
-    setPriority(task.priority);
-    setDueDate(toDateInput(task.dueDate));
-    setStart(toDateTimeInput(task.scheduledStart));
-    setEnd(toDateTimeInput(task.scheduledEnd));
-  }, [task]);
-
-  async function commitTitle() {
-    if (title.trim() && title.trim() !== task.title) {
-      await onUpdate(task.id, { title: title.trim() });
-    } else {
-      setTitle(task.title);
-    }
-  }
-
-  function handleCategoryChange(next: StudentTaskCategory) {
-    setCategory(next);
-    if (next !== task.category) {
-      onUpdate(task.id, { category: next });
-    }
-  }
-
-  function handlePriorityChange(next: StudentTaskPriority) {
-    setPriority(next);
-    if (next !== task.priority) {
-      onUpdate(task.id, { priority: next });
-    }
-  }
-
-  async function commitDueDate() {
-    const normalized = dueDate || null;
-    if (normalized !== (task.dueDate ?? null)) {
-      await onUpdate(task.id, { dueDate: normalized });
-    }
-  }
-
-  async function commitScheduleChange(nextStart: string, nextEnd: string) {
-    const startIso = nextStart ? fromDateTimeInput(nextStart) : null;
-    const endIso = nextEnd ? fromDateTimeInput(nextEnd) : null;
-    await onUpdate(task.id, {
-      scheduledStart: startIso,
-      scheduledEnd: endIso,
-    });
-  }
-
-  const rowMuted = task.status === "done";
-  const canAutoPlan =
-    (task.category === "exam" || task.category === "project") &&
-    !!task.dueDate &&
-    !!task.estimatedMinutes;
-  const repeatDisplay = useMemo(() => {
-    switch (task.repeatRule) {
-      case "daily":
-        return "Daily";
-      case "weekdays":
-        return "Weekdays";
-      case "custom_days":
-        if (task.repeatDays?.length) {
-          return task.repeatDays
-            .map((day) =>
-              day >= 0 && day <= 6 ? WEEKDAY_NAMES_SHORT[day] : null,
-            )
-            .filter(Boolean)
-            .join(", ");
-        }
-        return "Custom";
-      default:
-        return "Off";
-    }
-  }, [task.repeatRule, task.repeatDays]);
-
-  function cycleStatus() {
-    const currentIndex = TASK_STATUSES.indexOf(task.status);
-    const nextStatus =
-      TASK_STATUSES[(currentIndex + 1) % TASK_STATUSES.length];
-    onUpdate(task.id, { status: nextStatus });
-  }
-
-  return (
-    <div
-      onClick={onSelect}
-      className={classNames(
-        "grid cursor-pointer grid-cols-[120px,1.5fr,140px,120px,140px,160px,160px,80px] gap-3 px-4 py-2 text-sm text-white/90 transition hover:bg-white/5",
-        rowMuted && "opacity-60",
       )}
-    >
       <button
         type="button"
-        disabled={saving}
-        onClick={cycleStatus}
-        className="rounded-md border border-white/20 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.25em] text-white/70 hover:border-white/40"
+        onClick={onClose}
+        className="text-xs text-white/50 hover:text-white"
       >
-        {statusLabels[task.status]}
+        Close
       </button>
-      <input
-        value={title}
-        disabled={saving}
-        onChange={(event) => setTitle(event.target.value)}
-        onBlur={commitTitle}
-        className="rounded-md border border-transparent bg-transparent px-2 py-1 font-medium text-white outline-none focus:border-white/30 focus:bg-white/5"
-      />
-      <div>
-        <RowSelect
-          value={category}
-          options={TASK_CATEGORY_OPTIONS}
-          disabled={saving}
-          onChange={(nextValue) =>
-            handleCategoryChange(nextValue as StudentTaskCategory)
-          }
-        />
-        {task.category === "habit" && onRepeat && (
-          <button
-            type="button"
-            onClick={onRepeat}
-            className="mt-1 text-[11px] text-white/50 hover:text-white/70"
-          >
-            Repeat: {task.repeatRule === "none" ? "Off" : repeatDisplay}
-          </button>
-        )}
-      </div>
-      <RowSelect
-        value={priority}
-        options={TASK_PRIORITY_OPTIONS}
-        disabled={saving}
-        onChange={(nextValue) =>
-          handlePriorityChange(nextValue as StudentTaskPriority)
-        }
-      />
-      <input
-        type="date"
-        value={dueDate}
-        disabled={saving}
-        onChange={(event) => setDueDate(event.target.value)}
-        onBlur={commitDueDate}
-        className="rounded-md border border-white/10 bg-transparent px-2 py-1 text-xs text-white/80 outline-none focus:border-white/40"
-      />
-      <input
-        type="datetime-local"
-        value={start}
-        disabled={saving}
-        onChange={(event) => setStart(event.target.value)}
-        onBlur={() => {
-          const nextEnd = start ? end : "";
-          if (!start && end) {
-            setEnd("");
-          }
-          commitScheduleChange(start, nextEnd);
-        }}
-        className="rounded-md border border-white/10 bg-transparent px-2 py-1 text-xs text-white/80 outline-none focus:border-white/40"
-      />
-      <input
-        type="datetime-local"
-        value={end}
-        disabled={saving}
-        onChange={(event) => setEnd(event.target.value)}
-        onBlur={() => commitScheduleChange(start, end)}
-        className="rounded-md border border-white/10 bg-transparent px-2 py-1 text-xs text-white/80 outline-none focus:border-white/40"
-      />
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => onScheduleTask(task)}
-          className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm text-white/80 transition hover:bg-white/10 disabled:opacity-50"
-        >
-          🗓️
-        </button>
-        {canAutoPlan && onAutoPlan && (
-          <button
-            type="button"
-            onClick={onAutoPlan}
-            disabled={saving}
-            className={classNames(
-              "rounded-md border px-2 py-1 text-sm transition disabled:opacity-50",
-              task.autoPlanned
-                ? "border-[#ff5ddd] bg-[#ff5ddd]/15 text-[#ff5ddd]"
-                : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10",
-            )}
-          >
-            ⚡
-          </button>
-        )}
-      </div>
     </div>
+  );
+}
+
+function SubjectDatalist() {
+  return (
+    <datalist id="subject-options">
+      {SUBJECT_OPTIONS.map((option) => (
+        <option key={option} value={option} />
+      ))}
+    </datalist>
   );
 }
 
@@ -2478,331 +4148,6 @@ function HabitTodayRow({
       <span className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-xs uppercase tracking-[0.2em] text-white/70">
         {streakLabel}
       </span>
-    </div>
-  );
-}
-
-type HabitRepeatDialogProps = {
-  task: StudentTask;
-  onClose: () => void;
-  onSave: (payload: {
-    repeatRule: StudentHabitRepeatRule;
-    repeatDays: number[] | null;
-    repeatUntil: string | null;
-  }) => Promise<void>;
-};
-
-function HabitRepeatDialog({
-  task,
-  onClose,
-  onSave,
-}: HabitRepeatDialogProps) {
-  const [rule, setRule] = useState<StudentHabitRepeatRule>(task.repeatRule);
-  const [days, setDays] = useState<number[]>(task.repeatDays ?? []);
-  const [repeatUntil, setRepeatUntil] = useState(task.repeatUntil ?? "");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      window.removeEventListener("keydown", handleKey);
-    };
-  }, [onClose]);
-
-  function toggleDay(day: number) {
-    setDays((prev) => {
-      if (prev.includes(day)) {
-        return prev.filter((entry) => entry !== day);
-      }
-      return [...prev, day].sort((a, b) => a - b);
-    });
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await onSave({
-        repeatRule: rule,
-        repeatDays:
-          rule === "custom_days" ? (days.length ? days : null) : null,
-        repeatUntil: repeatUntil || null,
-      });
-      onClose();
-    } catch (error) {
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to update habit repeat",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#0b0b16] p-6 text-sm text-white">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Habit repeat</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close dialog"
-            className="rounded-lg p-2 text-white/60 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-          >
-            ✕
-          </button>
-        </div>
-        <div className="mt-4 space-y-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-              Mode
-            </p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {TASK_REPEAT_RULES.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setRule(option)}
-                  className={classNames(
-                    "rounded-xl border px-3 py-2 text-xs uppercase tracking-[0.2em]",
-                    rule === option
-                      ? "border-white bg-white/10"
-                      : "border-white/10 text-white/70 hover:border-white/30",
-                  )}
-                >
-                  {option.replace("_", " ")}
-                </button>
-              ))}
-            </div>
-          </div>
-          {rule === "custom_days" && (
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                Days
-              </p>
-              <div className="mt-2 grid grid-cols-7 gap-2">
-                {WEEKDAY_NAMES_SHORT.map((label, index) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => toggleDay(index)}
-                    className={classNames(
-                      "rounded-lg border px-2 py-1 text-xs",
-                      days.includes(index)
-                        ? "border-white bg-white/10"
-                        : "border-white/10 text-white/50",
-                    )}
-                  >
-                    {label[0]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-              Until
-            </p>
-            <input
-              type="date"
-              value={repeatUntil}
-              onChange={(event) => setRepeatUntil(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:border-white/40"
-            />
-          </div>
-        </div>
-        <div className="mt-6 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-white/60 hover:text-white"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-xl bg-white/10 px-4 py-2 font-semibold text-white hover:bg-white/20 disabled:opacity-50"
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-type AutoPlanDialogProps = {
-  task: StudentTask;
-  onClose: () => void;
-  onSubmit: (config: AutoPlanConfig) => Promise<void>;
-};
-
-function AutoPlanDialog({ task, onClose, onSubmit }: AutoPlanDialogProps) {
-  const [blockLength, setBlockLength] = useState(
-    task.autoBlockDurationMin || 50,
-  );
-  const [maxMinutes, setMaxMinutes] = useState(
-    task.autoDailyMaxMinutes || 240,
-  );
-  const [startDate, setStartDate] = useState(
-    task.autoStartDate ?? new Date().toISOString().slice(0, 10),
-  );
-  const [allowedDays, setAllowedDays] = useState<number[]>(
-    task.autoAllowedDays ?? [1, 2, 3, 4, 5],
-  );
-  const [replaceExisting, setReplaceExisting] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => {
-      window.removeEventListener("keydown", handleKey);
-    };
-  }, [onClose]);
-
-  function toggleAllowedDay(day: number) {
-    setAllowedDays((prev) => {
-      if (prev.includes(day)) {
-        return prev.filter((entry) => entry !== day);
-      }
-      return [...prev, day].sort((a, b) => a - b);
-    });
-  }
-
-  async function handleSubmit() {
-    setSaving(true);
-    try {
-      await onSubmit({
-        blockLength,
-        maxMinutesPerDay: maxMinutes,
-        startDate,
-        allowedDays,
-        replaceExisting,
-      });
-      onClose();
-    } catch (error) {
-      alert(
-        error instanceof Error ? error.message : "Failed to auto-plan blocks",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-[#0b0b16] p-6 text-sm text-white">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Auto-plan study blocks</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close dialog"
-            className="rounded-lg p-2 text-white/60 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-          >
-            ✕
-          </button>
-        </div>
-        <p className="mt-2 text-xs uppercase tracking-[0.3em] text-white/40">
-          {task.title}
-        </p>
-        <div className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.3em] text-white/40">
-              Block length (min)
-              <input
-                type="number"
-                min={20}
-                max={180}
-                value={blockLength}
-                onChange={(event) => setBlockLength(Number(event.target.value))}
-                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:border-white/40"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.3em] text-white/40">
-              Max minutes/day
-              <input
-                type="number"
-                min={60}
-                max={600}
-                value={maxMinutes}
-                onChange={(event) => setMaxMinutes(Number(event.target.value))}
-                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:border-white/40"
-              />
-            </label>
-          </div>
-          <label className="flex flex-col gap-1 text-xs uppercase tracking-[0.3em] text-white/40">
-            Earliest start date
-            <input
-              type="date"
-              value={startDate}
-              onChange={(event) => setStartDate(event.target.value)}
-              className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none focus:border-white/40"
-            />
-          </label>
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-              Days allowed
-            </p>
-            <div className="mt-2 grid grid-cols-7 gap-2">
-              {WEEKDAY_NAMES_SHORT.map((label, index) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => toggleAllowedDay(index)}
-                  className={classNames(
-                    "rounded-lg border px-2 py-1 text-xs",
-                    allowedDays.includes(index)
-                      ? "border-white bg-white/10"
-                      : "border-white/10 text-white/50",
-                  )}
-                >
-                  {label[0]}
-                </button>
-              ))}
-            </div>
-          </div>
-          <label className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/40">
-            <input
-              type="checkbox"
-              checked={replaceExisting}
-              onChange={(event) => setReplaceExisting(event.target.checked)}
-              className="h-4 w-4 rounded border border-white/30 bg-transparent"
-            />
-            Replace previous auto blocks
-          </label>
-        </div>
-        <div className="mt-6 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-white/60 hover:text-white"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={saving}
-            className="rounded-xl bg-gradient-to-r from-[#8a5bff] to-[#ff5ddd] px-4 py-2 font-semibold disabled:opacity-50"
-          >
-            {saving ? "Planning…" : "Auto-plan"}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

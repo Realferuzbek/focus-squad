@@ -7,7 +7,6 @@ import { supabaseAdmin } from "@/lib/supabaseServer";
 import {
   TASK_ITEM_COLUMNS,
   serializeTask,
-  ensurePrivateItemOwnership,
   syncTaskCalendarEvent,
   type TaskItemRow,
 } from "@/lib/taskSchedulerServer";
@@ -23,6 +22,7 @@ import {
   normalizeEnum,
   normalizeEstimatedMinutes,
   normalizeOptionalString,
+  normalizeTimestampInput,
   normalizeWeekdayArray,
   validateScheduleInput,
 } from "@/lib/taskSchedulerValidation";
@@ -31,6 +31,29 @@ async function requireUserId() {
   const session = await auth();
   const id = (session?.user as any)?.id;
   return typeof id === "string" ? id : null;
+}
+
+async function ensurePlannerList(
+  sb: ReturnType<typeof supabaseAdmin>,
+  userId: string,
+  privateItemId: string,
+) {
+  const { data, error } = await sb
+    .from("task_private_items")
+    .select("id,list_type")
+    .eq("user_id", userId)
+    .eq("id", privateItemId)
+    .maybeSingle();
+  if (error) {
+    return { ok: false, status: 500, message: error.message } as const;
+  }
+  if (!data) {
+    return { ok: false, status: 404, message: "List not found" } as const;
+  }
+  if ((data as any).list_type !== "planner_tasks") {
+    return { ok: false, status: 404, message: "List not found" } as const;
+  }
+  return { ok: true } as const;
 }
 
 export async function GET(
@@ -43,6 +66,13 @@ export async function GET(
   }
 
   const sb = supabaseAdmin();
+  const listCheck = await ensurePlannerList(sb, userId, params.privateItemId);
+  if (!listCheck.ok) {
+    return NextResponse.json(
+      { error: listCheck.message },
+      { status: listCheck.status },
+    );
+  }
   const { data, error } = await sb
     .from("task_items")
     .select(TASK_ITEM_COLUMNS)
@@ -72,9 +102,12 @@ export async function POST(
 
   const sb = supabaseAdmin();
   const privateItemId = params.privateItemId;
-  const hasAccess = await ensurePrivateItemOwnership(sb, userId, privateItemId);
-  if (!hasAccess) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const listCheck = await ensurePlannerList(sb, userId, privateItemId);
+  if (!listCheck.ok) {
+    return NextResponse.json(
+      { error: listCheck.message },
+      { status: listCheck.status },
+    );
   }
 
   const body = await req.json().catch(() => ({}));
@@ -96,7 +129,23 @@ export async function POST(
     (normalizeEnum(body?.category, TASK_CATEGORIES, "assignment") as
       | string
       | null) ?? "assignment";
-  const dueDate = normalizeDateInput(body?.dueDate ?? body?.due_date);
+  const subject = normalizeOptionalString(body?.subject);
+  const resourceUrl = normalizeOptionalString(body?.resourceUrl ?? body?.resource_url);
+  const dueDateInput = normalizeDateInput(body?.dueDate ?? body?.due_date);
+  const dueAtRaw = body?.dueAt ?? body?.due_at;
+  let dueAt: string | null = null;
+  if (dueAtRaw === null || dueAtRaw === "") {
+    dueAt = null;
+  } else if (typeof dueAtRaw === "string") {
+    dueAt = normalizeTimestampInput(dueAtRaw);
+    if (!dueAt) {
+      return NextResponse.json(
+        { error: "Invalid due date time" },
+        { status: 400 },
+      );
+    }
+  }
+  const dueDate = dueDateInput ?? (dueAt ? dueAt.slice(0, 10) : null);
   const schedule = validateScheduleInput(
     body?.scheduledStart ?? body?.scheduled_start,
     body?.scheduledEnd ?? body?.scheduled_end,
@@ -135,6 +184,7 @@ export async function POST(
   const repeatUntil = normalizeDateInput(
     body?.repeatUntil ?? body?.repeat_until,
   );
+  const completedAt = status === "done" ? new Date().toISOString() : null;
 
   const insertPayload = {
     user_id: userId,
@@ -144,13 +194,17 @@ export async function POST(
     status,
     priority,
     category,
+    subject,
+    resource_url: resourceUrl,
     due_date: dueDate,
+    due_at: dueAt,
     scheduled_start: schedule.start,
     scheduled_end: schedule.end,
     estimated_minutes: estimatedMinutes,
     repeat_rule: repeatRule,
     repeat_days: repeatDays,
     repeat_until: repeatUntil,
+    completed_at: completedAt,
   };
 
   const { data, error } = await sb

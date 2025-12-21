@@ -39,6 +39,19 @@ async function ensureHabitAccess(
   userId: string,
   habitId: string,
 ) {
+  const { data: habitRow, error: habitError } = await sb
+    .from("task_habits")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("id", habitId)
+    .maybeSingle();
+  if (habitError) {
+    return { ok: false, status: 500, message: habitError.message } as const;
+  }
+  if (habitRow) {
+    return { ok: true } as const;
+  }
+
   const { data, error } = await sb
     .from("task_items")
     .select("id,category")

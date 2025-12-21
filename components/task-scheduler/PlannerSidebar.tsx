@@ -11,7 +11,7 @@ import type {
   TaskPrivateItemKind,
 } from "@/lib/taskSchedulerTypes";
 
-type Section = "home" | "private" | "settings";
+type Section = "home" | "notes" | "private" | "settings";
 type SurfaceView = "planner" | "calendar";
 
 type NavItem = {
@@ -85,12 +85,14 @@ export default function PlannerSidebar({
   workspaceTitle,
 }: PlannerSidebarProps) {
   const homeItem = navItems.find((item) => item.id === "home");
+  const notesItem = navItems.find((item) => item.id === "notes");
   const privateItem = navItems.find((item) => item.id === "private");
   const settingsItem = navItems.find((item) => item.id === "settings");
   const workspaceName = workspaceTitle?.trim() || "Workspace";
   const workspaceInitial = workspaceName[0]?.toUpperCase() || "W";
 
   const isHomeActive = activeSection === "home";
+  const isNotesActive = activeSection === "notes";
   const isSettingsActive = activeSection === "settings";
   const isCalendarActive = activeSurface === "calendar";
   const [createCalendarOpen, setCreateCalendarOpen] = useState(false);
@@ -115,16 +117,10 @@ export default function PlannerSidebar({
 
   const handlePrivateSelect = (id: string) => {
     onSelectPrivateItem(id);
-    if (activeSection !== "private") {
-      onSectionChange("private");
-    }
   };
 
   const handleAddPrivateItem = () => {
     onAddPrivateItem();
-    if (activeSection !== "private") {
-      onSectionChange("private");
-    }
   };
 
   async function handleCreateCalendarSubmit() {
@@ -214,6 +210,22 @@ export default function PlannerSidebar({
                   {homeItem?.icon ?? "H"}
                 </span>
                 <span className="truncate">{homeItem?.label ?? "Home"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onSectionChange("notes")}
+                title={notesItem?.description}
+                className={classNames(
+                  "flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition",
+                  isNotesActive
+                    ? "bg-white/10 text-white font-medium"
+                    : "text-white/70 hover:bg-white/5 hover:text-white",
+                )}
+              >
+                <span className="flex h-5 w-5 items-center justify-center text-[15px]">
+                  {notesItem?.icon ?? "N"}
+                </span>
+                <span className="truncate">{notesItem?.label ?? "Notes"}</span>
               </button>
               <button
                 type="button"

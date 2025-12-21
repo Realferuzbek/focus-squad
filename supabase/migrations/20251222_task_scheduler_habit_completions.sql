@@ -19,7 +19,7 @@ alter table public.task_habit_completions enable row level security;
 do $$
 begin
   if not exists(
-     select 
+     select
     from pg_policies
     where schemaname = 'public'
       and tablename = 'task_habit_completions'

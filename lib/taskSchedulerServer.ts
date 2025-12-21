@@ -3,6 +3,7 @@ import {
   TaskCalendarEvent,
   TaskCalendar,
   TaskPrivateItem,
+  StudentHabit,
   StudentTask,
   resolveCategoryColor,
   type TaskCalendarRecurrence,
@@ -13,6 +14,8 @@ export type TaskPrivateItemRow = {
   user_id: string;
   title: string;
   kind: string;
+  list_type: string | null;
+  hidden_columns: string[] | null;
   created_at: string;
   updated_at: string;
 };
@@ -26,7 +29,10 @@ export type TaskItemRow = {
   status: string;
   priority: string;
   category: string;
+  subject: string | null;
+  resource_url: string | null;
   due_date: string | null;
+  due_at: string | null;
   scheduled_start: string | null;
   scheduled_end: string | null;
   estimated_minutes: number | null;
@@ -37,6 +43,23 @@ export type TaskItemRow = {
   auto_daily_max_minutes: number;
   auto_start_date: string | null;
   auto_allowed_days: number[] | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskHabitRow = {
+  id: string;
+  user_id: string;
+  private_item_id: string;
+  name: string;
+  schedule_type: string;
+  schedule_days: number[] | null;
+  status: string;
+  target: number | null;
+  notes: string | null;
+  resource_url: string | null;
+  start_date: string;
   created_at: string;
   updated_at: string;
 };
@@ -71,9 +94,11 @@ export type TaskCalendarRow = {
 };
 
 export const TASK_PRIVATE_ITEM_COLUMNS =
-  "id,user_id,title,kind,created_at,updated_at";
+  "id,user_id,title,kind,list_type,hidden_columns,created_at,updated_at";
 export const TASK_ITEM_COLUMNS =
-  "id,user_id,private_item_id,title,description,status,priority,category,due_date,scheduled_start,scheduled_end,estimated_minutes,repeat_days,repeat_until,auto_planned,auto_block_duration_min,auto_daily_max_minutes,auto_start_date,auto_allowed_days,created_at,updated_at";
+  "id,user_id,private_item_id,title,description,status,priority,category,subject,resource_url,due_date,due_at,scheduled_start,scheduled_end,estimated_minutes,repeat_days,repeat_until,auto_planned,auto_block_duration_min,auto_daily_max_minutes,auto_start_date,auto_allowed_days,completed_at,created_at,updated_at";
+export const TASK_HABIT_COLUMNS =
+  "id,user_id,private_item_id,name,schedule_type,schedule_days,status,target,notes,resource_url,start_date,created_at,updated_at";
 export const TASK_CALENDAR_EVENT_COLUMNS =
   "id,user_id,task_id,calendar_id,title,description,start_at,end_at,is_all_day,color,event_kind,recurrence,created_at,updated_at";
 export const TASK_CALENDAR_COLUMNS =
@@ -84,6 +109,9 @@ export function serializePrivateItem(row: TaskPrivateItemRow): TaskPrivateItem {
     id: row.id,
     title: row.title,
     kind: row.kind as TaskPrivateItem["kind"],
+    listType:
+      (row.list_type as TaskPrivateItem["listType"]) ?? "planner_tasks",
+    hiddenColumns: row.hidden_columns ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -98,7 +126,10 @@ export function serializeTask(row: TaskItemRow): StudentTask {
     status: row.status as StudentTask["status"],
     priority: row.priority as StudentTask["priority"],
     category: row.category as StudentTask["category"],
+    subject: row.subject ?? null,
+    resourceUrl: row.resource_url ?? null,
     dueDate: row.due_date ?? null,
+    dueAt: row.due_at ?? null,
     scheduledStart: row.scheduled_start ?? null,
     scheduledEnd: row.scheduled_end ?? null,
     estimatedMinutes: row.estimated_minutes ?? null,
@@ -110,6 +141,24 @@ export function serializeTask(row: TaskItemRow): StudentTask {
     autoDailyMaxMinutes: row.auto_daily_max_minutes,
     autoStartDate: row.auto_start_date ?? null,
     autoAllowedDays: row.auto_allowed_days ?? null,
+    completedAt: row.completed_at ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function serializeHabit(row: TaskHabitRow): StudentHabit {
+  return {
+    id: row.id,
+    listId: row.private_item_id,
+    name: row.name,
+    scheduleType: row.schedule_type as StudentHabit["scheduleType"],
+    scheduleDays: row.schedule_days ?? null,
+    status: row.status as StudentHabit["status"],
+    target: row.target ?? null,
+    notes: row.notes ?? null,
+    resourceUrl: row.resource_url ?? null,
+    startDate: row.start_date,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

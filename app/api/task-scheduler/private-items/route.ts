@@ -50,7 +50,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const titleInput = typeof body?.title === "string" ? body.title : "";
   const title = titleInput.trim() || "Untitled list";
-  const kind = body?.kind === "task_list" ? "task_list" : "task_list";
+  const kind = "task_list";
+  const listTypeRaw = body?.listType ?? body?.list_type;
+  const listType =
+    listTypeRaw === "habit_tracker" ? "habit_tracker" : "planner_tasks";
 
   const sb = supabaseAdmin();
   const { data, error } = await sb
@@ -59,6 +62,8 @@ export async function POST(req: NextRequest) {
       user_id: userId,
       title,
       kind,
+      list_type: listType,
+      hidden_columns: [],
     })
     .select(TASK_PRIVATE_ITEM_COLUMNS)
     .maybeSingle();
