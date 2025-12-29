@@ -33,6 +33,8 @@ export type TaskItemRow = {
   resource_url: string | null;
   due_date: string | null;
   due_at: string | null;
+  due_start_date: string | null;
+  due_end_date: string | null;
   scheduled_start: string | null;
   scheduled_end: string | null;
   estimated_minutes: number | null;
@@ -56,9 +58,11 @@ export type TaskHabitRow = {
   schedule_type: string;
   schedule_days: number[] | null;
   status: string;
-  target: number | null;
+  target: string | null;
   notes: string | null;
   resource_url: string | null;
+  schedule_start_time: number | null;
+  schedule_end_time: number | null;
   start_date: string;
   created_at: string;
   updated_at: string;
@@ -96,9 +100,9 @@ export type TaskCalendarRow = {
 export const TASK_PRIVATE_ITEM_COLUMNS =
   "id,user_id,title,kind,list_type,hidden_columns,created_at,updated_at";
 export const TASK_ITEM_COLUMNS =
-  "id,user_id,private_item_id,title,description,status,priority,category,subject,resource_url,due_date,due_at,scheduled_start,scheduled_end,estimated_minutes,repeat_days,repeat_until,auto_planned,auto_block_duration_min,auto_daily_max_minutes,auto_start_date,auto_allowed_days,completed_at,created_at,updated_at";
+  "id,user_id,private_item_id,title,description,status,priority,category,subject,resource_url,due_date,due_at,due_start_date,due_end_date,scheduled_start,scheduled_end,estimated_minutes,repeat_days,repeat_until,auto_planned,auto_block_duration_min,auto_daily_max_minutes,auto_start_date,auto_allowed_days,completed_at,created_at,updated_at";
 export const TASK_HABIT_COLUMNS =
-  "id,user_id,private_item_id,name,schedule_type,schedule_days,status,target,notes,resource_url,start_date,created_at,updated_at";
+  "id,user_id,private_item_id,name,schedule_type,schedule_days,status,target,notes,resource_url,schedule_start_time,schedule_end_time,start_date,created_at,updated_at";
 export const TASK_CALENDAR_EVENT_COLUMNS =
   "id,user_id,task_id,calendar_id,title,description,start_at,end_at,is_all_day,color,event_kind,recurrence,created_at,updated_at";
 export const TASK_CALENDAR_COLUMNS =
@@ -130,6 +134,8 @@ export function serializeTask(row: TaskItemRow): StudentTask {
     resourceUrl: row.resource_url ?? null,
     dueDate: row.due_date ?? null,
     dueAt: row.due_at ?? null,
+    dueStartDate: row.due_start_date ?? null,
+    dueEndDate: row.due_end_date ?? null,
     scheduledStart: row.scheduled_start ?? null,
     scheduledEnd: row.scheduled_end ?? null,
     estimatedMinutes: row.estimated_minutes ?? null,
@@ -158,6 +164,8 @@ export function serializeHabit(row: TaskHabitRow): StudentHabit {
     target: row.target ?? null,
     notes: row.notes ?? null,
     resourceUrl: row.resource_url ?? null,
+    scheduleStartTime: row.schedule_start_time ?? null,
+    scheduleEndTime: row.schedule_end_time ?? null,
     startDate: row.start_date,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

@@ -8,14 +8,29 @@ export const TASK_PRIVATE_LIST_TYPES = [
 export type TaskPrivateListType = (typeof TASK_PRIVATE_LIST_TYPES)[number];
 
 export const TASK_STATUSES = [
-  "not_started",
+  "planned",
+  "active",
   "in_progress",
-  "done",
+  "not_started",
 ] as const;
 export type StudentTaskStatus = (typeof TASK_STATUSES)[number];
 
 export const TASK_PRIORITIES = ["low", "medium", "high"] as const;
 export type StudentTaskPriority = (typeof TASK_PRIORITIES)[number];
+
+export const TASK_SUBJECTS = ["math", "ielts", "sat", "other"] as const;
+export type StudentTaskSubject = (typeof TASK_SUBJECTS)[number];
+
+export const TASK_RESOURCES = [
+  "telegram",
+  "youtube",
+  "instagram",
+  "other",
+] as const;
+export type StudentTaskResource = (typeof TASK_RESOURCES)[number];
+
+export const TASK_ESTIMATE_MINUTES = [30, 60, 90, 120, 180] as const;
+export type TaskEstimateMinutes = (typeof TASK_ESTIMATE_MINUTES)[number];
 
 export const TASK_CATEGORIES = [
   "assignment",
@@ -73,13 +88,15 @@ export type StudentTask = {
   status: StudentTaskStatus;
   priority: StudentTaskPriority;
   category: StudentTaskCategory;
-  subject: string | null;
+  subject: StudentTaskSubject | null;
   dueDate: string | null;
   dueAt: string | null;
+  dueStartDate: string | null;
+  dueEndDate: string | null;
   scheduledStart: string | null;
   scheduledEnd: string | null;
-  estimatedMinutes: number | null;
-  resourceUrl: string | null;
+  estimatedMinutes: TaskEstimateMinutes | null;
+  resourceUrl: StudentTaskResource | null;
   repeatRule: StudentHabitRepeatRule;
   repeatDays: number[] | null;
   repeatUntil: string | null;
@@ -100,8 +117,16 @@ export const HABIT_SCHEDULE_TYPES = [
 ] as const;
 export type HabitScheduleType = (typeof HABIT_SCHEDULE_TYPES)[number];
 
-export const HABIT_STATUSES = ["active", "paused"] as const;
+export const HABIT_STATUSES = [
+  "planned",
+  "active",
+  "in_progress",
+  "not_started",
+] as const;
 export type HabitStatus = (typeof HABIT_STATUSES)[number];
+
+export const HABIT_TARGETS = ["health", "fitness", "study", "other"] as const;
+export type HabitTarget = (typeof HABIT_TARGETS)[number];
 
 export type StudentHabit = {
   id: string;
@@ -110,9 +135,11 @@ export type StudentHabit = {
   scheduleType: HabitScheduleType;
   scheduleDays: number[] | null;
   status: HabitStatus;
-  target: number | null;
+  target: HabitTarget | null;
   notes: string | null;
-  resourceUrl: string | null;
+  resourceUrl: StudentTaskResource | null;
+  scheduleStartTime: number | null;
+  scheduleEndTime: number | null;
   startDate: string;
   createdAt: string;
   updatedAt: string;

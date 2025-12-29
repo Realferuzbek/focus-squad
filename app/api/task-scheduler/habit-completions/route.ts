@@ -9,10 +9,11 @@ type HabitCompletionRow = {
   id: string;
   habit_id: string;
   date_key: string;
+  value: string;
   completed_at: string;
 };
 
-const HABIT_COMPLETION_COLUMNS = "id,habit_id,date_key,completed_at";
+const HABIT_COMPLETION_COLUMNS = "id,habit_id,date_key,value,completed_at";
 
 async function requireUserId() {
   const session = await auth();
@@ -30,6 +31,7 @@ function serializeCompletion(row: HabitCompletionRow) {
     id: row.id,
     habitId: row.habit_id,
     dateKey: row.date_key,
+    value: row.value,
     completedAt: row.completed_at,
   };
 }
@@ -118,6 +120,18 @@ export async function POST(req: NextRequest) {
     typeof body?.habitId === "string" ? body.habitId.trim() : "";
   const dateKey =
     typeof body?.dateKey === "string" ? body.dateKey.trim() : "";
+  const valueRaw = body?.value;
+  let value = "yes";
+  if (valueRaw !== undefined && valueRaw !== null) {
+    const normalized = typeof valueRaw === "string" ? valueRaw.trim().toLowerCase() : "";
+    if (normalized !== "yes" && normalized !== "no") {
+      return NextResponse.json(
+        { error: "Invalid completion value" },
+        { status: 400 },
+      );
+    }
+    value = normalized;
+  }
 
   if (!habitId || !isDateKey(dateKey)) {
     return NextResponse.json(
@@ -142,6 +156,7 @@ export async function POST(req: NextRequest) {
         user_id: userId,
         habit_id: habitId,
         date_key: dateKey,
+        value,
       },
       { onConflict: "user_id,habit_id,date_key" },
     )

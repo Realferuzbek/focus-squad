@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DateTime } from "luxon";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import TaskSchedulerCalendar from "@/components/TaskSchedulerCalendar";
 import PlannerSidebar from "@/components/task-scheduler/PlannerSidebar";
@@ -9,6 +10,7 @@ import NotesInbox, { type NoteEntry } from "@/components/notes/NotesInbox";
 import {
   Calendar as CalendarIcon,
   Check,
+  ChevronDown,
   Circle,
   List as ListIcon,
   Search,
@@ -23,6 +25,8 @@ import {
   StudentTaskCategory,
   StudentTaskPriority,
   StudentTaskStatus,
+  TaskEstimateMinutes,
+  HabitTarget,
   TaskCalendar,
   TaskCalendarEvent,
   TaskCalendarRecurrence,
@@ -31,10 +35,15 @@ import {
   TaskPrivateListType,
   HABIT_SCHEDULE_TYPES,
   HABIT_STATUSES,
+  HABIT_TARGETS,
+  TASK_ESTIMATE_MINUTES,
   TASK_PRIORITIES,
+  TASK_RESOURCES,
   TASK_STATUSES,
+  TASK_SUBJECTS,
 } from "@/lib/taskSchedulerTypes";
 import { generateHabitInstances } from "@/lib/taskSchedulerHabits";
+import { getUzbekDateKey, TASHKENT } from "@/lib/tz";
 
 type Section = "home" | "notes" | "private" | "settings";
 type SurfaceView = "planner" | "calendar";
@@ -50,20 +59,23 @@ type HabitCompletion = {
   id: string;
   habitId: string;
   dateKey: string;
+  value: "yes" | "no";
   completedAt: string;
 };
 
 type TaskUpdatePayload = Partial<{
   title: string;
   description: string | null;
-  subject: string | null;
-  resourceUrl: string | null;
-  estimatedMinutes: number | null;
+  subject: (typeof TASK_SUBJECTS)[number] | null;
+  resourceUrl: (typeof TASK_RESOURCES)[number] | null;
+  estimatedMinutes: TaskEstimateMinutes | null;
   category: StudentTaskCategory;
   status: StudentTaskStatus;
   priority: StudentTaskPriority;
   dueDate: string | null;
   dueAt: string | null;
+  dueStartDate: string | null;
+  dueEndDate: string | null;
   scheduledStart: string | null;
   scheduledEnd: string | null;
   repeatRule: StudentHabitRepeatRule;
@@ -76,9 +88,11 @@ type HabitUpdatePayload = Partial<{
   scheduleType: HabitScheduleType;
   scheduleDays: number[] | null;
   status: HabitStatus;
-  target: number | null;
+  target: HabitTarget | null;
   notes: string | null;
-  resourceUrl: string | null;
+  resourceUrl: (typeof TASK_RESOURCES)[number] | null;
+  scheduleStartTime: number | null;
+  scheduleEndTime: number | null;
   startDate: string;
 }>;
 
@@ -162,18 +176,255 @@ const kindMeta: Record<
 };
 
 const statusLabels: Record<StudentTaskStatus, string> = {
-  not_started: "To do",
-  in_progress: "Doing",
-  done: "Done",
+  planned: "Planned",
+  active: "Active",
+  in_progress: "In Progress",
+  not_started: "Not Started",
 };
 
 const priorityLabels: Record<StudentTaskPriority, string> = {
-  low: "Low",
-  medium: "Medium",
-  high: "High",
+  high: "🔥 High",
+  medium: "⬆️ Medium",
+  low: "⬇️ Low",
 };
 
-const SUBJECT_OPTIONS = ["Math", "IELTS", "Physics", "Other", "Projects"];
+const ESTIMATE_LABELS: Record<TaskEstimateMinutes, string> = {
+  30: "30Min",
+  60: "1 Hour",
+  90: "1,5 Hour",
+  120: "2 Hours",
+  180: "3 Hours",
+};
+
+type PillStyle = {
+  bg: string;
+  text: string;
+  border: string;
+  dot: string;
+};
+
+const STATUS_STYLES: Record<StudentTaskStatus, PillStyle> = {
+  planned: {
+    bg: "bg-sky-500/20",
+    text: "text-sky-200",
+    border: "border-sky-400/40",
+    dot: "bg-sky-400",
+  },
+  active: {
+    bg: "bg-emerald-500/20",
+    text: "text-emerald-200",
+    border: "border-emerald-400/40",
+    dot: "bg-emerald-400",
+  },
+  in_progress: {
+    bg: "bg-amber-500/20",
+    text: "text-amber-200",
+    border: "border-amber-400/40",
+    dot: "bg-amber-400",
+  },
+  not_started: {
+    bg: "bg-zinc-500/20",
+    text: "text-zinc-200",
+    border: "border-white/15",
+    dot: "bg-zinc-400",
+  },
+};
+
+const PRIORITY_STYLES: Record<StudentTaskPriority, PillStyle> = {
+  high: {
+    bg: "bg-rose-500/20",
+    text: "text-rose-200",
+    border: "border-rose-400/40",
+    dot: "bg-rose-400",
+  },
+  medium: {
+    bg: "bg-amber-500/20",
+    text: "text-amber-200",
+    border: "border-amber-400/40",
+    dot: "bg-amber-400",
+  },
+  low: {
+    bg: "bg-sky-500/20",
+    text: "text-sky-200",
+    border: "border-sky-400/40",
+    dot: "bg-sky-400",
+  },
+};
+
+const SUBJECT_LABELS: Record<(typeof TASK_SUBJECTS)[number], string> = {
+  math: "Math",
+  ielts: "IELTS",
+  sat: "SAT",
+  other: "Other",
+};
+
+const SUBJECT_STYLES: Record<(typeof TASK_SUBJECTS)[number], PillStyle> = {
+  math: {
+    bg: "bg-indigo-500/20",
+    text: "text-indigo-200",
+    border: "border-indigo-400/40",
+    dot: "bg-indigo-400",
+  },
+  ielts: {
+    bg: "bg-pink-500/20",
+    text: "text-pink-200",
+    border: "border-pink-400/40",
+    dot: "bg-pink-400",
+  },
+  sat: {
+    bg: "bg-cyan-500/20",
+    text: "text-cyan-200",
+    border: "border-cyan-400/40",
+    dot: "bg-cyan-400",
+  },
+  other: {
+    bg: "bg-zinc-500/20",
+    text: "text-zinc-200",
+    border: "border-white/15",
+    dot: "bg-zinc-400",
+  },
+};
+
+const RESOURCE_LABELS: Record<(typeof TASK_RESOURCES)[number], string> = {
+  telegram: "Telegram",
+  youtube: "You Tube",
+  instagram: "Instagram",
+  other: "Other",
+};
+
+const RESOURCE_STYLES: Record<(typeof TASK_RESOURCES)[number], PillStyle> = {
+  telegram: {
+    bg: "bg-sky-500/20",
+    text: "text-sky-200",
+    border: "border-sky-400/40",
+    dot: "bg-sky-400",
+  },
+  youtube: {
+    bg: "bg-red-500/20",
+    text: "text-red-200",
+    border: "border-red-400/40",
+    dot: "bg-red-400",
+  },
+  instagram: {
+    bg: "bg-orange-500/20",
+    text: "text-orange-200",
+    border: "border-orange-400/40",
+    dot: "bg-orange-400",
+  },
+  other: {
+    bg: "bg-zinc-500/20",
+    text: "text-zinc-200",
+    border: "border-white/15",
+    dot: "bg-zinc-400",
+  },
+};
+
+const TARGET_LABELS: Record<HabitTarget, string> = {
+  health: "Health",
+  fitness: "Fitness",
+  study: "Study",
+  other: "Other",
+};
+
+const TARGET_STYLES: Record<HabitTarget, PillStyle> = {
+  health: {
+    bg: "bg-emerald-500/20",
+    text: "text-emerald-200",
+    border: "border-emerald-400/40",
+    dot: "bg-emerald-400",
+  },
+  fitness: {
+    bg: "bg-sky-500/20",
+    text: "text-sky-200",
+    border: "border-sky-400/40",
+    dot: "bg-sky-400",
+  },
+  study: {
+    bg: "bg-amber-500/20",
+    text: "text-amber-200",
+    border: "border-amber-400/40",
+    dot: "bg-amber-400",
+  },
+  other: {
+    bg: "bg-zinc-500/20",
+    text: "text-zinc-200",
+    border: "border-white/15",
+    dot: "bg-zinc-400",
+  },
+};
+
+const NEUTRAL_PILL: PillStyle = {
+  bg: "bg-white/5",
+  text: "text-white/70",
+  border: "border-white/15",
+  dot: "bg-white/40",
+};
+
+const STATUS_OPTIONS: Array<CellSelectOption<StudentTaskStatus>> =
+  TASK_STATUSES.map((status) => ({
+    value: status,
+    label: statusLabels[status],
+    style: STATUS_STYLES[status],
+  }));
+
+const PRIORITY_OPTIONS: Array<CellSelectOption<StudentTaskPriority>> =
+  TASK_PRIORITIES.map((priority) => ({
+    value: priority,
+    label: priorityLabels[priority],
+    style: PRIORITY_STYLES[priority],
+  }));
+
+const SUBJECT_OPTIONS: Array<CellSelectOption<(typeof TASK_SUBJECTS)[number]>> =
+  TASK_SUBJECTS.map((subject) => ({
+    value: subject,
+    label: SUBJECT_LABELS[subject],
+    style: SUBJECT_STYLES[subject],
+  }));
+
+const RESOURCE_OPTIONS: Array<CellSelectOption<(typeof TASK_RESOURCES)[number]>> =
+  TASK_RESOURCES.map((resource) => ({
+    value: resource,
+    label: RESOURCE_LABELS[resource],
+    style: RESOURCE_STYLES[resource],
+  }));
+
+const ESTIMATE_OPTIONS: Array<CellSelectOption<TaskEstimateMinutes>> =
+  TASK_ESTIMATE_MINUTES.map((minutes) => ({
+    value: minutes,
+    label: ESTIMATE_LABELS[minutes],
+    style: NEUTRAL_PILL,
+  }));
+
+const TARGET_OPTIONS: Array<CellSelectOption<HabitTarget>> = HABIT_TARGETS.map(
+  (target) => ({
+    value: target,
+    label: TARGET_LABELS[target],
+    style: TARGET_STYLES[target],
+  }),
+);
+
+const DONE_OPTIONS: Array<CellSelectOption<"yes" | "no">> = [
+  {
+    value: "yes",
+    label: "✅Yes",
+    style: {
+      bg: "bg-emerald-500/20",
+      text: "text-emerald-200",
+      border: "border-emerald-400/40",
+      dot: "bg-emerald-400",
+    },
+  },
+  {
+    value: "no",
+    label: "❌No",
+    style: {
+      bg: "bg-rose-500/20",
+      text: "text-rose-200",
+      border: "border-rose-400/40",
+      dot: "bg-rose-400",
+    },
+  },
+];
 
 const WEEKDAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const HABIT_COMPLETION_LOOKBACK_DAYS = 60;
@@ -182,16 +433,610 @@ function classNames(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
+function Pill({
+  label,
+  style,
+  showDot = true,
+}: {
+  label: string;
+  style: PillStyle;
+  showDot?: boolean;
+}) {
+  return (
+    <span
+      className={classNames(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+        style.bg,
+        style.text,
+        style.border,
+      )}
+    >
+      {showDot && (
+        <span className={classNames("h-1.5 w-1.5 rounded-full", style.dot)} />
+      )}
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
+type CellSelectOption<T extends string | number> = {
+  value: T;
+  label: string;
+  style: PillStyle;
+};
+
+function CellSelect<T extends string | number>({
+  value,
+  options,
+  placeholder,
+  disabled,
+  onChange,
+  onClear,
+  clearLabel = "Clear",
+}: {
+  value: T | null;
+  options: Array<CellSelectOption<T>>;
+  placeholder: string;
+  disabled?: boolean;
+  onChange: (value: T) => void;
+  onClear?: () => void;
+  clearLabel?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const selected = options.find((option) => option.value === value) ?? null;
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(event: MouseEvent) {
+      if (wrapperRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", handleClick);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("mousedown", handleClick);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((prev) => !prev);
+        }}
+        className={classNames(
+          "flex w-full items-center justify-between gap-2 rounded-md border border-transparent px-2 py-1 text-left text-xs text-white/80 transition hover:border-white/20 hover:bg-white/5",
+          disabled && "cursor-not-allowed opacity-60",
+        )}
+      >
+        {selected ? (
+          <Pill label={selected.label} style={selected.style} />
+        ) : (
+          <span className="text-xs text-white/40">{placeholder}</span>
+        )}
+        <ChevronDown
+          className={classNames(
+            "h-3.5 w-3.5 shrink-0 text-white/40 transition",
+            open && "rotate-180",
+          )}
+          aria-hidden
+        />
+      </button>
+      {open && !disabled && (
+        <div className="absolute left-0 top-full z-30 mt-2 min-w-[160px] rounded-xl border border-white/10 bg-[#0b0b16] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+          {options.map((option) => {
+            const isActive = option.value === value;
+            return (
+              <button
+                key={String(option.value)}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className={classNames(
+                  "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs transition",
+                  isActive
+                    ? "bg-white/10 text-white"
+                    : "text-white/70 hover:bg-white/10 hover:text-white",
+                )}
+              >
+                <span
+                  className={classNames("h-2 w-2 rounded-full", option.style.dot)}
+                  aria-hidden
+                />
+                <span className="truncate">{option.label}</span>
+              </button>
+            );
+          })}
+          {onClear && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onClear();
+                setOpen(false);
+              }}
+              className="mt-1 w-full rounded-lg border border-white/10 px-2 py-2 text-left text-xs text-white/60 hover:border-white/30 hover:text-white"
+            >
+              {clearLabel}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatMinutesLabel(value: number) {
+  const hours24 = Math.floor(value / 60);
+  const minutes = value % 60;
+  const meridiem = hours24 >= 12 ? "PM" : "AM";
+  const hours12 = ((hours24 + 11) % 12) + 1;
+  return `${hours12}:${String(minutes).padStart(2, "0")} ${meridiem}`;
+}
+
+const TIME_OPTIONS = Array.from({ length: 48 }, (_value, index) => {
+  const minutes = index * 30;
+  return {
+    value: minutes,
+    label: formatMinutesLabel(minutes),
+  };
+});
+
+function formatTimeRangeLabel(
+  startMinutes: number | null,
+  endMinutes: number | null,
+) {
+  if (startMinutes === null && endMinutes === null) return "—";
+  const startLabel =
+    startMinutes !== null ? formatMinutesLabel(startMinutes) : "…";
+  const endLabel =
+    endMinutes !== null ? formatMinutesLabel(endMinutes) : "…";
+  return `${startLabel} → ${endLabel}`;
+}
+
+function DateRangeCell({
+  startDate,
+  endDate,
+  disabled,
+  onChange,
+}: {
+  startDate: string | null;
+  endDate: string | null;
+  disabled?: boolean;
+  onChange: (start: string | null, end: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const label = formatRangeLabel(startDate, endDate);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(event: MouseEvent) {
+      if (wrapperRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", handleClick);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("mousedown", handleClick);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((prev) => !prev);
+        }}
+        className={classNames(
+          "flex w-full items-center justify-between gap-2 rounded-md border border-transparent px-2 py-1 text-left text-xs text-white/80 transition hover:border-white/20 hover:bg-white/5",
+          disabled && "cursor-not-allowed opacity-60",
+        )}
+      >
+        <span className={classNames(!(startDate || endDate) && "text-white/40")}>
+          {label}
+        </span>
+        <ChevronDown
+          className={classNames(
+            "h-3.5 w-3.5 shrink-0 text-white/40 transition",
+            open && "rotate-180",
+          )}
+          aria-hidden
+        />
+      </button>
+      {open && !disabled && (
+        <div className="absolute left-0 top-full z-30 mt-2 w-[220px] rounded-xl border border-white/10 bg-[#0b0b16] p-3 text-xs text-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+          <div className="space-y-3">
+            <label className="flex flex-col gap-1 text-[11px] text-white/50">
+              Start date
+              <input
+                type="date"
+                value={startDate ?? ""}
+                onChange={(event) =>
+                  onChange(event.target.value || null, endDate)
+                }
+                className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs text-white/80 outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-white/50">
+              End date
+              <input
+                type="date"
+                value={endDate ?? ""}
+                onChange={(event) =>
+                  onChange(startDate, event.target.value || null)
+                }
+                className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs text-white/80 outline-none"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onChange(null, null);
+                setOpen(false);
+              }}
+              className="rounded-md border border-white/10 px-2 py-1 text-[11px] text-white/60 hover:border-white/30 hover:text-white"
+            >
+              Clear range
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DateCell({
+  value,
+  disabled,
+  onChange,
+  allowClear = true,
+  clearLabel = "Clear date",
+}: {
+  value: string | null;
+  disabled?: boolean;
+  onChange: (value: string | null) => void;
+  allowClear?: boolean;
+  clearLabel?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const label = value ? formatDateLabel(value) : "—";
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(event: MouseEvent) {
+      if (wrapperRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", handleClick);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("mousedown", handleClick);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((prev) => !prev);
+        }}
+        className={classNames(
+          "flex w-full items-center justify-between gap-2 rounded-md border border-transparent px-2 py-1 text-left text-xs text-white/80 transition hover:border-white/20 hover:bg-white/5",
+          disabled && "cursor-not-allowed opacity-60",
+        )}
+      >
+        <span className={classNames(!value && "text-white/40")}>{label}</span>
+        <ChevronDown
+          className={classNames(
+            "h-3.5 w-3.5 shrink-0 text-white/40 transition",
+            open && "rotate-180",
+          )}
+          aria-hidden
+        />
+      </button>
+      {open && !disabled && (
+        <div className="absolute left-0 top-full z-30 mt-2 w-[200px] rounded-xl border border-white/10 bg-[#0b0b16] p-3 text-xs text-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+          <label className="flex flex-col gap-1 text-[11px] text-white/50">
+            Date
+            <input
+              type="date"
+              value={value ?? ""}
+              onChange={(event) => onChange(event.target.value || null)}
+              className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs text-white/80 outline-none"
+            />
+          </label>
+          {allowClear && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onChange(null);
+                setOpen(false);
+              }}
+              className="mt-3 rounded-md border border-white/10 px-2 py-1 text-[11px] text-white/60 hover:border-white/30 hover:text-white"
+            >
+              {clearLabel}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimeRangeCell({
+  startMinutes,
+  endMinutes,
+  disabled,
+  onChange,
+}: {
+  startMinutes: number | null;
+  endMinutes: number | null;
+  disabled?: boolean;
+  onChange: (start: number | null, end: number | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const label = formatTimeRangeLabel(startMinutes, endMinutes);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(event: MouseEvent) {
+      if (wrapperRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", handleClick);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("mousedown", handleClick);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((prev) => !prev);
+        }}
+        className={classNames(
+          "flex w-full items-center justify-between gap-2 rounded-md border border-transparent px-2 py-1 text-left text-xs text-white/80 transition hover:border-white/20 hover:bg-white/5",
+          disabled && "cursor-not-allowed opacity-60",
+        )}
+      >
+        <span
+          className={classNames(
+            startMinutes === null && endMinutes === null && "text-white/40",
+          )}
+        >
+          {label}
+        </span>
+        <ChevronDown
+          className={classNames(
+            "h-3.5 w-3.5 shrink-0 text-white/40 transition",
+            open && "rotate-180",
+          )}
+          aria-hidden
+        />
+      </button>
+      {open && !disabled && (
+        <div className="absolute left-0 top-full z-30 mt-2 w-[220px] rounded-xl border border-white/10 bg-[#0b0b16] p-3 text-xs text-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+          <div className="space-y-3">
+            <label className="flex flex-col gap-1 text-[11px] text-white/50">
+              Start time
+              <select
+                value={startMinutes === null ? "" : String(startMinutes)}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  onChange(next ? Number(next) : null, endMinutes);
+                }}
+                className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs text-white/80 outline-none"
+              >
+                <option value="">Select time</option>
+                {TIME_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-[11px] text-white/50">
+              End time
+              <select
+                value={endMinutes === null ? "" : String(endMinutes)}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  onChange(startMinutes, next ? Number(next) : null);
+                }}
+                className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-xs text-white/80 outline-none"
+              >
+                <option value="">Select time</option>
+                {TIME_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onChange(null, null);
+                setOpen(false);
+              }}
+              className="rounded-md border border-white/10 px-2 py-1 text-[11px] text-white/60 hover:border-white/30 hover:text-white"
+            >
+              Clear time
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotesCell({
+  value,
+  disabled,
+  placeholder,
+  onCommit,
+}: {
+  value: string | null;
+  disabled?: boolean;
+  placeholder: string;
+  onCommit: (nextValue: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setDraft(value ?? "");
+  }, [value]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(event: MouseEvent) {
+      if (wrapperRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", handleClick);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("mousedown", handleClick);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open && !disabled) {
+      const trimmed = draft.trim();
+      const nextValue = trimmed ? draft : null;
+      const currentValue = value ?? null;
+      if (nextValue !== currentValue) {
+        onCommit(nextValue);
+      }
+    }
+  }, [open, draft, value, disabled, onCommit]);
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
+  const preview = value?.trim() || placeholder;
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen(true);
+        }}
+        className={classNames(
+          "w-full truncate rounded-md border border-transparent px-2 py-1 text-left text-xs text-white/70 transition hover:border-white/20 hover:bg-white/5",
+          !value && "text-white/40",
+          disabled && "cursor-not-allowed opacity-60",
+        )}
+      >
+        {preview}
+      </button>
+      {open && !disabled && (
+        <div className="absolute left-0 top-full z-30 mt-2 w-[260px] rounded-xl border border-white/10 bg-[#0b0b16] p-3 text-xs text-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                setOpen(false);
+              }
+            }}
+            rows={4}
+            placeholder={placeholder}
+            className="w-full resize-none rounded-md border border-white/10 bg-black/30 px-2 py-2 text-xs text-white/80 outline-none"
+          />
+          <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-white/40">
+            Shift + Enter for newline
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function getStartOfWeek(date: Date) {
   const next = new Date(date);
   const day = (next.getDay() + 6) % 7;
   next.setHours(0, 0, 0, 0);
   next.setDate(next.getDate() - day);
   return next;
-}
-
-function toDateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
 }
 
 function toLocalDateKey(date: Date) {
@@ -223,12 +1068,10 @@ function formatTimeLabel(value: string) {
 }
 
 function formatDateLabel(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString([], {
-    month: "short",
-    day: "numeric",
-  });
+  if (!value) return "";
+  const date = DateTime.fromISO(value);
+  if (!date.isValid) return "";
+  return date.toFormat("dd LLL, yyyy");
 }
 
 function formatEventRange(event: TaskCalendarEvent) {
@@ -239,13 +1082,39 @@ function formatEventRange(event: TaskCalendarEvent) {
   return start || end;
 }
 
+function formatRangeLabel(start: string | null, end: string | null) {
+  if (!start && !end) return "—";
+  const startLabel = start
+    ? DateTime.fromISO(start).toFormat("MMM d, yyyy")
+    : "…";
+  const endLabel = end
+    ? DateTime.fromISO(end).toFormat("MMM d, yyyy")
+    : "…";
+  return `${startLabel} → ${endLabel}`;
+}
+
+function getLegacyDueDateKey(task: StudentTask) {
+  if (!task.dueAt) return null;
+  const date = new Date(task.dueAt);
+  if (Number.isNaN(date.getTime())) return null;
+  return toLocalDateKey(date);
+}
+
 function getTaskDueDate(task: StudentTask) {
-  if (task.dueAt) {
-    const date = new Date(task.dueAt);
+  if (task.dueEndDate) {
+    const date = new Date(`${task.dueEndDate}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (task.dueStartDate) {
+    const date = new Date(`${task.dueStartDate}T00:00:00`);
     return Number.isNaN(date.getTime()) ? null : date;
   }
   if (task.dueDate) {
     const date = new Date(`${task.dueDate}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (task.dueAt) {
+    const date = new Date(task.dueAt);
     return Number.isNaN(date.getTime()) ? null : date;
   }
   return null;
@@ -258,88 +1127,55 @@ function getTaskDueKey(task: StudentTask) {
 }
 
 function formatTaskDue(task: StudentTask) {
-  const date = getTaskDueDate(task);
-  if (!date) return "—";
-  const dateLabel = date.toLocaleDateString([], {
-    month: "short",
-    day: "numeric",
-  });
-  if (task.dueAt) {
-    const timeLabel = date.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    return `${dateLabel} · ${timeLabel}`;
+  if (task.dueStartDate || task.dueEndDate) {
+    return formatRangeLabel(task.dueStartDate, task.dueEndDate);
   }
-  return dateLabel;
+  if (task.dueDate) {
+    return formatRangeLabel(task.dueDate, task.dueDate);
+  }
+  if (task.dueAt) {
+    const date = new Date(task.dueAt);
+    if (!Number.isNaN(date.getTime())) {
+      const key = toLocalDateKey(date);
+      return formatRangeLabel(key, key);
+    }
+  }
+  return "—";
 }
 
 function isHabitScheduledOn(habit: StudentHabit, date: Date) {
-  const startDate = new Date(habit.startDate);
-  startDate.setHours(0, 0, 0, 0);
-  const day = new Date(date);
-  day.setHours(0, 0, 0, 0);
-  if (day < startDate) return false;
-
-  const weekday = day.getDay();
-  if (habit.scheduleType === "daily") return true;
-  if (habit.scheduleType === "weekdays") {
-    return weekday >= 1 && weekday <= 5;
-  }
-  if (habit.scheduleType === "custom") {
-    return (habit.scheduleDays ?? []).includes(weekday);
-  }
-  return false;
+  const startDate = DateTime.fromISO(habit.startDate);
+  if (!startDate.isValid) return true;
+  const day = DateTime.fromJSDate(date);
+  return day.startOf("day") >= startDate.startOf("day");
 }
 
 function computeHabitStreak(
   habit: StudentHabit,
-  completionDates: Set<string>,
-  today: Date,
+  completionValues: Map<string, "yes" | "no">,
+  todayKey: string,
 ) {
-  const startDate = new Date(habit.startDate);
-  startDate.setHours(0, 0, 0, 0);
-  const isPaused = habit.status === "paused";
+  if (!todayKey) return 0;
+  if (completionValues.get(todayKey) !== "yes") return 0;
 
-  let anchorDate: Date | null = null;
-  if (isPaused) {
-    let latest: Date | null = null;
-    completionDates.forEach((dateKey) => {
-      const date = new Date(`${dateKey}T00:00:00`);
-      if (Number.isNaN(date.getTime())) return;
-      if (!latest || date > latest) latest = date;
-    });
-    anchorDate = latest;
-  } else {
-    anchorDate = new Date(today);
-  }
+  const startDate = DateTime.fromISO(habit.startDate, { zone: TASHKENT });
+  let cursor = DateTime.fromISO(todayKey, { zone: TASHKENT }).minus({
+    days: 1,
+  });
+  let streak = 1;
 
-  if (!anchorDate) return 0;
-  anchorDate.setHours(0, 0, 0, 0);
-  if (anchorDate < startDate) return 0;
-
-  let cursor = new Date(anchorDate);
-  if (!isPaused) {
-    while (cursor >= startDate && !isHabitScheduledOn(habit, cursor)) {
-      cursor.setDate(cursor.getDate() - 1);
+  while (cursor.isValid) {
+    if (startDate.isValid && cursor < startDate.startOf("day")) {
+      break;
     }
-    if (cursor < startDate) return 0;
-    const cursorKey = toLocalDateKey(cursor);
-    if (!completionDates.has(cursorKey)) return 0;
+    const key = cursor.toISODate();
+    if (!key || completionValues.get(key) !== "yes") {
+      break;
+    }
+    streak += 1;
+    cursor = cursor.minus({ days: 1 });
   }
 
-  let streak = 0;
-  while (cursor >= startDate) {
-    if (isHabitScheduledOn(habit, cursor)) {
-      const key = toLocalDateKey(cursor);
-      if (completionDates.has(key)) {
-        streak += 1;
-      } else {
-        break;
-      }
-    }
-    cursor.setDate(cursor.getDate() - 1);
-  }
   return streak;
 }
 
@@ -627,55 +1463,73 @@ export default function TaskWorkspaceShell() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const today = useMemo(() => {
+  const todayLocal = useMemo(() => {
     const base = new Date();
     base.setHours(0, 0, 0, 0);
     return base;
   }, []);
-  const todayKey = useMemo(() => toDateKey(today), [today]);
-  const todayLocalKey = useMemo(() => toLocalDateKey(today), [today]);
-  const habitLookbackStart = useMemo(() => {
-    const next = new Date(today);
+  const todayLocalKey = useMemo(
+    () => toLocalDateKey(todayLocal),
+    [todayLocal],
+  );
+  const [todayUzKey, setTodayUzKey] = useState(() => getUzbekDateKey());
+  const todayUzDate = useMemo(() => {
+    const base = DateTime.fromISO(todayUzKey, { zone: TASHKENT });
+    return base.isValid ? base.startOf("day").toJSDate() : new Date();
+  }, [todayUzKey]);
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const nextKey = getUzbekDateKey();
+      setTodayUzKey((prev) => (prev === nextKey ? prev : nextKey));
+    }, 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+  const habitLookbackStartKey = useMemo(() => {
+    const base = DateTime.fromISO(todayUzKey, { zone: TASHKENT });
+    if (!base.isValid) return todayUzKey;
+    return (
+      base
+        .startOf("day")
+        .minus({ days: HABIT_COMPLETION_LOOKBACK_DAYS - 1 })
+        .toISODate() ?? todayUzKey
+    );
+  }, [todayUzKey]);
+  const habitLookbackStartLocal = useMemo(() => {
+    const next = new Date(todayLocal);
     next.setDate(next.getDate() - (HABIT_COMPLETION_LOOKBACK_DAYS - 1));
     return next;
-  }, [today]);
-  const habitLookbackStartKey = useMemo(
-    () => toLocalDateKey(habitLookbackStart),
-    [habitLookbackStart],
-  );
-  const weekStart = useMemo(() => getStartOfWeek(today), [today]);
-  const weekEnd = useMemo(() => {
-    const next = new Date(weekStart);
-    next.setDate(next.getDate() + 6);
-    return next;
-  }, [weekStart]);
+  }, [todayLocal]);
   const weekDateKeys = useMemo(() => {
-    return Array.from({ length: 7 }, (_value, index) => {
-      const day = new Date(weekStart);
-      day.setDate(day.getDate() + index);
-      return toLocalDateKey(day);
-    });
-  }, [weekStart]);
+    const base = DateTime.fromISO(todayUzKey, { zone: TASHKENT });
+    if (!base.isValid) {
+      return Array.from({ length: 7 }, () => todayUzKey);
+    }
+    const offset = (base.weekday + 6) % 7;
+    const weekStart = base.startOf("day").minus({ days: offset });
+    return Array.from({ length: 7 }, (_value, index) =>
+      (weekStart.plus({ days: index }).toISODate() ?? todayUzKey),
+    );
+  }, [todayUzKey]);
 
   useEffect(() => {
     loadHabitCompletions();
-  }, [habitLookbackStartKey, todayLocalKey]);
+  }, [habitLookbackStartKey, todayUzKey]);
 
   const habitInstancesTodayAll = useMemo(
     () =>
       generateHabitInstances(allTasks, {
-        startDate: today,
-        endDate: today,
+        startDate: todayLocal,
+        endDate: todayLocal,
       }),
-    [allTasks, today],
+    [allTasks, todayLocal],
   );
   const habitInstancesLookback = useMemo(
     () =>
       generateHabitInstances(allTasks, {
-        startDate: habitLookbackStart,
-        endDate: today,
+        startDate: habitLookbackStartLocal,
+        endDate: todayLocal,
       }),
-    [allTasks, habitLookbackStart, today],
+    [allTasks, habitLookbackStartLocal, todayLocal],
   );
 
   const habitTasksById = useMemo(
@@ -697,13 +1551,25 @@ export default function TaskWorkspaceShell() {
   const habitCompletionKeySet = useMemo(() => {
     const set = new Set<string>();
     habitCompletions.forEach((completion) => {
-      set.add(makeHabitCompletionKey(completion.habitId, completion.dateKey));
+      if (completion.value === "yes") {
+        set.add(makeHabitCompletionKey(completion.habitId, completion.dateKey));
+      }
     });
     return set;
+  }, [habitCompletions]);
+  const habitCompletionValuesById = useMemo(() => {
+    const map = new Map<string, Map<string, "yes" | "no">>();
+    habitCompletions.forEach((completion) => {
+      const existing = map.get(completion.habitId) ?? new Map();
+      existing.set(completion.dateKey, completion.value);
+      map.set(completion.habitId, existing);
+    });
+    return map;
   }, [habitCompletions]);
   const habitCompletionDatesById = useMemo(() => {
     const map = new Map<string, Set<string>>();
     habitCompletions.forEach((completion) => {
+      if (completion.value !== "yes") return;
       if (!map.has(completion.habitId)) {
         map.set(completion.habitId, new Set());
       }
@@ -748,11 +1614,12 @@ export default function TaskWorkspaceShell() {
   const habitStreaksByHabitId = useMemo(() => {
     const map = new Map<string, number>();
     activeHabits.forEach((habit) => {
-      const completed = habitCompletionDatesById.get(habit.id) ?? new Set();
-      map.set(habit.id, computeHabitStreak(habit, completed, today));
+      const completionValues =
+        habitCompletionValuesById.get(habit.id) ?? new Map();
+      map.set(habit.id, computeHabitStreak(habit, completionValues, todayUzKey));
     });
     return map;
-  }, [activeHabits, habitCompletionDatesById, today]);
+  }, [activeHabits, habitCompletionValuesById, todayUzKey]);
 
   const plannerTasks = useMemo(() => {
     const searchValue = taskSearch.trim().toLowerCase();
@@ -773,17 +1640,13 @@ export default function TaskWorkspaceShell() {
       const dueKey = getTaskDueKey(task);
       switch (plannerView) {
         case "today":
-          return (
-            task.status !== "done" && !!dueKey && dueKey === todayLocalKey
-          );
+          return !!dueKey && dueKey === todayLocalKey;
         case "next":
-          return (
-            task.status !== "done" && !!dueKey && dueKey > todayLocalKey
-          );
+          return !!dueKey && dueKey > todayLocalKey;
         case "projects":
           return (task.subject ?? "").trim().toLowerCase() === "projects";
         case "done":
-          return task.status === "done";
+          return false;
         default:
           return true;
       }
@@ -839,10 +1702,7 @@ export default function TaskWorkspaceShell() {
       .slice(0, 3);
   }, [events]);
 
-  const incompleteTasks = useMemo(
-    () => allTasks.filter((task) => task.status !== "done"),
-    [allTasks],
-  );
+  const incompleteTasks = useMemo(() => allTasks, [allTasks]);
 
   const topTasks = useMemo(
     () => incompleteTasks.slice(0, 3),
@@ -1002,7 +1862,7 @@ export default function TaskWorkspaceShell() {
     try {
       const params = new URLSearchParams({
         startDate: habitLookbackStartKey,
-        endDate: todayLocalKey,
+        endDate: todayUzKey,
       });
       const res = await fetch(
         `/api/task-scheduler/habit-completions?${params.toString()}`,
@@ -1057,7 +1917,7 @@ export default function TaskWorkspaceShell() {
   async function handleHabitCompletionToggle(
     habitId: string,
     dateKey: string,
-    nextCompleted: boolean,
+    nextValue: "yes" | "no" | null,
   ) {
     const completionKey = makeHabitCompletionKey(habitId, dateKey);
     toggleHabitCompletionSaving(completionKey, true);
@@ -1069,24 +1929,25 @@ export default function TaskWorkspaceShell() {
             completion.dateKey === dateKey
           ),
       );
-      if (!nextCompleted) return filtered;
+      if (!nextValue) return filtered;
       return [
         ...filtered,
         {
           id: `temp-${completionKey}`,
           habitId,
           dateKey,
+          value: nextValue,
           completedAt: new Date().toISOString(),
         },
       ];
     });
 
     try {
-      if (nextCompleted) {
+      if (nextValue) {
         const res = await csrfFetch("/api/task-scheduler/habit-completions", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ habitId, dateKey }),
+          body: JSON.stringify({ habitId, dateKey, value: nextValue }),
         });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -1243,9 +2104,11 @@ export default function TaskWorkspaceShell() {
     }
   }
 
-  async function handleCreateTask(draft: TaskDraft) {
-    if (!activePrivateItemId) return;
-    if (activePrivateItem?.listType !== "planner_tasks") return;
+  async function handleCreateTask(
+    draft: TaskDraft,
+  ): Promise<StudentTask | null> {
+    if (!activePrivateItemId) return null;
+    if (activePrivateItem?.listType !== "planner_tasks") return null;
     const payload = {
       title: draft.title,
       category: "assignment",
@@ -1263,8 +2126,10 @@ export default function TaskWorkspaceShell() {
       throw new Error(body?.error || "Failed to create task");
     }
     const data = await res.json();
-    upsertTaskInState(data.task as StudentTask);
-    handleLinkedEvent(data.linkedEvent ?? null, data.task.id);
+    const created = data.task as StudentTask;
+    upsertTaskInState(created);
+    handleLinkedEvent(data.linkedEvent ?? null, created.id);
+    return created;
   }
 
   async function handleUpdateTask(taskId: string, updates: TaskUpdatePayload) {
@@ -1317,9 +2182,11 @@ export default function TaskWorkspaceShell() {
     });
   }
 
-  async function handleCreateHabit(name: string) {
-    if (!activePrivateItemId) return;
-    if (activePrivateItem?.listType !== "habit_tracker") return;
+  async function handleCreateHabit(
+    name: string,
+  ): Promise<StudentHabit | null> {
+    if (!activePrivateItemId) return null;
+    if (activePrivateItem?.listType !== "habit_tracker") return null;
     const payload = {
       name,
       scheduleType: "daily",
@@ -1338,8 +2205,11 @@ export default function TaskWorkspaceShell() {
     }
     const data = await res.json();
     if (data?.habit) {
-      upsertHabitInState(data.habit as StudentHabit);
+      const created = data.habit as StudentHabit;
+      upsertHabitInState(created);
+      return created;
     }
+    return null;
   }
 
   async function handleUpdateHabit(
@@ -1536,10 +2406,16 @@ export default function TaskWorkspaceShell() {
         title: trimmedTitle,
         description: convertTarget.text,
       };
-      if (convertSubject.trim()) {
-        payload.subject = convertSubject.trim();
+      const subjectValue = TASK_SUBJECTS.includes(
+        convertSubject as (typeof TASK_SUBJECTS)[number],
+      )
+        ? convertSubject
+        : "";
+      if (subjectValue) {
+        payload.subject = subjectValue;
       }
       if (convertDueDate) {
+        payload.dueStartDate = convertDueDate;
         payload.dueDate = convertDueDate;
       }
       const res = await csrfFetch(
@@ -1867,7 +2743,10 @@ export default function TaskWorkspaceShell() {
                           {task.title}
                         </p>
                         <p className="mt-1 text-xs text-white/50">
-                          {task.dueDate || task.dueAt
+                          {task.dueStartDate ||
+                          task.dueEndDate ||
+                          task.dueDate ||
+                          task.dueAt
                             ? `Due ${formatTaskDue(task)}`
                             : "No due date"}
                         </p>
@@ -1901,7 +2780,7 @@ export default function TaskWorkspaceShell() {
                 {habitTodayTasks.map((task) => {
                   const completionKey = makeHabitCompletionKey(
                     task.id,
-                    todayLocalKey,
+                    todayUzKey,
                   );
                   return (
                     <HabitTodayRow
@@ -1913,8 +2792,8 @@ export default function TaskWorkspaceShell() {
                       onToggle={(nextCompleted) =>
                         handleHabitCompletionToggle(
                           task.id,
-                          todayLocalKey,
-                          nextCompleted,
+                          todayUzKey,
+                          nextCompleted ? "yes" : null,
                         )
                       }
                     />
@@ -1972,7 +2851,7 @@ export default function TaskWorkspaceShell() {
     const hiddenColumns = activePrivateItem.hiddenColumns ?? [];
     const habitsForView =
       habitView === "today"
-        ? activeHabits.filter((habit) => isHabitScheduledOn(habit, today))
+        ? activeHabits.filter((habit) => isHabitScheduledOn(habit, todayUzDate))
         : activeHabits;
 
     return (
@@ -2033,11 +2912,11 @@ export default function TaskWorkspaceShell() {
               propertiesOpen={habitPropertiesOpen}
               onPropertiesToggle={setHabitPropertiesOpen}
               completionKeySet={habitCompletionKeySet}
+              completionValuesById={habitCompletionValuesById}
               streaksById={habitStreaksByHabitId}
               savingCompletionKeys={habitCompletionSavingKeys}
               weekDateKeys={weekDateKeys}
-              todayKey={todayLocalKey}
-              todayDate={today}
+              todayKey={todayUzKey}
               onToggleCompletion={handleHabitCompletionToggle}
               onCreateHabit={handleCreateHabit}
               onUpdateHabit={handleUpdateHabit}
@@ -2246,7 +3125,6 @@ export default function TaskWorkspaceShell() {
           onClose={() => setToast(null)}
         />
       )}
-      <SubjectDatalist />
     </div>
   );
 }
@@ -2294,65 +3172,6 @@ function buildGridTemplate(columns: ColumnMeta[], hiddenColumns: string[]) {
   return getVisibleColumns(columns, hiddenColumns)
     .map((column) => column.width)
     .join(" ");
-}
-
-function getDueDateInput(task: StudentTask) {
-  if (task.dueDate) return task.dueDate;
-  if (task.dueAt) {
-    const date = new Date(task.dueAt);
-    if (!Number.isNaN(date.getTime())) {
-      return toLocalDateKey(date);
-    }
-  }
-  return "";
-}
-
-function getDueTimeInput(task: StudentTask) {
-  if (!task.dueAt) return "";
-  const date = new Date(task.dueAt);
-  if (Number.isNaN(date.getTime())) return "";
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
-
-function buildDuePayload(dateValue: string, timeValue: string) {
-  if (!dateValue) {
-    return { dueDate: null, dueAt: null };
-  }
-  if (!timeValue) {
-    return { dueDate: dateValue, dueAt: null };
-  }
-  const next = new Date(`${dateValue}T${timeValue}`);
-  if (Number.isNaN(next.getTime())) {
-    return { dueDate: dateValue, dueAt: null };
-  }
-  return { dueDate: dateValue, dueAt: next.toISOString() };
-}
-
-function formatScheduleSummary(habit: StudentHabit) {
-  switch (habit.scheduleType) {
-    case "daily":
-      return "Daily";
-    case "weekdays":
-      return "Weekdays";
-    case "custom":
-      return "Custom";
-    default:
-      return "Custom";
-  }
-}
-
-function formatScheduleDetail(habit: StudentHabit) {
-  if (habit.scheduleType !== "custom") {
-    return formatScheduleSummary(habit);
-  }
-  const days = habit.scheduleDays ?? [];
-  const labels = days
-    .map((day) => WEEKDAY_NAMES_SHORT[day] ?? "")
-    .filter(Boolean);
-  if (!labels.length) return "Custom";
-  return `Custom (${labels.join(", ")})`;
 }
 
 type PropertiesPanelProps = {
@@ -2424,7 +3243,7 @@ type PlannerTasksPanelProps = {
   onHiddenColumnsChange: (nextHidden: string[]) => void;
   propertiesOpen: boolean;
   onPropertiesToggle: (open: boolean) => void;
-  onCreateTask: (draft: TaskDraft) => Promise<void>;
+  onCreateTask: (draft: TaskDraft) => Promise<StudentTask | null>;
   onUpdateTask: (taskId: string, updates: TaskUpdatePayload) => Promise<void>;
   onSelectTask: (taskId: string) => void;
   savingIds: Set<string>;
@@ -2448,10 +3267,9 @@ function PlannerTasksPanel({
   onSelectTask,
   savingIds,
 }: PlannerTasksPanelProps) {
-  const [draftTitle, setDraftTitle] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
   const visibleColumns = useMemo(
     () => getVisibleColumns(TASK_TABLE_COLUMNS, hiddenColumns),
     [hiddenColumns],
@@ -2463,23 +3281,25 @@ function PlannerTasksPanel({
 
   async function handleCreate() {
     if (creating) return;
-    const trimmed = draftTitle.trim();
-    if (!trimmed) {
-      setCreateError("Name is required.");
-      return;
-    }
     setCreateError(null);
     setCreating(true);
     try {
-      await onCreateTask({ title: trimmed });
-      setDraftTitle("");
-      inputRef.current?.focus();
+      const created = await onCreateTask({ title: "Untitled task" });
+      if (created?.id) {
+        setFocusTaskId(created.id);
+      }
     } catch (error) {
       setCreateError(
         error instanceof Error ? error.message : "Failed to create task",
       );
     } finally {
       setCreating(false);
+    }
+  }
+
+  function handleFocusResolved(taskId: string) {
+    if (focusTaskId === taskId) {
+      setFocusTaskId(null);
     }
   }
 
@@ -2572,7 +3392,7 @@ function PlannerTasksPanel({
                   No tasks yet.
                 </div>
               ) : (
-                tasks.map((task) => (
+                tasks.map((task, index) => (
                   <PlannerTaskRow
                     key={task.id}
                     task={task}
@@ -2581,13 +3401,16 @@ function PlannerTasksPanel({
                     onUpdate={onUpdateTask}
                     onSelect={() => onSelectTask(task.id)}
                     isSaving={savingIds.has(task.id)}
+                    isLastRow={index === tasks.length - 1}
+                    onRequestCreate={handleCreate}
+                    shouldFocus={task.id === focusTaskId}
+                    onFocusResolved={() => handleFocusResolved(task.id)}
                   />
                 ))
               )}
               <div
                 className="grid h-11 items-center text-sm text-white/60"
                 style={{ gridTemplateColumns: gridTemplate }}
-                onClick={() => inputRef.current?.focus()}
               >
                 {visibleColumns.map((column) => {
                   if (column.key !== "name") {
@@ -2595,20 +3418,17 @@ function PlannerTasksPanel({
                   }
                   return (
                     <div key={column.key} className="flex h-full items-center px-3">
-                      <input
-                        ref={inputRef}
-                        value={draftTitle}
+                      <button
+                        type="button"
                         disabled={creating}
-                        onChange={(event) => setDraftTitle(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            handleCreate();
-                          }
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleCreate();
                         }}
-                        placeholder="+ New task"
-                        className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-white/80 outline-none transition placeholder:text-white/40 focus:border-white/20 focus:bg-white/5"
-                      />
+                        className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-left text-sm text-white/60 outline-none transition hover:border-white/20 hover:bg-white/5"
+                      >
+                        + New task
+                      </button>
                     </div>
                   );
                 })}
@@ -2629,6 +3449,10 @@ type PlannerTaskRowProps = {
   onUpdate: (taskId: string, updates: TaskUpdatePayload) => Promise<void>;
   onSelect: () => void;
   isSaving: boolean;
+  isLastRow: boolean;
+  onRequestCreate: () => void;
+  shouldFocus: boolean;
+  onFocusResolved: () => void;
 };
 
 function PlannerTaskRow({
@@ -2638,34 +3462,63 @@ function PlannerTaskRow({
   onUpdate,
   onSelect,
   isSaving,
+  isLastRow,
+  onRequestCreate,
+  shouldFocus,
+  onFocusResolved,
 }: PlannerTaskRowProps) {
+  const nameRef = useRef<HTMLInputElement | null>(null);
   const [title, setTitle] = useState(task.title);
   const [status, setStatus] = useState<StudentTaskStatus>(task.status);
   const [priority, setPriority] = useState<StudentTaskPriority>(task.priority);
-  const [subject, setSubject] = useState(task.subject ?? "");
-  const [estimate, setEstimate] = useState(
-    task.estimatedMinutes !== null && task.estimatedMinutes !== undefined
-      ? String(task.estimatedMinutes)
-      : "",
+  const [subject, setSubject] = useState<
+    (typeof TASK_SUBJECTS)[number] | null
+  >(TASK_SUBJECTS.includes(task.subject as any) ? task.subject : null);
+  const [estimate, setEstimate] = useState<TaskEstimateMinutes | null>(
+    TASK_ESTIMATE_MINUTES.includes(task.estimatedMinutes as TaskEstimateMinutes)
+      ? (task.estimatedMinutes as TaskEstimateMinutes)
+      : null,
   );
-  const [resourceUrl, setResourceUrl] = useState(task.resourceUrl ?? "");
-  const [dueDate, setDueDate] = useState(getDueDateInput(task));
-  const [dueTime, setDueTime] = useState(getDueTimeInput(task));
+  const [resource, setResource] = useState<
+    (typeof TASK_RESOURCES)[number] | null
+  >(TASK_RESOURCES.includes(task.resourceUrl as any) ? task.resourceUrl : null);
+  const [dueStartDate, setDueStartDate] = useState<string | null>(
+    task.dueStartDate ?? task.dueDate ?? getLegacyDueDateKey(task),
+  );
+  const [dueEndDate, setDueEndDate] = useState<string | null>(
+    task.dueEndDate ?? null,
+  );
 
   useEffect(() => {
     setTitle(task.title);
     setStatus(task.status);
     setPriority(task.priority);
-    setSubject(task.subject ?? "");
-    setEstimate(
-      task.estimatedMinutes !== null && task.estimatedMinutes !== undefined
-        ? String(task.estimatedMinutes)
-        : "",
+    setSubject(
+      TASK_SUBJECTS.includes(task.subject as any) ? task.subject : null,
     );
-    setResourceUrl(task.resourceUrl ?? "");
-    setDueDate(getDueDateInput(task));
-    setDueTime(getDueTimeInput(task));
+    setEstimate(
+      TASK_ESTIMATE_MINUTES.includes(
+        task.estimatedMinutes as TaskEstimateMinutes,
+      )
+        ? (task.estimatedMinutes as TaskEstimateMinutes)
+        : null,
+    );
+    setResource(
+      TASK_RESOURCES.includes(task.resourceUrl as any) ? task.resourceUrl : null,
+    );
+    setDueStartDate(
+      task.dueStartDate ?? task.dueDate ?? getLegacyDueDateKey(task),
+    );
+    setDueEndDate(task.dueEndDate ?? null);
   }, [task]);
+
+  useEffect(() => {
+    if (shouldFocus && nameRef.current) {
+      nameRef.current.focus();
+      nameRef.current.select();
+      onFocusResolved();
+    }
+  }, [shouldFocus, onFocusResolved]);
 
   async function commitTitle() {
     const trimmed = title.trim();
@@ -2678,52 +3531,37 @@ function PlannerTaskRow({
     }
   }
 
-  async function commitSubject() {
-    const trimmed = subject.trim();
-    const nextValue = trimmed ? trimmed : null;
-    if ((task.subject ?? null) !== nextValue) {
-      await onUpdate(task.id, { subject: nextValue });
+  async function commitNotes(nextValue: string | null) {
+    if ((task.description ?? null) !== nextValue) {
+      await onUpdate(task.id, { description: nextValue });
     }
   }
 
-  async function commitEstimate() {
-    const trimmed = estimate.trim();
-    const nextValue = trimmed ? Number(trimmed) : null;
-    if (trimmed && Number.isNaN(nextValue)) {
-      setEstimate(
-        task.estimatedMinutes !== null && task.estimatedMinutes !== undefined
-          ? String(task.estimatedMinutes)
-          : "",
-      );
-      return;
+  function handleDueChange(start: string | null, end: string | null) {
+    let nextStart = start;
+    let nextEnd = end;
+    if (nextStart && nextEnd && nextEnd < nextStart) {
+      nextEnd = nextStart;
     }
-    if ((task.estimatedMinutes ?? null) !== nextValue) {
-      await onUpdate(task.id, { estimatedMinutes: nextValue });
-    }
+    setDueStartDate(nextStart);
+    setDueEndDate(nextEnd);
+    const currentStart =
+      task.dueStartDate ?? task.dueDate ?? getLegacyDueDateKey(task);
+    const currentEnd = task.dueEndDate ?? null;
+    if (currentStart === nextStart && currentEnd === nextEnd) return;
+    const dueDate = nextEnd ?? nextStart ?? null;
+    onUpdate(task.id, {
+      dueStartDate: nextStart,
+      dueEndDate: nextEnd,
+      dueDate,
+      dueAt: null,
+    });
   }
-
-  async function commitResource() {
-    const trimmed = resourceUrl.trim();
-    const nextValue = trimmed ? trimmed : null;
-    if ((task.resourceUrl ?? null) !== nextValue) {
-      await onUpdate(task.id, { resourceUrl: nextValue });
-    }
-  }
-
-  async function commitDue() {
-    const currentDate = getDueDateInput(task);
-    const currentTime = getDueTimeInput(task);
-    if (currentDate === dueDate && currentTime === dueTime) return;
-    await onUpdate(task.id, buildDuePayload(dueDate, dueTime));
-  }
-
-  const notesPreview = task.description?.trim() || "No notes";
 
   return (
     <div
       className={classNames(
         "grid h-11 items-center text-sm text-white/80 transition hover:bg-white/5",
-        task.status === "done" && "text-white/40",
         isSaving && "opacity-60",
       )}
       style={{ gridTemplateColumns: gridTemplate }}
@@ -2735,11 +3573,21 @@ function PlannerTaskRow({
             return (
               <div key={column.key} className="flex h-full items-center px-3">
                 <input
+                  ref={nameRef}
                   value={title}
                   disabled={isSaving}
                   onClick={(event) => event.stopPropagation()}
                   onChange={(event) => setTitle(event.target.value)}
                   onBlur={commitTitle}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                      if (isLastRow) {
+                        onRequestCreate();
+                      }
+                    }
+                  }}
                   className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-white/80 outline-none transition focus:border-white/20 focus:bg-white/5"
                 />
               </div>
@@ -2747,130 +3595,108 @@ function PlannerTaskRow({
           case "status":
             return (
               <div key={column.key} className="flex h-full items-center px-3">
-                <select
+                <CellSelect
                   value={status}
+                  options={STATUS_OPTIONS}
+                  placeholder="Status"
                   disabled={isSaving}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) => {
-                    const next = event.target.value as StudentTaskStatus;
+                  onChange={(next) => {
                     setStatus(next);
                     if (next !== task.status) {
                       onUpdate(task.id, { status: next });
                     }
                   }}
-                  className="h-8 w-full rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
-                >
-                  {TASK_STATUSES.map((option) => (
-                    <option key={option} value={option}>
-                      {statusLabels[option]}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             );
           case "due":
             return (
-              <div key={column.key} className="flex h-full items-center gap-2 px-3">
-                <input
-                  type="date"
-                  value={dueDate}
+              <div key={column.key} className="flex h-full items-center px-3">
+                <DateRangeCell
+                  startDate={dueStartDate}
+                  endDate={dueEndDate}
                   disabled={isSaving}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    setDueDate(next);
-                    if (!next) {
-                      setDueTime("");
-                    }
-                  }}
-                  onBlur={commitDue}
-                  className="h-8 rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
-                />
-                <input
-                  type="time"
-                  value={dueTime}
-                  disabled={isSaving || !dueDate}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) => setDueTime(event.target.value)}
-                  onBlur={commitDue}
-                  className="h-8 w-[88px] rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
+                  onChange={handleDueChange}
                 />
               </div>
             );
           case "subject":
             return (
               <div key={column.key} className="flex h-full items-center px-3">
-                <input
-                  list="subject-options"
+                <CellSelect
                   value={subject}
-                  disabled={isSaving}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) => setSubject(event.target.value)}
-                  onBlur={commitSubject}
-                  className="h-8 w-full rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
+                  options={SUBJECT_OPTIONS}
                   placeholder="Subject"
+                  disabled={isSaving}
+                  onChange={(next) => {
+                    setSubject(next);
+                    if ((task.subject ?? null) !== next) {
+                      onUpdate(task.id, { subject: next });
+                    }
+                  }}
                 />
               </div>
             );
           case "priority":
             return (
               <div key={column.key} className="flex h-full items-center px-3">
-                <select
+                <CellSelect
                   value={priority}
+                  options={PRIORITY_OPTIONS}
+                  placeholder="Priority"
                   disabled={isSaving}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) => {
-                    const next = event.target.value as StudentTaskPriority;
+                  onChange={(next) => {
                     setPriority(next);
                     if (next !== task.priority) {
                       onUpdate(task.id, { priority: next });
                     }
                   }}
-                  className="h-8 w-full rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
-                >
-                  {TASK_PRIORITIES.map((option) => (
-                    <option key={option} value={option}>
-                      {priorityLabels[option]}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             );
           case "estimate":
             return (
               <div key={column.key} className="flex h-full items-center px-3">
-                <input
-                  type="number"
-                  min={0}
+                <CellSelect
                   value={estimate}
+                  options={ESTIMATE_OPTIONS}
+                  placeholder="Estimate"
                   disabled={isSaving}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) => setEstimate(event.target.value)}
-                  onBlur={commitEstimate}
-                  className="h-8 w-full rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
+                  onChange={(next) => {
+                    setEstimate(next);
+                    if ((task.estimatedMinutes ?? null) !== next) {
+                      onUpdate(task.id, { estimatedMinutes: next });
+                    }
+                  }}
                 />
               </div>
             );
           case "resource":
             return (
               <div key={column.key} className="flex h-full items-center px-3">
-                <input
-                  value={resourceUrl}
+                <CellSelect
+                  value={resource}
+                  options={RESOURCE_OPTIONS}
+                  placeholder="Resource"
                   disabled={isSaving}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) => setResourceUrl(event.target.value)}
-                  onBlur={commitResource}
-                  placeholder="https://"
-                  className="h-8 w-full rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
+                  onChange={(next) => {
+                    setResource(next);
+                    if ((task.resourceUrl ?? null) !== next) {
+                      onUpdate(task.id, { resourceUrl: next });
+                    }
+                  }}
                 />
               </div>
             );
           case "notes":
             return (
               <div key={column.key} className="flex h-full items-center px-3">
-                <span className="truncate text-xs text-white/50">
-                  {notesPreview}
-                </span>
+                <NotesCell
+                  value={task.description}
+                  disabled={isSaving}
+                  placeholder="Add notes"
+                  onCommit={commitNotes}
+                />
               </div>
             );
           default:
@@ -2892,13 +3718,17 @@ type HabitTrackerPanelProps = {
   propertiesOpen: boolean;
   onPropertiesToggle: (open: boolean) => void;
   completionKeySet: Set<string>;
+  completionValuesById: Map<string, Map<string, "yes" | "no">>;
   streaksById: Map<string, number>;
   savingCompletionKeys: Set<string>;
   weekDateKeys: string[];
   todayKey: string;
-  todayDate: Date;
-  onToggleCompletion: (habitId: string, dateKey: string, next: boolean) => void;
-  onCreateHabit: (name: string) => Promise<void>;
+  onToggleCompletion: (
+    habitId: string,
+    dateKey: string,
+    nextValue: "yes" | "no" | null,
+  ) => void;
+  onCreateHabit: (name: string) => Promise<StudentHabit | null>;
   onUpdateHabit: (habitId: string, updates: HabitUpdatePayload) => Promise<void>;
   onSelectHabit: (habitId: string) => void;
   savingIds: Set<string>;
@@ -2915,21 +3745,20 @@ function HabitTrackerPanel({
   propertiesOpen,
   onPropertiesToggle,
   completionKeySet,
+  completionValuesById,
   streaksById,
   savingCompletionKeys,
   weekDateKeys,
   todayKey,
-  todayDate,
   onToggleCompletion,
   onCreateHabit,
   onUpdateHabit,
   onSelectHabit,
   savingIds,
 }: HabitTrackerPanelProps) {
-  const [draftName, setDraftName] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [focusHabitId, setFocusHabitId] = useState<string | null>(null);
   const visibleColumns = useMemo(
     () => getVisibleColumns(HABIT_TABLE_COLUMNS, hiddenColumns),
     [hiddenColumns],
@@ -2938,35 +3767,29 @@ function HabitTrackerPanel({
     () => buildGridTemplate(HABIT_TABLE_COLUMNS, hiddenColumns),
     [hiddenColumns],
   );
-  const weekDates = useMemo(
-    () =>
-      weekDateKeys.map((key) => {
-        const date = new Date(`${key}T00:00:00`);
-        return Number.isNaN(date.getTime()) ? new Date() : date;
-      }),
-    [weekDateKeys],
-  );
   const rows = view === "week" ? allHabits : habits;
 
   async function handleCreate() {
     if (creating) return;
-    const trimmed = draftName.trim();
-    if (!trimmed) {
-      setCreateError("Name is required.");
-      return;
-    }
     setCreateError(null);
     setCreating(true);
     try {
-      await onCreateHabit(trimmed);
-      setDraftName("");
-      inputRef.current?.focus();
+      const created = await onCreateHabit("Untitled habit");
+      if (created?.id) {
+        setFocusHabitId(created.id);
+      }
     } catch (error) {
       setCreateError(
         error instanceof Error ? error.message : "Failed to create habit",
       );
     } finally {
       setCreating(false);
+    }
+  }
+
+  function handleFocusResolved(habitId: string) {
+    if (focusHabitId === habitId) {
+      setFocusHabitId(null);
     }
   }
 
@@ -3043,24 +3866,20 @@ function HabitTrackerPanel({
                       key={habit.id}
                       className={classNames(
                         "grid h-11 grid-cols-[minmax(220px,1.5fr)_repeat(7,70px)_100px] items-center text-sm text-white/80 transition hover:bg-white/5",
-                        habit.status === "paused" && "text-white/40",
                       )}
                       onClick={() => onSelectHabit(habit.id)}
                     >
                       <div className="flex h-full items-center px-3">
                         <span className="truncate">{habit.name}</span>
                       </div>
-                      {weekDateKeys.map((dateKey, index) => {
-                        const date = weekDates[index];
+                      {weekDateKeys.map((dateKey) => {
                         const completionKey = makeHabitCompletionKey(
                           habit.id,
                           dateKey,
                         );
                         const completed = completionKeySet.has(completionKey);
                         const saving = savingCompletionKeys.has(completionKey);
-                        const scheduled = isHabitScheduledOn(habit, date);
-                        const disabled =
-                          saving || habit.status === "paused" || !scheduled;
+                        const disabled = saving;
                         return (
                           <div
                             key={dateKey}
@@ -3074,7 +3893,7 @@ function HabitTrackerPanel({
                                 onToggleCompletion(
                                   habit.id,
                                   dateKey,
-                                  !completed,
+                                  !completed ? "yes" : null,
                                 );
                               }}
                               className={classNames(
@@ -3128,28 +3947,30 @@ function HabitTrackerPanel({
                     No habits yet.
                   </div>
                 ) : (
-                  rows.map((habit) => (
+                  rows.map((habit, index) => (
                     <HabitTableRow
                       key={habit.id}
                       habit={habit}
                       visibleColumns={visibleColumns}
                       gridTemplate={gridTemplate}
-                      completionKeySet={completionKeySet}
+                      completionValuesById={completionValuesById}
                       streak={streaksById.get(habit.id) ?? 0}
                       savingCompletionKeys={savingCompletionKeys}
                       todayKey={todayKey}
-                      todayDate={todayDate}
                       onToggleCompletion={onToggleCompletion}
                       onUpdate={onUpdateHabit}
                       onSelect={() => onSelectHabit(habit.id)}
                       isSaving={savingIds.has(habit.id)}
+                      isLastRow={index === rows.length - 1}
+                      onRequestCreate={handleCreate}
+                      shouldFocus={habit.id === focusHabitId}
+                      onFocusResolved={() => handleFocusResolved(habit.id)}
                     />
                   ))
                 )}
                 <div
                   className="grid h-11 items-center text-sm text-white/60"
                   style={{ gridTemplateColumns: gridTemplate }}
-                  onClick={() => inputRef.current?.focus()}
                 >
                   {visibleColumns.map((column) => {
                     if (column.key !== "name") {
@@ -3157,20 +3978,17 @@ function HabitTrackerPanel({
                     }
                     return (
                       <div key={column.key} className="flex h-full items-center px-3">
-                        <input
-                          ref={inputRef}
-                          value={draftName}
+                        <button
+                          type="button"
                           disabled={creating}
-                          onChange={(event) => setDraftName(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              handleCreate();
-                            }
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleCreate();
                           }}
-                          placeholder="+ New habit"
-                          className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-white/80 outline-none transition placeholder:text-white/40 focus:border-white/20 focus:bg-white/5"
-                        />
+                          className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-left text-sm text-white/60 outline-none transition hover:border-white/20 hover:bg-white/5"
+                        >
+                          + New habit
+                        </button>
                       </div>
                     );
                   })}
@@ -3189,38 +4007,87 @@ type HabitTableRowProps = {
   habit: StudentHabit;
   visibleColumns: ColumnMeta[];
   gridTemplate: string;
-  completionKeySet: Set<string>;
+  completionValuesById: Map<string, Map<string, "yes" | "no">>;
   streak: number;
   savingCompletionKeys: Set<string>;
   todayKey: string;
-  todayDate: Date;
-  onToggleCompletion: (habitId: string, dateKey: string, next: boolean) => void;
+  onToggleCompletion: (
+    habitId: string,
+    dateKey: string,
+    nextValue: "yes" | "no" | null,
+  ) => void;
   onUpdate: (habitId: string, updates: HabitUpdatePayload) => Promise<void>;
   onSelect: () => void;
   isSaving: boolean;
+  isLastRow: boolean;
+  onRequestCreate: () => void;
+  shouldFocus: boolean;
+  onFocusResolved: () => void;
 };
 
 function HabitTableRow({
   habit,
   visibleColumns,
   gridTemplate,
-  completionKeySet,
+  completionValuesById,
   streak,
   savingCompletionKeys,
   todayKey,
-  todayDate,
   onToggleCompletion,
   onUpdate,
   onSelect,
   isSaving,
+  isLastRow,
+  onRequestCreate,
+  shouldFocus,
+  onFocusResolved,
 }: HabitTableRowProps) {
+  const nameRef = useRef<HTMLInputElement | null>(null);
   const [name, setName] = useState(habit.name);
   const [status, setStatus] = useState<HabitStatus>(habit.status);
+  const [target, setTarget] = useState<HabitTarget | null>(
+    HABIT_TARGETS.includes(habit.target as HabitTarget)
+      ? (habit.target as HabitTarget)
+      : null,
+  );
+  const [resource, setResource] = useState<
+    (typeof TASK_RESOURCES)[number] | null
+  >(TASK_RESOURCES.includes(habit.resourceUrl as any) ? habit.resourceUrl : null);
+  const [scheduleStart, setScheduleStart] = useState<number | null>(
+    habit.scheduleStartTime ?? null,
+  );
+  const [scheduleEnd, setScheduleEnd] = useState<number | null>(
+    habit.scheduleEndTime ?? null,
+  );
+  const [startDate, setStartDate] = useState<string | null>(
+    habit.startDate ?? null,
+  );
 
   useEffect(() => {
     setName(habit.name);
     setStatus(habit.status);
+    setTarget(
+      HABIT_TARGETS.includes(habit.target as HabitTarget)
+        ? (habit.target as HabitTarget)
+        : null,
+    );
+    setResource(
+      TASK_RESOURCES.includes(habit.resourceUrl as any)
+        ? habit.resourceUrl
+        : null,
+    );
+    setScheduleStart(habit.scheduleStartTime ?? null);
+    setScheduleEnd(habit.scheduleEndTime ?? null);
+    setStartDate(habit.startDate ?? null);
   }, [habit]);
+
+  useEffect(() => {
+    if (shouldFocus && nameRef.current) {
+      nameRef.current.focus();
+      nameRef.current.select();
+      onFocusResolved();
+    }
+  }, [shouldFocus, onFocusResolved]);
 
   async function commitName() {
     const trimmed = name.trim();
@@ -3234,19 +4101,54 @@ function HabitTableRow({
   }
 
   const completionKey = makeHabitCompletionKey(habit.id, todayKey);
-  const doneToday = completionKeySet.has(completionKey);
   const saving = savingCompletionKeys.has(completionKey);
-  const scheduledToday = isHabitScheduledOn(habit, todayDate);
-  const disabledToggle =
-    saving || habit.status === "paused" || !scheduledToday;
-  const notesPreview = habit.notes?.trim() || "No notes";
-  const resourcePreview = habit.resourceUrl?.trim() || "No link";
+  const completionMap = completionValuesById.get(habit.id) ?? new Map();
+  const doneToday = completionMap.get(todayKey) ?? null;
+
+  async function commitNotes(nextValue: string | null) {
+    if ((habit.notes ?? null) !== nextValue) {
+      await onUpdate(habit.id, { notes: nextValue });
+    }
+  }
+
+  function handleScheduleChange(start: number | null, end: number | null) {
+    let nextStart = start;
+    let nextEnd = end;
+    if (nextStart !== null && nextEnd !== null && nextEnd <= nextStart) {
+      nextEnd = null;
+    }
+    setScheduleStart(nextStart);
+    setScheduleEnd(nextEnd);
+    if (nextStart === null && nextEnd === null) {
+      if (habit.scheduleStartTime || habit.scheduleEndTime) {
+        onUpdate(habit.id, { scheduleStartTime: null, scheduleEndTime: null });
+      }
+      return;
+    }
+    if (nextStart !== null && nextEnd !== null) {
+      if (
+        habit.scheduleStartTime !== nextStart ||
+        habit.scheduleEndTime !== nextEnd
+      ) {
+        onUpdate(habit.id, {
+          scheduleStartTime: nextStart,
+          scheduleEndTime: nextEnd,
+        });
+      }
+    }
+  }
+
+  async function commitStartDate(nextValue: string | null) {
+    if (!nextValue) return;
+    if (habit.startDate !== nextValue) {
+      await onUpdate(habit.id, { startDate: nextValue });
+    }
+  }
 
   return (
     <div
       className={classNames(
         "grid h-11 items-center text-sm text-white/80 transition hover:bg-white/5",
-        habit.status === "paused" && "text-white/40",
         isSaving && "opacity-60",
       )}
       style={{ gridTemplateColumns: gridTemplate }}
@@ -3258,11 +4160,21 @@ function HabitTableRow({
             return (
               <div key={column.key} className="flex h-full items-center px-3">
                 <input
+                  ref={nameRef}
                   value={name}
                   disabled={isSaving}
                   onClick={(event) => event.stopPropagation()}
                   onChange={(event) => setName(event.target.value)}
                   onBlur={commitName}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      event.currentTarget.blur();
+                      if (isLastRow) {
+                        onRequestCreate();
+                      }
+                    }
+                  }}
                   className="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-sm text-white/80 outline-none transition focus:border-white/20 focus:bg-white/5"
                 />
               </div>
@@ -3270,28 +4182,17 @@ function HabitTableRow({
           case "done":
             return (
               <div key={column.key} className="flex h-full items-center px-3">
-                <label
-                  className={classNames(
-                    "flex items-center gap-2 text-xs text-white/70",
-                    disabledToggle && "opacity-50",
-                  )}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <input
-                    type="checkbox"
-                    checked={doneToday}
-                    disabled={disabledToggle}
-                    onChange={(event) =>
-                      onToggleCompletion(
-                        habit.id,
-                        todayKey,
-                        event.target.checked,
-                      )
-                    }
-                    className="h-4 w-4 rounded border border-white/30 bg-black/40 text-emerald-300 accent-emerald-400"
-                  />
-                  {doneToday ? "Done" : "Not yet"}
-                </label>
+                <CellSelect
+                  value={doneToday as "yes" | "no" | null}
+                  options={DONE_OPTIONS}
+                  placeholder="—"
+                  disabled={isSaving || saving}
+                  onChange={(next) =>
+                    onToggleCompletion(habit.id, todayKey, next)
+                  }
+                  onClear={() => onToggleCompletion(habit.id, todayKey, null)}
+                  clearLabel="Clear"
+                />
               </div>
             );
           case "streak":
@@ -3302,64 +4203,90 @@ function HabitTableRow({
             );
           case "schedule":
             return (
-              <div
-                key={column.key}
-                className="flex h-full items-center px-3 text-xs text-white/60"
-                title={formatScheduleDetail(habit)}
-              >
-                {formatScheduleSummary(habit)}
+              <div key={column.key} className="flex h-full items-center px-3">
+                <TimeRangeCell
+                  startMinutes={scheduleStart}
+                  endMinutes={scheduleEnd}
+                  disabled={isSaving}
+                  onChange={handleScheduleChange}
+                />
               </div>
             );
           case "target":
             return (
-              <div key={column.key} className="flex h-full items-center px-3 text-xs text-white/60">
-                {habit.target ?? "-"}
+              <div key={column.key} className="flex h-full items-center px-3">
+                <CellSelect
+                  value={target}
+                  options={TARGET_OPTIONS}
+                  placeholder="Target"
+                  disabled={isSaving}
+                  onChange={(next) => {
+                    setTarget(next);
+                    if ((habit.target ?? null) !== next) {
+                      onUpdate(habit.id, { target: next });
+                    }
+                  }}
+                />
               </div>
             );
           case "notes":
             return (
               <div key={column.key} className="flex h-full items-center px-3">
-                <span className="truncate text-xs text-white/50">
-                  {notesPreview}
-                </span>
+                <NotesCell
+                  value={habit.notes}
+                  disabled={isSaving}
+                  placeholder="Add notes"
+                  onCommit={commitNotes}
+                />
               </div>
             );
           case "resource":
             return (
               <div key={column.key} className="flex h-full items-center px-3">
-                <span className="truncate text-xs text-white/50">
-                  {resourcePreview}
-                </span>
+                <CellSelect
+                  value={resource}
+                  options={RESOURCE_OPTIONS}
+                  placeholder="Resource"
+                  disabled={isSaving}
+                  onChange={(next) => {
+                    setResource(next);
+                    if ((habit.resourceUrl ?? null) !== next) {
+                      onUpdate(habit.id, { resourceUrl: next });
+                    }
+                  }}
+                />
               </div>
             );
           case "start":
             return (
-              <div key={column.key} className="flex h-full items-center px-3 text-xs text-white/60">
-                {habit.startDate}
+              <div key={column.key} className="flex h-full items-center px-3">
+                <DateCell
+                  value={startDate}
+                  disabled={isSaving}
+                  allowClear={false}
+                  onChange={(next) => {
+                    if (!next) return;
+                    setStartDate(next);
+                    void commitStartDate(next);
+                  }}
+                />
               </div>
             );
           case "status":
             return (
               <div key={column.key} className="flex h-full items-center px-3">
-                <select
+                <CellSelect
                   value={status}
+                  options={STATUS_OPTIONS as Array<CellSelectOption<HabitStatus>>}
+                  placeholder="Status"
                   disabled={isSaving}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) => {
-                    const next = event.target.value as HabitStatus;
-                    setStatus(next);
+                  onChange={(next) => {
+                    setStatus(next as HabitStatus);
                     if (next !== habit.status) {
-                      onUpdate(habit.id, { status: next });
+                      onUpdate(habit.id, { status: next as HabitStatus });
                     }
                   }}
-                  className="h-8 w-full rounded-md border border-white/10 bg-black/20 px-2 text-xs text-white/80 outline-none"
-                >
-                  {HABIT_STATUSES.map((option) => (
-                    <option key={option} value={option}>
-                      {option === "active" ? "Active" : "Paused"}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             );
           default:
@@ -3377,35 +4304,64 @@ type TaskDetailsModalProps = {
   onUpdate: (taskId: string, updates: TaskUpdatePayload) => Promise<void>;
 };
 
-function TaskDetailsModal({ task, saving, onClose, onUpdate }: TaskDetailsModalProps) {
+function TaskDetailsModal({
+  task,
+  saving,
+  onClose,
+  onUpdate,
+}: TaskDetailsModalProps) {
   const [title, setTitle] = useState(task.title);
   const [status, setStatus] = useState<StudentTaskStatus>(task.status);
   const [priority, setPriority] = useState<StudentTaskPriority>(task.priority);
-  const [subject, setSubject] = useState(task.subject ?? "");
+  const [subject, setSubject] = useState(
+    TASK_SUBJECTS.includes(task.subject as (typeof TASK_SUBJECTS)[number])
+      ? (task.subject as (typeof TASK_SUBJECTS)[number])
+      : "",
+  );
   const [estimate, setEstimate] = useState(
-    task.estimatedMinutes !== null && task.estimatedMinutes !== undefined
+    TASK_ESTIMATE_MINUTES.includes(task.estimatedMinutes as TaskEstimateMinutes)
       ? String(task.estimatedMinutes)
       : "",
   );
-  const [resourceUrl, setResourceUrl] = useState(task.resourceUrl ?? "");
+  const [resourceUrl, setResourceUrl] = useState(
+    TASK_RESOURCES.includes(task.resourceUrl as (typeof TASK_RESOURCES)[number])
+      ? (task.resourceUrl as (typeof TASK_RESOURCES)[number])
+      : "",
+  );
   const [notes, setNotes] = useState(task.description ?? "");
-  const [dueDate, setDueDate] = useState(getDueDateInput(task));
-  const [dueTime, setDueTime] = useState(getDueTimeInput(task));
+  const [dueStartDate, setDueStartDate] = useState<string | null>(
+    task.dueStartDate ?? task.dueDate ?? getLegacyDueDateKey(task),
+  );
+  const [dueEndDate, setDueEndDate] = useState<string | null>(
+    task.dueEndDate ?? null,
+  );
 
   useEffect(() => {
     setTitle(task.title);
     setStatus(task.status);
     setPriority(task.priority);
-    setSubject(task.subject ?? "");
+    setSubject(
+      TASK_SUBJECTS.includes(task.subject as (typeof TASK_SUBJECTS)[number])
+        ? (task.subject as (typeof TASK_SUBJECTS)[number])
+        : "",
+    );
     setEstimate(
-      task.estimatedMinutes !== null && task.estimatedMinutes !== undefined
+      TASK_ESTIMATE_MINUTES.includes(
+        task.estimatedMinutes as TaskEstimateMinutes,
+      )
         ? String(task.estimatedMinutes)
         : "",
     );
-    setResourceUrl(task.resourceUrl ?? "");
+    setResourceUrl(
+      TASK_RESOURCES.includes(task.resourceUrl as (typeof TASK_RESOURCES)[number])
+        ? (task.resourceUrl as (typeof TASK_RESOURCES)[number])
+        : "",
+    );
     setNotes(task.description ?? "");
-    setDueDate(getDueDateInput(task));
-    setDueTime(getDueTimeInput(task));
+    setDueStartDate(
+      task.dueStartDate ?? task.dueDate ?? getLegacyDueDateKey(task),
+    );
+    setDueEndDate(task.dueEndDate ?? null);
   }, [task]);
 
   async function commitTitle() {
@@ -3426,43 +4382,25 @@ function TaskDetailsModal({ task, saving, onClose, onUpdate }: TaskDetailsModalP
     }
   }
 
-  async function commitSubject() {
-    const trimmed = subject.trim();
-    const nextValue = trimmed ? trimmed : null;
-    if ((task.subject ?? null) !== nextValue) {
-      await onUpdate(task.id, { subject: nextValue });
+  function handleDueChange(start: string | null, end: string | null) {
+    let nextStart = start;
+    let nextEnd = end;
+    if (nextStart && nextEnd && nextEnd < nextStart) {
+      nextEnd = nextStart;
     }
-  }
-
-  async function commitEstimate() {
-    const trimmed = estimate.trim();
-    const nextValue = trimmed ? Number(trimmed) : null;
-    if (trimmed && Number.isNaN(nextValue)) {
-      setEstimate(
-        task.estimatedMinutes !== null && task.estimatedMinutes !== undefined
-          ? String(task.estimatedMinutes)
-          : "",
-      );
-      return;
-    }
-    if ((task.estimatedMinutes ?? null) !== nextValue) {
-      await onUpdate(task.id, { estimatedMinutes: nextValue });
-    }
-  }
-
-  async function commitResource() {
-    const trimmed = resourceUrl.trim();
-    const nextValue = trimmed ? trimmed : null;
-    if ((task.resourceUrl ?? null) !== nextValue) {
-      await onUpdate(task.id, { resourceUrl: nextValue });
-    }
-  }
-
-  async function commitDue() {
-    const currentDate = getDueDateInput(task);
-    const currentTime = getDueTimeInput(task);
-    if (currentDate === dueDate && currentTime === dueTime) return;
-    await onUpdate(task.id, buildDuePayload(dueDate, dueTime));
+    setDueStartDate(nextStart);
+    setDueEndDate(nextEnd);
+    const currentStart =
+      task.dueStartDate ?? task.dueDate ?? getLegacyDueDateKey(task);
+    const currentEnd = task.dueEndDate ?? null;
+    if (currentStart === nextStart && currentEnd === nextEnd) return;
+    const dueDate = nextEnd ?? nextStart ?? null;
+    void onUpdate(task.id, {
+      dueStartDate: nextStart,
+      dueEndDate: nextEnd,
+      dueDate,
+      dueAt: null,
+    });
   }
 
   return (
@@ -3526,59 +4464,84 @@ function TaskDetailsModal({ task, saving, onClose, onUpdate }: TaskDetailsModalP
           </label>
           <label className="flex flex-col gap-1 text-xs text-white/50">
             Due date
-            <div className="flex gap-2">
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  setDueDate(next);
-                  if (!next) {
-                    setDueTime("");
-                  }
-                }}
-                onBlur={commitDue}
-                className="h-9 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
-              />
-              <input
-                type="time"
-                value={dueTime}
-                disabled={!dueDate}
-                onChange={(event) => setDueTime(event.target.value)}
-                onBlur={commitDue}
-                className="h-9 w-32 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
-              />
-            </div>
+            <DateRangeCell
+              startDate={dueStartDate}
+              endDate={dueEndDate}
+              disabled={saving}
+              onChange={handleDueChange}
+            />
           </label>
           <label className="flex flex-col gap-1 text-xs text-white/50">
             Subject
-            <input
-              list="subject-options"
+            <select
               value={subject}
-              onChange={(event) => setSubject(event.target.value)}
-              onBlur={commitSubject}
+              onChange={(event) => {
+                const next = event.target.value as
+                  | (typeof TASK_SUBJECTS)[number]
+                  | "";
+                setSubject(next);
+                const nextValue = next ? next : null;
+                if ((task.subject ?? null) !== nextValue) {
+                  onUpdate(task.id, { subject: nextValue });
+                }
+              }}
               className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
-            />
+            >
+              <option value="">No subject</option>
+              {TASK_SUBJECTS.map((option) => (
+                <option key={option} value={option}>
+                  {SUBJECT_LABELS[option]}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex flex-col gap-1 text-xs text-white/50">
             Est. minutes
-            <input
-              type="number"
-              min={0}
+            <select
               value={estimate}
-              onChange={(event) => setEstimate(event.target.value)}
-              onBlur={commitEstimate}
+              onChange={(event) => {
+                const next = event.target.value;
+                setEstimate(next);
+                const nextValue = next
+                  ? (Number(next) as TaskEstimateMinutes)
+                  : null;
+                if ((task.estimatedMinutes ?? null) !== nextValue) {
+                  onUpdate(task.id, { estimatedMinutes: nextValue });
+                }
+              }}
               className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
-            />
+            >
+              <option value="">No estimate</option>
+              {TASK_ESTIMATE_MINUTES.map((option) => (
+                <option key={option} value={option}>
+                  {ESTIMATE_LABELS[option]}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex flex-col gap-1 text-xs text-white/50">
             Resource
-            <input
+            <select
               value={resourceUrl}
-              onChange={(event) => setResourceUrl(event.target.value)}
-              onBlur={commitResource}
+              onChange={(event) => {
+                const next = event.target.value as
+                  | (typeof TASK_RESOURCES)[number]
+                  | "";
+                setResourceUrl(next);
+                const nextValue = next ? next : null;
+                if ((task.resourceUrl ?? null) !== nextValue) {
+                  onUpdate(task.id, { resourceUrl: nextValue });
+                }
+              }}
               className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
-            />
+            >
+              <option value="">No resource</option>
+              {TASK_RESOURCES.map((option) => (
+                <option key={option} value={option}>
+                  {RESOURCE_LABELS[option]}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
         <label className="mt-5 flex flex-col gap-1 text-xs text-white/50">
@@ -3623,12 +4586,16 @@ function HabitDetailsModal({
   );
   const [status, setStatus] = useState<HabitStatus>(habit.status);
   const [target, setTarget] = useState(
-    habit.target !== null && habit.target !== undefined
-      ? String(habit.target)
+    HABIT_TARGETS.includes(habit.target as HabitTarget)
+      ? (habit.target as HabitTarget)
       : "",
   );
   const [notes, setNotes] = useState(habit.notes ?? "");
-  const [resourceUrl, setResourceUrl] = useState(habit.resourceUrl ?? "");
+  const [resourceUrl, setResourceUrl] = useState(
+    TASK_RESOURCES.includes(habit.resourceUrl as (typeof TASK_RESOURCES)[number])
+      ? (habit.resourceUrl as (typeof TASK_RESOURCES)[number])
+      : "",
+  );
   const [startDate, setStartDate] = useState(habit.startDate);
 
   useEffect(() => {
@@ -3637,12 +4604,18 @@ function HabitDetailsModal({
     setScheduleDays(habit.scheduleDays ?? []);
     setStatus(habit.status);
     setTarget(
-      habit.target !== null && habit.target !== undefined
-        ? String(habit.target)
+      HABIT_TARGETS.includes(habit.target as HabitTarget)
+        ? (habit.target as HabitTarget)
         : "",
     );
     setNotes(habit.notes ?? "");
-    setResourceUrl(habit.resourceUrl ?? "");
+    setResourceUrl(
+      TASK_RESOURCES.includes(
+        habit.resourceUrl as (typeof TASK_RESOURCES)[number],
+      )
+        ? (habit.resourceUrl as (typeof TASK_RESOURCES)[number])
+        : "",
+    );
     setStartDate(habit.startDate);
   }, [habit]);
 
@@ -3657,34 +4630,10 @@ function HabitDetailsModal({
     }
   }
 
-  async function commitTarget() {
-    const trimmed = target.trim();
-    const nextValue = trimmed ? Number(trimmed) : null;
-    if (trimmed && Number.isNaN(nextValue)) {
-      setTarget(
-        habit.target !== null && habit.target !== undefined
-          ? String(habit.target)
-          : "",
-      );
-      return;
-    }
-    if ((habit.target ?? null) !== nextValue) {
-      await onUpdate(habit.id, { target: nextValue });
-    }
-  }
-
   async function commitNotes() {
     const nextValue = notes.trim() ? notes : null;
     if ((habit.notes ?? null) !== nextValue) {
       await onUpdate(habit.id, { notes: nextValue });
-    }
-  }
-
-  async function commitResource() {
-    const trimmed = resourceUrl.trim();
-    const nextValue = trimmed ? trimmed : null;
-    if ((habit.resourceUrl ?? null) !== nextValue) {
-      await onUpdate(habit.id, { resourceUrl: nextValue });
     }
   }
 
@@ -3779,7 +4728,7 @@ function HabitDetailsModal({
             >
               {HABIT_STATUSES.map((option) => (
                 <option key={option} value={option}>
-                  {option === "active" ? "Active" : "Paused"}
+                  {statusLabels[option as StudentTaskStatus]}
                 </option>
               ))}
             </select>
@@ -3811,14 +4760,25 @@ function HabitDetailsModal({
           )}
           <label className="flex flex-col gap-1 text-xs text-white/50">
             Target
-            <input
-              type="number"
-              min={0}
+            <select
               value={target}
-              onChange={(event) => setTarget(event.target.value)}
-              onBlur={commitTarget}
+              onChange={(event) => {
+                const next = event.target.value as HabitTarget | "";
+                setTarget(next);
+                const nextValue = next ? next : null;
+                if ((habit.target ?? null) !== nextValue) {
+                  onUpdate(habit.id, { target: nextValue });
+                }
+              }}
               className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
-            />
+            >
+              <option value="">No target</option>
+              {HABIT_TARGETS.map((option) => (
+                <option key={option} value={option}>
+                  {TARGET_LABELS[option]}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex flex-col gap-1 text-xs text-white/50">
             Start date
@@ -3832,12 +4792,27 @@ function HabitDetailsModal({
           </label>
           <label className="flex flex-col gap-1 text-xs text-white/50 md:col-span-2">
             Resource
-            <input
+            <select
               value={resourceUrl}
-              onChange={(event) => setResourceUrl(event.target.value)}
-              onBlur={commitResource}
+              onChange={(event) => {
+                const next = event.target.value as
+                  | (typeof TASK_RESOURCES)[number]
+                  | "";
+                setResourceUrl(next);
+                const nextValue = next ? next : null;
+                if ((habit.resourceUrl ?? null) !== nextValue) {
+                  onUpdate(habit.id, { resourceUrl: nextValue });
+                }
+              }}
               className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
-            />
+            >
+              <option value="">No resource</option>
+              {TASK_RESOURCES.map((option) => (
+                <option key={option} value={option}>
+                  {RESOURCE_LABELS[option]}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
         <label className="mt-5 flex flex-col gap-1 text-xs text-white/50">
@@ -3914,12 +4889,18 @@ function ConvertNoteModal({
           </label>
           <label className="flex flex-col gap-1 text-xs text-white/50">
             Subject
-            <input
-              list="subject-options"
+            <select
               value={subject}
               onChange={(event) => onSubjectChange(event.target.value)}
               className="h-9 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none"
-            />
+            >
+              <option value="">No subject</option>
+              {TASK_SUBJECTS.map((option) => (
+                <option key={option} value={option}>
+                  {SUBJECT_LABELS[option]}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
         <div className="mt-6 flex items-center justify-between">
@@ -4091,16 +5072,6 @@ function ToastBanner({
         Close
       </button>
     </div>
-  );
-}
-
-function SubjectDatalist() {
-  return (
-    <datalist id="subject-options">
-      {SUBJECT_OPTIONS.map((option) => (
-        <option key={option} value={option} />
-      ))}
-    </datalist>
   );
 }
 

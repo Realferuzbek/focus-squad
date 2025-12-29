@@ -37,9 +37,10 @@ type MenuOption = {
 };
 
 const STATUS_LABELS: Record<StudentTaskStatus, string> = {
-  not_started: "Not started",
-  in_progress: "In progress",
-  done: "Done",
+  planned: "Planned",
+  active: "Active",
+  in_progress: "In Progress",
+  not_started: "Not Started",
 };
 
 function classNames(...values: Array<string | false | null | undefined>) {
@@ -190,7 +191,7 @@ export default function PlannerInspector({
   }, [selectedEntity, tasks]);
 
   const [titleDraft, setTitleDraft] = useState("");
-  const [statusDraft, setStatusDraft] = useState<StudentTaskStatus>("not_started");
+  const [statusDraft, setStatusDraft] = useState<StudentTaskStatus>("planned");
   const [estimateDraft, setEstimateDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
   const [calendarSelections, setCalendarSelections] = useState<
@@ -200,7 +201,7 @@ export default function PlannerInspector({
   useEffect(() => {
     if (!selectedTask) return;
     setTitleDraft(selectedTask.title ?? "");
-    setStatusDraft(selectedTask.status ?? "not_started");
+    setStatusDraft(selectedTask.status ?? "planned");
     setEstimateDraft(
       typeof selectedTask.estimatedMinutes === "number"
         ? String(selectedTask.estimatedMinutes)
@@ -301,10 +302,10 @@ export default function PlannerInspector({
     onScheduleTask(selectedTask, resolvedCalendarId ?? null);
   }
 
-  function handleMarkDone() {
-    if (!selectedTask || selectedTask.status === "done") return;
-    setStatusDraft("done");
-    onUpdateTask(selectedTask.id, { status: "done" });
+  function handleSetActive() {
+    if (!selectedTask || selectedTask.status === "active") return;
+    setStatusDraft("active");
+    onUpdateTask(selectedTask.id, { status: "active" });
   }
 
   async function handleDelete() {
@@ -411,11 +412,11 @@ export default function PlannerInspector({
             </button>
             <button
               type="button"
-              onClick={handleMarkDone}
-              disabled={isSaving || selectedTask.status === "done"}
+              onClick={handleSetActive}
+              disabled={isSaving || selectedTask.status === "active"}
               className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 transition hover:border-white/30 hover:text-white disabled:opacity-50"
             >
-              Mark done
+              Set active
             </button>
             {onDeleteTask && (
               <button

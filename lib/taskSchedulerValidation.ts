@@ -1,4 +1,10 @@
 import type { TaskCalendarRecurrence } from "@/lib/taskSchedulerTypes";
+import {
+  HABIT_TARGETS,
+  TASK_ESTIMATE_MINUTES,
+  TASK_RESOURCES,
+  TASK_SUBJECTS,
+} from "@/lib/taskSchedulerTypes";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -76,6 +82,48 @@ export function normalizeEstimatedMinutes(value: unknown) {
     }
   }
   return null;
+}
+
+export function normalizeEstimateOption(
+  value: unknown,
+  allowed: readonly number[] = TASK_ESTIMATE_MINUTES,
+) {
+  const normalized = normalizeEstimatedMinutes(value);
+  if (normalized === null) return null;
+  return allowed.includes(normalized) ? normalized : null;
+}
+
+export function normalizeTaskSubject(value: unknown) {
+  return normalizeEnum(value, TASK_SUBJECTS);
+}
+
+export function normalizeResource(value: unknown) {
+  return normalizeEnum(value, TASK_RESOURCES);
+}
+
+export function normalizeHabitTarget(value: unknown) {
+  return normalizeEnum(value, HABIT_TARGETS);
+}
+
+export function normalizeTimeMinutes(
+  value: unknown,
+  stepMinutes = 30,
+) {
+  if (value === null || value === undefined || value === "") return null;
+  let parsed: number | null = null;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    parsed = value;
+  } else if (typeof value === "string" && value.trim() !== "") {
+    const asNumber = Number(value);
+    if (Number.isFinite(asNumber)) {
+      parsed = asNumber;
+    }
+  }
+  if (parsed === null) return null;
+  const rounded = Math.round(parsed);
+  if (rounded < 0 || rounded > 1439) return null;
+  if (stepMinutes > 1 && rounded % stepMinutes !== 0) return null;
+  return rounded;
 }
 
 export function normalizeWeekdayArray(value: unknown) {

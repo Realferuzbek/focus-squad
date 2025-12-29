@@ -20,8 +20,10 @@ import {
 import {
   normalizeDateInput,
   normalizeEnum,
-  normalizeEstimatedMinutes,
+  normalizeEstimateOption,
   normalizeOptionalString,
+  normalizeResource,
+  normalizeTaskSubject,
   normalizeTimestampInput,
   normalizeWeekdayArray,
   validateScheduleInput,
@@ -120,17 +122,92 @@ export async function POST(
   }
 
   const description = normalizeOptionalString(body?.description);
-  const status =
-    normalizeEnum(body?.status, TASK_STATUSES, "not_started") ||
-    "not_started";
-  const priority =
-    normalizeEnum(body?.priority, TASK_PRIORITIES, "medium") || "medium";
+  let status = "planned";
+  if (Object.prototype.hasOwnProperty.call(body, "status")) {
+    const nextStatus = normalizeEnum(body?.status, TASK_STATUSES);
+    if (!nextStatus) {
+      return NextResponse.json(
+        { error: "Invalid status" },
+        { status: 400 },
+      );
+    }
+    status = nextStatus;
+  }
+
+  let priority = "medium";
+  if (Object.prototype.hasOwnProperty.call(body, "priority")) {
+    const nextPriority = normalizeEnum(body?.priority, TASK_PRIORITIES);
+    if (!nextPriority) {
+      return NextResponse.json(
+        { error: "Invalid priority" },
+        { status: 400 },
+      );
+    }
+    priority = nextPriority;
+  }
   const category =
     (normalizeEnum(body?.category, TASK_CATEGORIES, "assignment") as
       | string
       | null) ?? "assignment";
-  const subject = normalizeOptionalString(body?.subject);
-  const resourceUrl = normalizeOptionalString(body?.resourceUrl ?? body?.resource_url);
+  let subject: string | null = null;
+  if (Object.prototype.hasOwnProperty.call(body, "subject")) {
+    const raw = body?.subject;
+    if (raw === null || raw === "") {
+      subject = null;
+    } else {
+      const normalized = normalizeTaskSubject(raw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid subject" },
+          { status: 400 },
+        );
+      }
+      subject = normalized;
+    }
+  }
+
+  let resourceUrl: string | null = null;
+  if (
+    Object.prototype.hasOwnProperty.call(body, "resourceUrl") ||
+    Object.prototype.hasOwnProperty.call(body, "resource_url")
+  ) {
+    const raw = body?.resourceUrl ?? body?.resource_url;
+    if (raw === null || raw === "") {
+      resourceUrl = null;
+    } else {
+      const normalized = normalizeResource(raw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid resource" },
+          { status: 400 },
+        );
+      }
+      resourceUrl = normalized;
+    }
+  }
+
+  const dueStartRaw = body?.dueStartDate ?? body?.due_start_date;
+  const dueEndRaw = body?.dueEndDate ?? body?.due_end_date;
+  const dueStartDate = dueStartRaw ? normalizeDateInput(dueStartRaw) : null;
+  const dueEndDate = dueEndRaw ? normalizeDateInput(dueEndRaw) : null;
+  if (dueStartRaw && !dueStartDate) {
+    return NextResponse.json(
+      { error: "Invalid due start date" },
+      { status: 400 },
+    );
+  }
+  if (dueEndRaw && !dueEndDate) {
+    return NextResponse.json(
+      { error: "Invalid due end date" },
+      { status: 400 },
+    );
+  }
+  if (dueStartDate && dueEndDate && dueEndDate < dueStartDate) {
+    return NextResponse.json(
+      { error: "End date must be after start date" },
+      { status: 400 },
+    );
+  }
   const dueDateInput = normalizeDateInput(body?.dueDate ?? body?.due_date);
   const dueAtRaw = body?.dueAt ?? body?.due_at;
   let dueAt: string | null = null;
@@ -169,9 +246,25 @@ export async function POST(
     );
   }
 
-  const estimatedMinutes = normalizeEstimatedMinutes(
-    body?.estimatedMinutes ?? body?.estimated_minutes,
-  );
+  let estimatedMinutes: number | null = null;
+  if (
+    Object.prototype.hasOwnProperty.call(body, "estimatedMinutes") ||
+    Object.prototype.hasOwnProperty.call(body, "estimated_minutes")
+  ) {
+    const raw = body?.estimatedMinutes ?? body?.estimated_minutes;
+    if (raw === null || raw === "") {
+      estimatedMinutes = null;
+    } else {
+      const normalized = normalizeEstimateOption(raw);
+      if (normalized === null) {
+        return NextResponse.json(
+          { error: "Invalid estimate" },
+          { status: 400 },
+        );
+      }
+      estimatedMinutes = normalized;
+    }
+  }
   const repeatRule =
     normalizeEnum(
       body?.repeatRule ?? body?.repeat_rule,
@@ -184,8 +277,6 @@ export async function POST(
   const repeatUntil = normalizeDateInput(
     body?.repeatUntil ?? body?.repeat_until,
   );
-  const completedAt = status === "done" ? new Date().toISOString() : null;
-
   const insertPayload = {
     user_id: userId,
     private_item_id: privateItemId,
@@ -198,13 +289,14 @@ export async function POST(
     resource_url: resourceUrl,
     due_date: dueDate,
     due_at: dueAt,
+    due_start_date: dueStartDate,
+    due_end_date: dueEndDate,
     scheduled_start: schedule.start,
     scheduled_end: schedule.end,
     estimated_minutes: estimatedMinutes,
     repeat_rule: repeatRule,
     repeat_days: repeatDays,
     repeat_until: repeatUntil,
-    completed_at: completedAt,
   };
 
   const { data, error } = await sb

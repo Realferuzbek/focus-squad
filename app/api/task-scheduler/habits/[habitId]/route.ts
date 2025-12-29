@@ -16,8 +16,10 @@ import {
 import {
   normalizeDateInput,
   normalizeEnum,
-  normalizeEstimatedMinutes,
+  normalizeHabitTarget,
   normalizeOptionalString,
+  normalizeResource,
+  normalizeTimeMinutes,
   normalizeWeekdayArray,
 } from "@/lib/taskSchedulerValidation";
 
@@ -89,7 +91,19 @@ export async function PATCH(
   }
 
   if (hasProp(body, "target")) {
-    updates.target = normalizeEstimatedMinutes(body?.target);
+    const raw = body?.target;
+    if (raw === null || raw === "") {
+      updates.target = null;
+    } else {
+      const normalized = normalizeHabitTarget(raw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid target" },
+          { status: 400 },
+        );
+      }
+      updates.target = normalized;
+    }
   }
 
   if (hasProp(body, "notes")) {
@@ -97,9 +111,51 @@ export async function PATCH(
   }
 
   if (hasProp(body, "resourceUrl") || hasProp(body, "resource_url")) {
-    updates.resource_url = normalizeOptionalString(
-      body?.resourceUrl ?? body?.resource_url,
-    );
+    const raw = body?.resourceUrl ?? body?.resource_url;
+    if (raw === null || raw === "") {
+      updates.resource_url = null;
+    } else {
+      const normalized = normalizeResource(raw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid resource" },
+          { status: 400 },
+        );
+      }
+      updates.resource_url = normalized;
+    }
+  }
+
+  if (hasProp(body, "scheduleStartTime") || hasProp(body, "schedule_start_time")) {
+    const raw = body?.scheduleStartTime ?? body?.schedule_start_time;
+    if (raw === null || raw === "") {
+      updates.schedule_start_time = null;
+    } else {
+      const normalized = normalizeTimeMinutes(raw);
+      if (normalized === null) {
+        return NextResponse.json(
+          { error: "Invalid start time" },
+          { status: 400 },
+        );
+      }
+      updates.schedule_start_time = normalized;
+    }
+  }
+
+  if (hasProp(body, "scheduleEndTime") || hasProp(body, "schedule_end_time")) {
+    const raw = body?.scheduleEndTime ?? body?.schedule_end_time;
+    if (raw === null || raw === "") {
+      updates.schedule_end_time = null;
+    } else {
+      const normalized = normalizeTimeMinutes(raw);
+      if (normalized === null) {
+        return NextResponse.json(
+          { error: "Invalid end time" },
+          { status: 400 },
+        );
+      }
+      updates.schedule_end_time = normalized;
+    }
   }
 
   if (hasProp(body, "startDate") || hasProp(body, "start_date")) {
@@ -125,6 +181,33 @@ export async function PATCH(
       { error: "No updates provided" },
       { status: 400 },
     );
+  }
+
+  if (
+    hasProp(updates, "schedule_start_time") ||
+    hasProp(updates, "schedule_end_time")
+  ) {
+    const nextStart = hasProp(updates, "schedule_start_time")
+      ? updates.schedule_start_time
+      : null;
+    const nextEnd = hasProp(updates, "schedule_end_time")
+      ? updates.schedule_end_time
+      : null;
+    if (
+      (nextStart !== null && nextEnd === null) ||
+      (nextStart === null && nextEnd !== null)
+    ) {
+      return NextResponse.json(
+        { error: "Start and end time are required" },
+        { status: 400 },
+      );
+    }
+    if (nextStart !== null && nextEnd !== null && nextEnd <= nextStart) {
+      return NextResponse.json(
+        { error: "End time must be after start time" },
+        { status: 400 },
+      );
+    }
   }
 
   if (scheduleType && scheduleType !== "custom") {

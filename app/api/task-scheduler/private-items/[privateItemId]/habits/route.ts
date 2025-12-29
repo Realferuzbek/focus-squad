@@ -16,8 +16,10 @@ import {
 import {
   normalizeDateInput,
   normalizeEnum,
-  normalizeEstimatedMinutes,
+  normalizeHabitTarget,
   normalizeOptionalString,
+  normalizeResource,
+  normalizeTimeMinutes,
   normalizeWeekdayArray,
 } from "@/lib/taskSchedulerValidation";
 
@@ -114,8 +116,11 @@ export async function POST(
   }
 
   const scheduleType =
-    normalizeEnum(body?.scheduleType ?? body?.schedule_type, HABIT_SCHEDULE_TYPES, "daily") ||
-    "daily";
+    normalizeEnum(
+      body?.scheduleType ?? body?.schedule_type,
+      HABIT_SCHEDULE_TYPES,
+      "daily",
+    ) || "daily";
   const scheduleDays =
     scheduleType === "custom"
       ? normalizeWeekdayArray(body?.scheduleDays ?? body?.schedule_days)
@@ -127,18 +132,81 @@ export async function POST(
     );
   }
 
-  const status =
-    normalizeEnum(body?.status, HABIT_STATUSES, "active") || "active";
-  const target = normalizeEstimatedMinutes(body?.target);
+  let status = "planned";
+  if (Object.prototype.hasOwnProperty.call(body, "status")) {
+    const normalized = normalizeEnum(body?.status, HABIT_STATUSES);
+    if (!normalized) {
+      return NextResponse.json(
+        { error: "Invalid status" },
+        { status: 400 },
+      );
+    }
+    status = normalized;
+  }
+
+  let target: string | null = null;
+  if (Object.prototype.hasOwnProperty.call(body, "target")) {
+    const raw = body?.target;
+    if (raw === null || raw === "") {
+      target = null;
+    } else {
+      const normalized = normalizeHabitTarget(raw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid target" },
+          { status: 400 },
+        );
+      }
+      target = normalized;
+    }
+  }
   const notes = normalizeOptionalString(body?.notes);
-  const resourceUrl = normalizeOptionalString(
-    body?.resourceUrl ?? body?.resource_url,
-  );
+  let resourceUrl: string | null = null;
+  if (
+    Object.prototype.hasOwnProperty.call(body, "resourceUrl") ||
+    Object.prototype.hasOwnProperty.call(body, "resource_url")
+  ) {
+    const raw = body?.resourceUrl ?? body?.resource_url;
+    if (raw === null || raw === "") {
+      resourceUrl = null;
+    } else {
+      const normalized = normalizeResource(raw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid resource" },
+          { status: 400 },
+        );
+      }
+      resourceUrl = normalized;
+    }
+  }
   const startDateRaw = body?.startDate ?? body?.start_date;
   const startDate = startDateRaw ? normalizeDateInput(startDateRaw) : null;
   if (startDateRaw && !startDate) {
     return NextResponse.json(
       { error: "Invalid start date" },
+      { status: 400 },
+    );
+  }
+
+  const scheduleStart = normalizeTimeMinutes(
+    body?.scheduleStartTime ?? body?.schedule_start_time,
+  );
+  const scheduleEnd = normalizeTimeMinutes(
+    body?.scheduleEndTime ?? body?.schedule_end_time,
+  );
+  if (
+    (scheduleStart !== null && scheduleEnd === null) ||
+    (scheduleStart === null && scheduleEnd !== null)
+  ) {
+    return NextResponse.json(
+      { error: "Start and end time are required" },
+      { status: 400 },
+    );
+  }
+  if (scheduleStart !== null && scheduleEnd !== null && scheduleEnd <= scheduleStart) {
+    return NextResponse.json(
+      { error: "End time must be after start time" },
       { status: 400 },
     );
   }
@@ -153,6 +221,8 @@ export async function POST(
     target,
     notes,
     resource_url: resourceUrl,
+    schedule_start_time: scheduleStart,
+    schedule_end_time: scheduleEnd,
   };
   if (startDate) {
     insertPayload.start_date = startDate;

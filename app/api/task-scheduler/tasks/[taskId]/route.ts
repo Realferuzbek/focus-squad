@@ -22,8 +22,10 @@ import {
 import {
   normalizeDateInput,
   normalizeEnum,
-  normalizeEstimatedMinutes,
+  normalizeEstimateOption,
   normalizeOptionalString,
+  normalizeResource,
+  normalizeTaskSubject,
   normalizeTimestampInput,
   normalizeWeekdayArray,
   validateScheduleInput,
@@ -77,13 +79,35 @@ export async function PATCH(
   }
 
   if (hasProp(body, "subject")) {
-    updates.subject = normalizeOptionalString(body.subject);
+    const raw = body.subject;
+    if (raw === null || raw === "") {
+      updates.subject = null;
+    } else {
+      const normalized = normalizeTaskSubject(raw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid subject" },
+          { status: 400 },
+        );
+      }
+      updates.subject = normalized;
+    }
   }
 
   if (hasProp(body, "resourceUrl") || hasProp(body, "resource_url")) {
-    updates.resource_url = normalizeOptionalString(
-      body?.resourceUrl ?? body?.resource_url,
-    );
+    const raw = body?.resourceUrl ?? body?.resource_url;
+    if (raw === null || raw === "") {
+      updates.resource_url = null;
+    } else {
+      const normalized = normalizeResource(raw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid resource" },
+          { status: 400 },
+        );
+      }
+      updates.resource_url = normalized;
+    }
   }
 
   if (hasProp(body, "status")) {
@@ -95,8 +119,6 @@ export async function PATCH(
       );
     }
     updates.status = nextStatus;
-    updates.completed_at =
-      nextStatus === "done" ? new Date().toISOString() : null;
   }
 
   if (hasProp(body, "priority")) {
@@ -131,6 +153,53 @@ export async function PATCH(
         );
       }
       updates.due_date = normalized;
+    }
+  }
+
+  if (hasProp(body, "dueStartDate") || hasProp(body, "due_start_date")) {
+    const raw = body?.dueStartDate ?? body?.due_start_date;
+    if (raw === null || raw === "") {
+      updates.due_start_date = null;
+    } else {
+      const normalized = normalizeDateInput(raw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid due start date" },
+          { status: 400 },
+        );
+      }
+      updates.due_start_date = normalized;
+    }
+  }
+
+  if (hasProp(body, "dueEndDate") || hasProp(body, "due_end_date")) {
+    const raw = body?.dueEndDate ?? body?.due_end_date;
+    if (raw === null || raw === "") {
+      updates.due_end_date = null;
+    } else {
+      const normalized = normalizeDateInput(raw);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid due end date" },
+          { status: 400 },
+        );
+      }
+      updates.due_end_date = normalized;
+    }
+  }
+
+  if (hasProp(updates, "due_start_date") || hasProp(updates, "due_end_date")) {
+    const nextStart = hasProp(updates, "due_start_date")
+      ? updates.due_start_date
+      : existingRow.due_start_date ?? null;
+    const nextEnd = hasProp(updates, "due_end_date")
+      ? updates.due_end_date
+      : existingRow.due_end_date ?? null;
+    if (nextStart && nextEnd && nextEnd < nextStart) {
+      return NextResponse.json(
+        { error: "End date must be after start date" },
+        { status: 400 },
+      );
     }
   }
 
@@ -210,7 +279,7 @@ export async function PATCH(
     if (raw === null || raw === "") {
       updates.estimated_minutes = null;
     } else {
-      const normalized = normalizeEstimatedMinutes(raw);
+      const normalized = normalizeEstimateOption(raw);
       if (normalized === null) {
         return NextResponse.json(
           { error: "Invalid estimate" },
