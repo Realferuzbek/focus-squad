@@ -1360,19 +1360,117 @@ export default function TaskWorkspaceShell() {
     }
   }, []);
 
-  useEffect(() => {
-    loadPrivateItems();
+  const loadNotes = useCallback(async () => {
+    setNotesLoading(true);
+    setNotesError(null);
+    try {
+      const res = await fetch("/api/task-scheduler/notes");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to load notes");
+      }
+      const data = await res.json();
+      setNotes((data?.notes ?? []) as NoteEntry[]);
+    } catch (error) {
+      setNotesError(error instanceof Error ? error.message : "Failed to load");
+    } finally {
+      setNotesLoading(false);
+    }
+  }, []);
+
+  const loadPrivateItems = useCallback(async () => {
+    setPrivateLoading(true);
+    setPrivateError(null);
+    try {
+      const res = await fetch("/api/task-scheduler/private-items");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to load private items");
+      }
+      const data = await res.json();
+      const items: TaskPrivateItem[] = data?.items ?? [];
+      if (
+        items.length === 0 &&
+        process.env.NODE_ENV === "development" &&
+        !devSeededRef.current
+      ) {
+        devSeededRef.current = true;
+        await fetch("/api/task-scheduler/dev-seed", { method: "POST" });
+        await loadPrivateItems();
+        await loadNotes();
+        return;
+      }
+      setPrivateItems(items);
+      setActivePrivateItemId((prev) => prev ?? items[0]?.id ?? null);
+    } catch (error) {
+      setPrivateError(error instanceof Error ? error.message : "Failed to load");
+    } finally {
+      setPrivateLoading(false);
+    }
+  }, [loadNotes]);
+
+  const loadAllTasks = useCallback(async () => {
+    try {
+      const res = await fetch("/api/task-scheduler/tasks");
+      if (!res.ok) {
+        throw new Error("Failed to load tasks");
+      }
+      const data = await res.json();
+      const tasks: StudentTask[] = data?.tasks ?? [];
+      setAllTasks(tasks);
+      setAllTasksLoaded(true);
+    } catch {
+      setAllTasksLoaded(true);
+    }
+  }, []);
+
+  const loadCalendars = useCallback(async () => {
+    setCalendarsLoading(true);
+    try {
+      const res = await fetch("/api/task-scheduler/calendars");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Failed to load calendars");
+      }
+      const data = await res.json();
+      const nextCalendars: TaskCalendar[] = data?.calendars ?? [];
+      setCalendars(nextCalendars);
+    } catch {
+      setCalendars([]);
+    } finally {
+      setCalendarsLoading(false);
+    }
+  }, []);
+
+  const loadEvents = useCallback(async () => {
+    setEventsLoading(true);
+    try {
+      const res = await fetch("/api/task-scheduler/calendar-events");
+      if (!res.ok) {
+        throw new Error("Failed to load events");
+      }
+      const data = await res.json();
+      setEvents(data?.events ?? []);
+    } catch {
+      setEvents([]);
+    } finally {
+      setEventsLoading(false);
+    }
   }, []);
 
   useEffect(() => {
+    loadPrivateItems();
+  }, [loadPrivateItems]);
+
+  useEffect(() => {
     loadNotes();
-  }, []);
+  }, [loadNotes]);
 
   useEffect(() => {
     loadAllTasks();
     loadEvents();
     loadCalendars();
-  }, []);
+  }, [loadAllTasks, loadCalendars, loadEvents]);
 
   useEffect(() => {
     if (activeSurface !== "planner") return;
@@ -1388,7 +1486,7 @@ export default function TaskWorkspaceShell() {
     if (activeSection === "notes") {
       setActiveSection("home");
     }
-  }, [isNotesRoute]);
+  }, [activeSection, isNotesRoute]);
 
   useEffect(() => {
     if (isNotesRoute && activeSurface !== "planner") {
@@ -1511,9 +1609,32 @@ export default function TaskWorkspaceShell() {
     );
   }, [todayUzKey]);
 
+  const loadHabitCompletions = useCallback(async () => {
+    setHabitCompletionsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        startDate: habitLookbackStartKey,
+        endDate: todayUzKey,
+      });
+      const res = await fetch(
+        `/api/task-scheduler/habit-completions?${params.toString()}`,
+      );
+      if (!res.ok) {
+        throw new Error("Failed to load habit completions");
+      }
+      const data = await res.json();
+      const completions: HabitCompletion[] = data?.completions ?? [];
+      setHabitCompletions(completions);
+    } catch {
+      setHabitCompletions([]);
+    } finally {
+      setHabitCompletionsLoading(false);
+    }
+  }, [habitLookbackStartKey, todayUzKey]);
+
   useEffect(() => {
     loadHabitCompletions();
-  }, [habitLookbackStartKey, todayUzKey]);
+  }, [loadHabitCompletions]);
 
   const habitInstancesTodayAll = useMemo(
     () =>
@@ -1756,127 +1877,6 @@ export default function TaskWorkspaceShell() {
       upsertEventInState(event);
     } else {
       removeManualEventByTask(taskId);
-    }
-  }
-
-  async function loadPrivateItems() {
-    setPrivateLoading(true);
-    setPrivateError(null);
-    try {
-      const res = await fetch("/api/task-scheduler/private-items");
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || "Failed to load private items");
-      }
-      const data = await res.json();
-      const items: TaskPrivateItem[] = data?.items ?? [];
-      if (
-        items.length === 0 &&
-        process.env.NODE_ENV === "development" &&
-        !devSeededRef.current
-      ) {
-        devSeededRef.current = true;
-        await fetch("/api/task-scheduler/dev-seed", { method: "POST" });
-        await loadPrivateItems();
-        await loadNotes();
-        return;
-      }
-      setPrivateItems(items);
-      setActivePrivateItemId((prev) => prev ?? items[0]?.id ?? null);
-    } catch (error) {
-      setPrivateError(error instanceof Error ? error.message : "Failed to load");
-    } finally {
-      setPrivateLoading(false);
-    }
-  }
-
-  async function loadNotes() {
-    setNotesLoading(true);
-    setNotesError(null);
-    try {
-      const res = await fetch("/api/task-scheduler/notes");
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || "Failed to load notes");
-      }
-      const data = await res.json();
-      setNotes((data?.notes ?? []) as NoteEntry[]);
-    } catch (error) {
-      setNotesError(error instanceof Error ? error.message : "Failed to load");
-    } finally {
-      setNotesLoading(false);
-    }
-  }
-
-  async function loadAllTasks() {
-    try {
-      const res = await fetch("/api/task-scheduler/tasks");
-      if (!res.ok) {
-        throw new Error("Failed to load tasks");
-      }
-      const data = await res.json();
-      const tasks: StudentTask[] = data?.tasks ?? [];
-      setAllTasks(tasks);
-      setAllTasksLoaded(true);
-    } catch {
-      setAllTasksLoaded(true);
-    }
-  }
-
-  async function loadCalendars() {
-    setCalendarsLoading(true);
-    try {
-      const res = await fetch("/api/task-scheduler/calendars");
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || "Failed to load calendars");
-      }
-      const data = await res.json();
-      const nextCalendars: TaskCalendar[] = data?.calendars ?? [];
-      setCalendars(nextCalendars);
-    } catch {
-      setCalendars([]);
-    } finally {
-      setCalendarsLoading(false);
-    }
-  }
-
-  async function loadEvents() {
-    setEventsLoading(true);
-    try {
-      const res = await fetch("/api/task-scheduler/calendar-events");
-      if (!res.ok) {
-        throw new Error("Failed to load events");
-      }
-      const data = await res.json();
-      setEvents(data?.events ?? []);
-    } catch {
-      setEvents([]);
-    } finally {
-      setEventsLoading(false);
-    }
-  }
-
-  async function loadHabitCompletions() {
-    setHabitCompletionsLoading(true);
-    try {
-      const params = new URLSearchParams({
-        startDate: habitLookbackStartKey,
-        endDate: todayUzKey,
-      });
-      const res = await fetch(
-        `/api/task-scheduler/habit-completions?${params.toString()}`,
-      );
-      if (!res.ok) {
-        throw new Error("Failed to load habit completions");
-      }
-      const data = await res.json();
-      const completions: HabitCompletion[] = data?.completions ?? [];
-      setHabitCompletions(completions);
-    } catch {
-      setHabitCompletions([]);
-    } finally {
-      setHabitCompletionsLoading(false);
     }
   }
 

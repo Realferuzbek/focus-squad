@@ -5,9 +5,12 @@ import { ChevronDown } from "lucide-react";
 import {
   StudentTask,
   StudentTaskStatus,
+  TaskEstimateMinutes,
   TaskCalendar,
+  TASK_ESTIMATE_MINUTES,
   TASK_STATUSES,
 } from "@/lib/taskSchedulerTypes";
+import { normalizeEstimateOption } from "@/lib/taskSchedulerValidation";
 
 type SelectedEntity =
   | { kind: "none" }
@@ -208,7 +211,7 @@ export default function PlannerInspector({
         : "",
     );
     setNotesDraft(selectedTask.description ?? "");
-  }, [selectedTask?.id]);
+  }, [selectedTask]);
 
   const defaultCalendarId = useMemo(
     () => getDefaultCalendarId(calendars),
@@ -261,8 +264,14 @@ export default function PlannerInspector({
   async function commitEstimate() {
     if (!selectedTask) return;
     const trimmed = estimateDraft.trim();
-    const nextValue = trimmed ? Number(trimmed) : null;
-    if (trimmed && !Number.isFinite(nextValue)) {
+    if (!trimmed) {
+      if (selectedTask.estimatedMinutes !== null) {
+        await onUpdateTask(selectedTask.id, { estimatedMinutes: null });
+      }
+      return;
+    }
+    const normalized = normalizeEstimateOption(trimmed, TASK_ESTIMATE_MINUTES);
+    if (normalized === null) {
       setEstimateDraft(
         typeof selectedTask.estimatedMinutes === "number"
           ? String(selectedTask.estimatedMinutes)
@@ -270,6 +279,7 @@ export default function PlannerInspector({
       );
       return;
     }
+    const nextValue = normalized as TaskEstimateMinutes;
     if (nextValue === selectedTask.estimatedMinutes) return;
     await onUpdateTask(selectedTask.id, { estimatedMinutes: nextValue });
   }

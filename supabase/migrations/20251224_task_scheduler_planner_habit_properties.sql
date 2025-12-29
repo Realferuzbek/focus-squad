@@ -104,9 +104,53 @@ update public.task_habits
 set target = null;
 
 alter table public.task_habits
-  alter column target type text using target::text,
   add column if not exists schedule_start_time integer,
-  add column if not exists schedule_end_time integer,
+  add column if not exists schedule_end_time integer;
+
+alter table public.task_habits
+  alter column target type text using target::text,
+  alter column schedule_start_time type integer using (
+    case
+      when schedule_start_time is null then null
+      when schedule_start_time::text ~ '^\d+$' then
+        case
+          when schedule_start_time::int between 0 and 1439
+            then schedule_start_time::int
+          else null
+        end
+      when schedule_start_time::text ~ '^\d{1,2}:\d{2}' then
+        case
+          when split_part(schedule_start_time::text, ':', 1)::int between 0 and 23
+            and split_part(schedule_start_time::text, ':', 2)::int between 0 and 59
+            then
+              split_part(schedule_start_time::text, ':', 1)::int * 60
+              + split_part(schedule_start_time::text, ':', 2)::int
+          else null
+        end
+      else null
+    end
+  ),
+  alter column schedule_end_time type integer using (
+    case
+      when schedule_end_time is null then null
+      when schedule_end_time::text ~ '^\d+$' then
+        case
+          when schedule_end_time::int between 0 and 1439
+            then schedule_end_time::int
+          else null
+        end
+      when schedule_end_time::text ~ '^\d{1,2}:\d{2}' then
+        case
+          when split_part(schedule_end_time::text, ':', 1)::int between 0 and 23
+            and split_part(schedule_end_time::text, ':', 2)::int between 0 and 59
+            then
+              split_part(schedule_end_time::text, ':', 1)::int * 60
+              + split_part(schedule_end_time::text, ':', 2)::int
+          else null
+        end
+      else null
+    end
+  ),
   alter column status set default 'planned';
 
 alter table public.task_habits
