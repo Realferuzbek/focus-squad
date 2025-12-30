@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAiChatEnabled } from "@/lib/featureFlags";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
