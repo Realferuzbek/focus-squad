@@ -1,4 +1,5 @@
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { performance } from "perf_hooks";
@@ -78,16 +79,10 @@ export async function POST(req: Request) {
     const languageDetection = detectLanguage(inputRaw);
     const language = languageDetection.code;
 
-    const aiEnabled = await isAiChatEnabled(true, { cache: false });
+    const aiEnabled = await isAiChatEnabled(false, { cache: false });
     if (!aiEnabled) {
-      const reply =
-        language === "uz"
-          ? "AI hozirda dam olmoqda — administratorlar uni yaqinda qayta ishga tushiradilar ✨"
-          : language === "ru"
-            ? "Ассистент временно на паузе — админы скоро вернут его в строй ✨"
-            : "The assistant is taking a quick break while admins make updates. Check back soon ✨";
       return NextResponse.json(
-        { text: reply, usedRag: false, language },
+        { text: getPausedReply(language), usedRag: false, language },
         { status: 503, headers: noCache() },
       );
     }
@@ -224,6 +219,14 @@ export async function POST(req: Request) {
       : { list: [], enabled: false };
     const memories = memoryState.list;
 
+    const preGenEnabled = await isAiChatEnabled(false, { cache: false });
+    if (!preGenEnabled) {
+      return NextResponse.json(
+        { text: getPausedReply(language), usedRag: false, language },
+        { status: 503, headers: noCache() },
+      );
+    }
+
     const generationStart = performance.now();
     const answer = await generateAnswer({
       question: inputRaw,
@@ -232,6 +235,14 @@ export async function POST(req: Request) {
       memory: memories,
     });
     const generationMs = performance.now() - generationStart;
+
+    const postGenEnabled = await isAiChatEnabled(false, { cache: false });
+    if (!postGenEnabled) {
+      return NextResponse.json(
+        { text: getPausedReply(language), usedRag: false, language },
+        { status: 503, headers: noCache() },
+      );
+    }
 
     const logEntry = await persistLog({
       userId: userIdRaw,
@@ -347,4 +358,14 @@ function isUuid(value: string) {
 
 function noCache() {
   return { "Cache-Control": "no-store" };
+}
+
+function getPausedReply(language: SupportedLanguage) {
+  if (language === "uz") {
+    return "AI hozirda dam olmoqda — administratorlar uni yaqinda qayta ishga tushiradilar ✨";
+  }
+  if (language === "ru") {
+    return "Ассистент временно на паузе — админы скоро вернут его в строй ✨";
+  }
+  return "The assistant is taking a quick break while admins make updates. Check back soon ✨";
 }

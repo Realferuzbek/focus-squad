@@ -90,7 +90,6 @@ const TOGGLE_STORAGE_KEY = "focus-ai-toggle";
 const TOGGLE_CHANNEL_NAME = "focus-ai-toggle";
 const TOGGLE_EVENT = "focus-ai-toggle";
 const STATUS_POLL_MS = 10_000;
-const STATUS_STALE_MS = 8_000;
 
 function formatTimestamp(value: number) {
   return new Date(value).toLocaleTimeString([], {
@@ -115,7 +114,6 @@ export default function ChatWidget() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [prefError, setPrefError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const lastStatusCheckRef = useRef(0);
 
   useEffect(() => {
     if (listRef.current) {
@@ -155,14 +153,12 @@ export default function ChatWidget() {
       }
       const nextStatus: AiStatus = body.enabled ? "online" : "disabled";
       setAiStatus(nextStatus);
-      lastStatusCheckRef.current = Date.now();
       return nextStatus;
     } catch (error) {
       setAiStatus("error");
       setStatusError(
         error instanceof Error ? error.message : "Unable to reach assistant.",
       );
-      lastStatusCheckRef.current = Date.now();
       return "error";
     }
   }, []);
@@ -203,21 +199,10 @@ export default function ChatWidget() {
     return () => window.clearInterval(interval);
   }, [refreshStatus]);
 
-  const applyToggleSignal = useCallback(
-    (enabled: boolean) => {
-      setAiStatus(enabled ? "online" : "disabled");
-      refreshStatus();
-    },
-    [refreshStatus],
-  );
-
-  const ensureStatusFresh = useCallback(async () => {
-    const now = Date.now();
-    if (!lastStatusCheckRef.current || now - lastStatusCheckRef.current > STATUS_STALE_MS) {
-      return refreshStatus();
-    }
-    return aiStatus;
-  }, [aiStatus, refreshStatus]);
+  const applyToggleSignal = useCallback((enabled: boolean) => {
+    setStatusError(null);
+    setAiStatus(enabled ? "online" : "disabled");
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -271,8 +256,8 @@ export default function ChatWidget() {
     channel.on(
       "broadcast",
       { event: BROADCAST_AI_TOGGLE_EVENT },
-      (payload) => {
-        const enabled = (payload as { payload?: { enabled?: boolean } })?.payload
+      ({ payload }) => {
+        const enabled = (payload as { enabled?: boolean } | null | undefined)
           ?.enabled;
         if (typeof enabled === "boolean") {
           applyToggleSignal(enabled);
@@ -342,7 +327,7 @@ export default function ChatWidget() {
 
   const sendMessage = useCallback(async () => {
     if (!input.trim() || !sessionId || composerDisabled) return;
-    const currentStatus = await ensureStatusFresh();
+    const currentStatus = await refreshStatus();
     if (currentStatus !== "online") return;
     const now = Date.now();
     const userMessage: ChatMessage = {
@@ -371,7 +356,6 @@ export default function ChatWidget() {
             ? body.text
             : "The assistant is paused right now. Check back soon!";
         setAiStatus("disabled");
-        lastStatusCheckRef.current = Date.now();
         setMessages((prev) => [
           ...prev,
           {
@@ -413,7 +397,7 @@ export default function ChatWidget() {
     } finally {
       setSending(false);
     }
-  }, [input, sessionId, composerDisabled, userId, ensureStatusFresh]);
+  }, [input, sessionId, composerDisabled, userId, refreshStatus]);
 
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {

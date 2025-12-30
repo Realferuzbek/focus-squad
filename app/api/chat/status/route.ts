@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { isAiChatEnabled } from "@/lib/featureFlags";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
-    const enabled = await isAiChatEnabled(true, { cache: false });
+    const enabled = await isAiChatEnabled(false, { cache: false });
     return NextResponse.json(
       {
         enabled,
