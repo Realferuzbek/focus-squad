@@ -1,0 +1,70 @@
+{
+  "index": {
+    "eyebrow": "Assistant Knowledge",
+    "title": "Ask AI answers from Focus Squad pages only",
+    "intro": "This section explains what Ask AI can help with, what it refuses, and how it stays grounded in public Focus Squad info.",
+    "cards": [
+      {
+        "href": "/assistant/ask-ai",
+        "title": "Ask AI rules",
+        "description": "What it can do, what it will not do, and the privacy boundaries."
+      },
+      {
+        "href": "/assistant/features",
+        "title": "Focus Squad features",
+        "description": "Short, friendly guides to the main tools on the site."
+      }
+    ],
+    "note": "Ask AI only uses public Focus Squad pages. If it cannot find an answer on the site, it will say so instead of guessing."
+  },
+  "askAi": {
+    "eyebrow": "Ask AI Guide",
+    "title": "What Ask AI can and can't do",
+    "intro": "Ask AI answers using only information that appears on Focus Squad pages. If a question is not covered on the site, it will say so.",
+    "canDoTitle": "What it can do",
+    "canDo": [
+      "Explain Focus Squad features and where to find them.",
+      "Summarize public pages so you can move faster.",
+      "Point you to the right tool when you are unsure."
+    ],
+    "refusesTitle": "What it refuses",
+    "refuses": [
+      "Personal data like your stats, tasks, habits, minutes, or streaks.",
+      "Admin-only or internal system details.",
+      "General knowledge questions that are not about Focus Squad."
+    ],
+    "privacyTitle": "Privacy promise",
+    "privacyBody": "Ask AI cannot access your account, profile, or private activity. It always keeps personal data out of the conversation."
+  },
+  "features": {
+    "eyebrow": "Focus Squad Features",
+    "title": "The main tools you will see on the site",
+    "intro": "These short descriptions help Ask AI point you to the right place.",
+    "items": [
+      {
+        "title": "Focus Timer",
+        "description": "Use Pomodoro-style focus and break modes to stay in a steady rhythm."
+      },
+      {
+        "title": "Tasks",
+        "description": "Keep a simple list of what you want to finish and check items off."
+      },
+      {
+        "title": "Leaderboard",
+        "description": "See community rankings based on focus sessions and streaks."
+      },
+      {
+        "title": "Community",
+        "description": "Join live rooms and chat spaces to stay accountable with others."
+      },
+      {
+        "title": "Motivation",
+        "description": "Quick boosts and prompts designed to keep your momentum up."
+      },
+      {
+        "title": "Opportunities",
+        "description": "Browse curated study, research, internship, and hobby resources."
+      }
+    ]
+  }
+}

@@ -18,7 +18,13 @@ type IdleWindow = Window &
 export default function DeferredChatWidget() {
   const [ready, setReady] = useState(false);
   const pathname = usePathname();
-  const hideLauncher = pathname === "/feature/timer";
+  const hideLauncher = pathname?.startsWith("/feature/timer");
+
+  useEffect(() => {
+    if (hideLauncher && ready) {
+      setReady(false);
+    }
+  }, [hideLauncher, ready]);
 
   useEffect(() => {
     if (ready || hideLauncher) return;

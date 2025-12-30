@@ -7,8 +7,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const REINDEX_STATE_TABLE = "rag_reindex_state";
-const REINDEX_STATE_KEY = "deploy";
-const REINDEX_LOCK_TTL_MS = 45 * 60 * 1000;
+const REINDEX_ROW_ID = 1;
+const REINDEX_LOCK_TTL_MS = 15 * 60 * 1000;
 const FALLBACK_DEPLOY_ID =
   process.env.DEPLOY_ID_FALLBACK ?? new Date().toISOString();
 
@@ -80,48 +80,48 @@ async function triggerDeployReindex() {
   const deployId = resolveDeployId();
   const now = new Date();
   const nowIso = now.toISOString();
-  const lockExpiresAt = new Date(
-    now.getTime() + REINDEX_LOCK_TTL_MS,
-  ).toISOString();
+  const lockUntil = new Date(now.getTime() + REINDEX_LOCK_TTL_MS).toISOString();
 
   const sb = supabaseAdmin();
   const { data: row, error } = await sb
     .from(REINDEX_STATE_TABLE)
-    .select("deploy_id, in_progress, lock_expires_at")
-    .eq("key", REINDEX_STATE_KEY)
-    .maybeSingle();
+    .select("id, last_deploy_id, in_progress, lock_until")
+    .eq("id", REINDEX_ROW_ID)
+    .limit(1);
   if (error) {
     console.warn("[reindex] failed to load deploy state", error);
     return;
   }
 
-  const lockExpired = row?.lock_expires_at
-    ? Date.parse(row.lock_expires_at) <= now.getTime()
+  const current = Array.isArray(row) ? row[0] : row;
+  const lockExpired = current?.lock_until
+    ? Date.parse(current.lock_until) <= now.getTime()
     : true;
 
-  if (row?.deploy_id === deployId && !row?.in_progress) {
+  if (current?.last_deploy_id === deployId && !current?.in_progress) {
     return;
   }
 
-  if (row?.in_progress && !lockExpired) {
+  if (current?.in_progress && !lockExpired) {
     return;
   }
 
   let locked = false;
-  if (row) {
+  if (current) {
     const { data: updated, error: updateError } = await sb
       .from(REINDEX_STATE_TABLE)
       .update({
+        last_deploy_id: deployId,
         in_progress: true,
-        lock_expires_at: lockExpiresAt,
-        started_at: nowIso,
+        lock_until: lockUntil,
+        last_error: null,
         updated_at: nowIso,
       })
-      .eq("key", REINDEX_STATE_KEY)
+      .eq("id", REINDEX_ROW_ID)
       .or(
-        `in_progress.is.null,in_progress.eq.false,lock_expires_at.is.null,lock_expires_at.lt.${nowIso}`,
+        `in_progress.is.null,in_progress.eq.false,lock_until.is.null,lock_until.lt.${nowIso}`,
       )
-      .select("key");
+      .select("id");
     if (updateError) {
       console.warn("[reindex] failed to lock deploy state", updateError);
       return;
@@ -131,15 +131,15 @@ async function triggerDeployReindex() {
     const { data: inserted, error: insertError } = await sb
       .from(REINDEX_STATE_TABLE)
       .insert({
-        key: REINDEX_STATE_KEY,
-        deploy_id: null,
-        last_indexed_at: null,
+        id: REINDEX_ROW_ID,
+        last_deploy_id: deployId,
+        last_reindexed_at: null,
         in_progress: true,
-        lock_expires_at: lockExpiresAt,
-        started_at: nowIso,
+        lock_until: lockUntil,
+        last_error: null,
         updated_at: nowIso,
       })
-      .select("key");
+      .select("id");
     if (insertError) {
       console.warn("[reindex] failed to create deploy state", insertError);
       return;
@@ -152,32 +152,7 @@ async function triggerDeployReindex() {
   }
 
   console.info(`[reindex] triggered on deploy ${deployId}`);
-  try {
-    const stats = await reindexSite();
-    const finishedAt = stats.finishedAt ?? new Date().toISOString();
-    await sb
-      .from(REINDEX_STATE_TABLE)
-      .update({
-        deploy_id: deployId,
-        last_indexed_at: finishedAt,
-        in_progress: false,
-        lock_expires_at: null,
-        updated_at: finishedAt,
-      })
-      .eq("key", REINDEX_STATE_KEY);
-    console.info(`[reindex] completed on deploy ${deployId}`, stats);
-  } catch (error) {
-    console.error(`[reindex] failed on deploy ${deployId}`, error);
-    const failedAt = new Date().toISOString();
-    await sb
-      .from(REINDEX_STATE_TABLE)
-      .update({
-        in_progress: false,
-        lock_expires_at: null,
-        updated_at: failedAt,
-      })
-      .eq("key", REINDEX_STATE_KEY);
-  }
+  void runDeployReindex({ sb, deployId });
 }
 
 function resolveDeployId() {
@@ -199,4 +174,38 @@ async function resolveAfter(): Promise<AfterFn | null> {
     cachedAfter = null;
   }
   return cachedAfter;
+}
+
+async function runDeployReindex(params: {
+  sb: ReturnType<typeof supabaseAdmin>;
+  deployId: string;
+}) {
+  try {
+    const stats = await reindexSite();
+    const finishedAt = stats.finishedAt ?? new Date().toISOString();
+    await params.sb
+      .from(REINDEX_STATE_TABLE)
+      .update({
+        last_deploy_id: params.deployId,
+        last_reindexed_at: finishedAt,
+        in_progress: false,
+        lock_until: null,
+        last_error: null,
+        updated_at: finishedAt,
+      })
+      .eq("id", REINDEX_ROW_ID);
+    console.info(`[reindex] completed on deploy ${params.deployId}`, stats);
+  } catch (error) {
+    console.error(`[reindex] failed on deploy ${params.deployId}`, error);
+    const failedAt = new Date().toISOString();
+    await params.sb
+      .from(REINDEX_STATE_TABLE)
+      .update({
+        in_progress: false,
+        lock_until: null,
+        last_error: error instanceof Error ? error.message : String(error),
+        updated_at: failedAt,
+      })
+      .eq("id", REINDEX_ROW_ID);
+  }
 }

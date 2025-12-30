@@ -1,34 +1,20 @@
+import { loadAssistantKnowledge } from "@/lib/assistant/knowledge";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const cards = [
-  {
-    href: "/assistant/ask-ai",
-    title: "Ask AI rules",
-    description: "What it can do, what it won’t do, and the privacy boundaries.",
-  },
-  {
-    href: "/assistant/features",
-    title: "Focus Squad features",
-    description: "Short, friendly guides to the main tools on the site.",
-  },
-];
-
-export default function AssistantIndexPage() {
+export default async function AssistantIndexPage() {
+  const content = await loadAssistantKnowledge();
+  const cards = content.index.cards;
   return (
     <main className="min-h-[100dvh] bg-[#07070b] px-6 py-12 text-white">
       <div className="mx-auto w-full max-w-3xl space-y-10">
         <header className="space-y-3">
           <p className="text-xs uppercase tracking-[0.35em] text-fuchsia-300/70">
-            Assistant Knowledge
+            {content.index.eyebrow}
           </p>
-          <h1 className="text-3xl font-semibold">
-            Ask AI answers from Focus Squad pages only
-          </h1>
-          <p className="text-sm text-white/70">
-            This section explains what Ask AI can help with, what it refuses, and
-            how it stays grounded in public Focus Squad information.
-          </p>
+          <h1 className="text-3xl font-semibold">{content.index.title}</h1>
+          <p className="text-sm text-white/70">{content.index.intro}</p>
         </header>
 
         <section className="grid gap-4 sm:grid-cols-2">
@@ -45,8 +31,7 @@ export default function AssistantIndexPage() {
         </section>
 
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/70">
-          Ask AI uses only information from Focus Squad pages. If it can’t find
-          an answer on the site, it will politely refuse instead of guessing.
+          {content.index.note}
         </div>
       </div>
     </main>

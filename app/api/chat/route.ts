@@ -13,7 +13,10 @@ import {
   getAdminRefusalResponse,
   getPersonalDataRefusalResponse,
 } from "@/lib/ai-chat/messages";
-import { maybeHandleLeaderboardQuestion } from "@/lib/ai-chat/leaderboard";
+import {
+  isLeaderboardIntent,
+  maybeHandleLeaderboardQuestion,
+} from "@/lib/ai-chat/leaderboard";
 import { moderateInput } from "@/lib/ai-chat/moderation";
 import {
   extractMemoryEntries,
@@ -30,7 +33,7 @@ import { vector, type SnippetMeta } from "@/lib/rag/vector";
 import { rateLimit } from "@/lib/rateLimit";
 import { isAiChatEnabled } from "@/lib/featureFlags";
 
-const SIMILARITY_THRESHOLD = 0.25;
+const SIMILARITY_THRESHOLD = 0.35;
 const TOP_K = 5;
 
 type ChatRequestBody = {
@@ -78,6 +81,7 @@ export async function POST(req: Request) {
       );
     }
 
+    const normalizedInput = inputRaw.toLowerCase().trim();
     const languageDetection = detectLanguage(inputRaw);
     const language = languageDetection.code;
 
@@ -125,7 +129,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const refusal = classifyRefusal(inputRaw);
+    const refusal = classifyRefusal(normalizedInput);
     if (refusal) {
       const reply =
         refusal === "personal"
@@ -141,6 +145,28 @@ export async function POST(req: Request) {
         metadata: {
           reason: refusal === "personal" ? "personal_data" : "admin_request",
         },
+      });
+      return NextResponse.json(
+        { text: reply, usedRag: false, language },
+        { headers: noCache() },
+      );
+    }
+
+    const leaderboardIntent = isLeaderboardIntent(normalizedInput);
+    const offTopic =
+      isGeneralKnowledgeIntent(normalizedInput) &&
+      !leaderboardIntent &&
+      !isFocusSquadIntent(normalizedInput);
+    if (offTopic) {
+      const reply = getOffTopicResponse(language);
+      await persistLog({
+        userId: userIdRaw,
+        sessionId,
+        language,
+        input: inputRaw,
+        reply,
+        usedRag: false,
+        metadata: { reason: "off_topic_intent" },
       });
       return NextResponse.json(
         { text: reply, usedRag: false, language },
@@ -205,12 +231,14 @@ export async function POST(req: Request) {
         match.metadata?.url,
     );
 
-    const bestScore = validMatches.length
-      ? (validMatches[0]?.score as number)
+    const sortedMatches = [...validMatches].sort(
+      (a, b) => (b.score ?? 0) - (a.score ?? 0),
+    );
+    const bestScore = sortedMatches.length
+      ? (sortedMatches[0]?.score as number)
       : 0;
 
-    const contexts = validMatches
-      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    const contexts = sortedMatches
       .slice(0, TOP_K)
       .map((match) => match.metadata as SnippetMeta);
 
@@ -388,6 +416,8 @@ const PERSONAL_PATTERNS: RegExp[] = [
   /\bmy\s+(focus|study|timer|planner|goals?)\b/i,
   /\bhow\s+many\s+(minutes?|hours?)\b.*\b(i|me|my)\b/i,
   /\b(i|me|my)\s+(spent|studied|focused|tracked)\b/i,
+  /\b(my|me)\s+(email|e-mail|phone|number|address)\b/i,
+  /\b(email|e-mail)\b.*\b(my|me|mine|feruzbek)\b/i,
   /(^|\s)мо[йяеи]\s+(статистик|задач|привыч|минут|сер(ия|ии)|стрик|профил|аккаунт|данн|активн|истори)/i,
   /(^|\s)сколько\s+(минут|часов).*(я|мне|мой|моя|моё|мои)/i,
   /(^|\s)mening\s+(statistika|vazif|odat|daqiq|streak|profil|hisob|ma'lumot|malumot|faoliyat|tarix)/i,
@@ -397,6 +427,8 @@ const PERSONAL_PATTERNS: RegExp[] = [
 const ADMIN_PATTERNS: RegExp[] = [
   /\badmin\b/i,
   /\badmin\s+(panel|controls|dashboard)\b/i,
+  /\badmin\b.*\btoggle\b/i,
+  /\btoggle\b.*\badmin\b/i,
   /\bbackend\b/i,
   /\binternal\b/i,
   /\bconfig(uration)?\b/i,
@@ -431,10 +463,89 @@ const ADMIN_PATTERNS: RegExp[] = [
   /(^|\s)diagnostika/i,
 ];
 
+const GENERAL_KNOWLEDGE_PATTERNS: RegExp[] = [
+  /\bwhat\s+is\b/i,
+  /\bwho\s+is\b/i,
+  /\bdefine\b/i,
+  /\bexplain\b/i,
+  /\bhistory\s+of\b/i,
+  /\bmeaning\s+of\b/i,
+  /\bwhen\s+did\b/i,
+  /\bwhere\s+is\b/i,
+  /\bcapital\s+of\b/i,
+  /\bweather\b/i,
+  /\bforecast\b/i,
+  /\bnews\b/i,
+  /\bpolitics?\b/i,
+  /\bpresident\b/i,
+  /\bprime\s+minister\b/i,
+  /\bwar\b/i,
+  /\bquantum\b/i,
+  /\bphysics\b/i,
+  /\bchemistry\b/i,
+  /\bbiology\b/i,
+  /\bmath\b/i,
+  /\balgebra\b/i,
+  /\bcalculus\b/i,
+  /\bgeometry\b/i,
+  /\bmovie\b/i,
+  /\bfilm\b/i,
+  /\bmusic\b/i,
+  /\bsong\b/i,
+  /\bbook\b/i,
+  /\bnovel\b/i,
+  /\bfootball\b/i,
+  /\bsoccer\b/i,
+  /\bbasketball\b/i,
+  /\brecipe\b/i,
+  /\bcook\b/i,
+  /\bfood\b/i,
+  /\bdiet\b/i,
+  /\bbitcoin\b/i,
+  /\bcrypto\b/i,
+  /\bstock\b/i,
+  /\bmarket\b/i,
+];
+
+const FOCUS_SQUAD_PATTERNS: RegExp[] = [
+  /\bfocus\s+squad\b/i,
+  /\bstudy\s+with\s+feruzbek\b/i,
+  /\bdashboard\b/i,
+  /\b(timer|pomodoro|focus\s+timer|break)\b/i,
+  /\bleaderboard\b/i,
+  /\brankings?\b/i,
+  /\bstreaks?\b/i,
+  /\btasks?\b/i,
+  /\bhabits?\b/i,
+  /\bplanner\b/i,
+  /\bcommunity\b/i,
+  /\blive\s+(room|rooms|session|sessions)\b/i,
+  /\bstudy\s+session\b/i,
+  /\baccountability\b/i,
+  /\bpremium\b/i,
+  /\bsubscription\b/i,
+  /\bpricing\b/i,
+  /\bfeatures?\b/i,
+  /\bask\s+ai\b/i,
+  /\bassistant\b/i,
+  /\/leaderboard\b/i,
+  /\/dashboard\b/i,
+  /\/community\b/i,
+  /\/feature\b/i,
+];
+
 function classifyRefusal(input: string): RefusalKind | null {
   if (matchesAny(PERSONAL_PATTERNS, input)) return "personal";
   if (matchesAny(ADMIN_PATTERNS, input)) return "admin";
   return null;
+}
+
+function isGeneralKnowledgeIntent(input: string) {
+  return matchesAny(GENERAL_KNOWLEDGE_PATTERNS, input);
+}
+
+function isFocusSquadIntent(input: string) {
+  return matchesAny(FOCUS_SQUAD_PATTERNS, input);
 }
 
 function matchesAny(patterns: RegExp[], input: string) {

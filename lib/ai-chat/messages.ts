@@ -3,16 +3,13 @@ import type { SupportedLanguage } from "./language";
 
 const OFF_TOPIC_RESPONSES: Record<SupportedLanguage, string[]> = {
   en: [
-    "Hey superstar! I’m here to help with anything related to this website. Ask about features, pages, or how things work here ✨",
-    "Love the curiosity, but I’m laser-focused on this site. Hit me with a question about our tools or pages!",
+    "I can only answer questions about Focus Squad and its features. Try asking about the dashboard, timer, leaderboard, or how to use a feature.",
   ],
   uz: [
-    "Salom! Men aynan shu sayt bo‘yicha yordam beraman. Sahifalar, funksiyalar va bu yerdagi ish tartibi haqida so‘rashingiz mumkin ✨",
-    "Zo‘r savol, lekin men bu sayt mavzulariga ixtisoslashganman. Shu yerdagi imkoniyatlar haqida so‘rashing!",
+    "I can only answer questions about Focus Squad and its features. Try asking about the dashboard, timer, leaderboard, or how to use a feature.",
   ],
   ru: [
-    "Привет! Я подсказываю только по этому сайту. Спроси про его разделы, функции или как тут всё устроено ✨",
-    "Классный вопрос, но я отвечаю только про этот сайт. Напиши, что хочешь узнать о разделах или возможностях здесь!",
+    "I can only answer questions about Focus Squad and its features. Try asking about the dashboard, timer, leaderboard, or how to use a feature.",
   ],
 };
 
@@ -42,26 +39,20 @@ const ERROR_RESPONSES: Record<SupportedLanguage, string[]> = {
 
 const PERSONAL_DATA_RESPONSES: Record<SupportedLanguage, string[]> = {
   en: [
-    "I can’t access personal data or account info, so I can’t help with that. Ask about Focus Squad pages or features instead.",
+    "I can't access personal data (your stats/tasks/habits). I can help explain features or public info like the leaderboard.",
   ],
   uz: [
-    "Men shaxsiy ma’lumotlar yoki akkaunt ma’lumotlariga kira olmayman, shuning uchun bunga yordam bera olmayman. Focus Squad sahifalari yoki imkoniyatlari haqida so‘rang.",
+    "I can't access personal data (your stats/tasks/habits). I can help explain features or public info like the leaderboard.",
   ],
   ru: [
-    "Я не имею доступа к личным данным или аккаунту, поэтому не могу помочь. Спроси про страницы или функции Focus Squad.",
+    "I can't access personal data (your stats/tasks/habits). I can help explain features or public info like the leaderboard.",
   ],
 };
 
 const ADMIN_REFUSAL_RESPONSES: Record<SupportedLanguage, string[]> = {
-  en: [
-    "I can’t help with admin-only diagnostics, internal controls, or secrets. Ask about public Focus Squad features instead.",
-  ],
-  uz: [
-    "Men admin diagnostikasi, ichki boshqaruvlar yoki maxfiy kalitlar bilan yordam bera olmayman. Focus Squad’ning ommaviy funksiyalari haqida so‘rang.",
-  ],
-  ru: [
-    "Я не помогаю с админскими диагностикой, внутренними настройками или секретами. Спроси про публичные функции Focus Squad.",
-  ],
+  en: ["I can't access admin-only or internal system info."],
+  uz: ["I can't access admin-only or internal system info."],
+  ru: ["I can't access admin-only or internal system info."],
 };
 
 const LEADERBOARD_MISSING_DATE: Record<SupportedLanguage, string[]> = {
@@ -77,20 +68,20 @@ const LEADERBOARD_MISSING_DATE: Record<SupportedLanguage, string[]> = {
 };
 
 const LEADERBOARD_MISSING_RANK: Record<SupportedLanguage, string[]> = {
-  en: ["Which rank should I check (for example, 2nd place)?"],
-  uz: ["Qaysi orin kerak (masalan, 2-orin)?"],
-  ru: ["Какое место проверить (например, 2-е место)?"],
+  en: ["Which rank or top list should I check (for example, 2nd place or top 10)?"],
+  uz: ["Which rank or top list should I check (for example, 2nd place or top 10)?"],
+  ru: ["Which rank or top list should I check (for example, 2nd place or top 10)?"],
 };
 
 const LEADERBOARD_NOT_FOUND: Record<SupportedLanguage, string[]> = {
   en: [
-    "I can't access that exact leaderboard snapshot yet. Here's how to check it in the app: open /leaderboard, open History, and pick the date and scope.",
+    "I can't access that leaderboard snapshot yet. Open Leaderboard -> History and pick the date and scope.",
   ],
   uz: [
-    "Bu aniq leaderboard snapshotini hozir olib kelolmayman. Ilovada tekshirish uchun: /leaderboard sahifasini oching, History bo'limini oching va sana hamda scope-ni tanlang.",
+    "I can't access that leaderboard snapshot yet. Open Leaderboard -> History and pick the date and scope.",
   ],
   ru: [
-    "Я пока не могу получить этот снимок лидерборда. Проверьте в приложении: откройте /leaderboard, откройте History и выберите дату и период.",
+    "I can't access that leaderboard snapshot yet. Open Leaderboard -> History and pick the date and scope.",
   ],
 };
 
