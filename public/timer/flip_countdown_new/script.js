@@ -34,6 +34,39 @@ const THEME_NAME_MAP = Object.freeze({
 const DEFAULT_THEME_KEY = "background.name.new";
 const LANGUAGE_KEY = "app-language";
 const SUPPORTED_LANGUAGES = ["en", "uz", "ru"];
+const READY_MESSAGE = { type: "timer-ready", version: ASSET_VERSION };
+let timerReady = false;
+let parentReadyRequested = false;
+
+window.__TIMER_READY__ = false;
+
+function sendTimerReady() {
+  if (!window.parent || window.parent === window) return;
+  try {
+    window.parent.postMessage(READY_MESSAGE, window.location.origin);
+  } catch (_) {
+    // ignore postMessage failures
+  }
+}
+
+function markTimerReady() {
+  timerReady = true;
+  window.__TIMER_READY__ = true;
+  sendTimerReady();
+  if (parentReadyRequested) {
+    sendTimerReady();
+  }
+}
+
+window.addEventListener("message", (event) => {
+  if (event.origin !== window.location.origin) return;
+  if (!event.data || typeof event.data !== "object") return;
+  if (event.data.type !== "timer-parent-ready") return;
+  parentReadyRequested = true;
+  if (timerReady) {
+    sendTimerReady();
+  }
+});
 
 const TRANSLATIONS = {
   en: {
@@ -879,6 +912,11 @@ function initTimerSettings() {
   }
 }
 
+function notifyParentReady() {
+  if (timerReady) return;
+  markTimerReady();
+}
+
 // ----- Boot / focus -----
 document.addEventListener("DOMContentLoaded", async () => {
   document.body.tabIndex = -1;
@@ -896,6 +934,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   applyLanguage(currentLanguage, { persist: false });
   render();
   refreshControls();
+  notifyParentReady();
 });
 
 document.addEventListener("visibilitychange", () => {

@@ -6,7 +6,8 @@ const PRECACHE_URLS = [
   "/icons/icon-192.png",
   "/icons/icon-512.png",
 ];
-const BYPASS_CACHE_PATTERNS = [/^\/timer\//];
+const TIMER_HTML_PATH = "/timer/flip_countdown_new/index.html";
+const TIMER_BYPASS_PREFIX = "/timer/";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -33,6 +34,12 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
@@ -40,7 +47,11 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
-  if (BYPASS_CACHE_PATTERNS.some((pattern) => pattern.test(url.pathname))) {
+  if (
+    url.pathname === TIMER_HTML_PATH ||
+    url.pathname.startsWith(TIMER_BYPASS_PREFIX)
+  ) {
+    event.respondWith(fetch(new Request(request, { cache: "no-store" })));
     return;
   }
 

@@ -3,6 +3,7 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
   enabled: process.env.ANALYZE === "true",
   openAnalyzer: false,
 });
+const { buildSecurityHeaders } = require("./lib/security-headers");
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 let SUPABASE_HOST = undefined;
@@ -19,6 +20,18 @@ let SITE_URL = "https://studywithferuzbek.vercel.app";
 try {
   if (RAW) SITE_URL = new URL(RAW).toString();
 } catch {}
+
+const TIMER_HTML_PATH = "/timer/flip_countdown_new/index.html";
+const TIMER_NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, max-age=0, must-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
+const TIMER_HTML_HEADERS = buildSecurityHeaders({
+  allowIframe: true,
+  isProduction: process.env.NODE_ENV === "production",
+  isSecureTransport: process.env.NODE_ENV === "production",
+});
 
 // Build remote patterns array
 const remotePatterns = [
@@ -47,6 +60,27 @@ const nextConfig = {
   },
   env: {
     NEXT_PUBLIC_SITE_URL: SITE_URL,
+  },
+  async headers() {
+    return [
+      {
+        source: TIMER_HTML_PATH,
+        headers: Object.entries({
+          ...TIMER_HTML_HEADERS,
+          ...TIMER_NO_STORE_HEADERS,
+        }).map(([key, value]) => ({
+          key,
+          value,
+        })),
+      },
+      {
+        source: "/timer/flip_countdown_new/:path*",
+        headers: Object.entries(TIMER_NO_STORE_HEADERS).map(([key, value]) => ({
+          key,
+          value,
+        })),
+      },
+    ];
   },
   // Ensure Next.js uses the correct project root
   // This prevents Turbopack from looking in subdirectories
