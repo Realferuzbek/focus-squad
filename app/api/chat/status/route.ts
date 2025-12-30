@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getPublicAiChatEnabled, isAiChatEnabled } from "@/lib/featureFlags";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { reindexSite } from "@/lib/rag/crawl";
@@ -11,6 +11,9 @@ const REINDEX_STATE_KEY = "deploy";
 const REINDEX_LOCK_TTL_MS = 45 * 60 * 1000;
 const FALLBACK_DEPLOY_ID =
   process.env.DEPLOY_ID_FALLBACK ?? new Date().toISOString();
+
+type AfterFn = (callback: () => void) => void;
+let cachedAfter: AfterFn | null | undefined;
 
 export async function GET(_req: NextRequest) {
   try {
@@ -47,11 +50,23 @@ function scheduleDeployReindex() {
     triggerDeployReindex().catch((error) =>
       console.error("[reindex] deploy trigger failed", error),
     );
-  if (typeof after === "function") {
-    after(runner);
-  } else {
-    void Promise.resolve().then(runner);
-  }
+  void resolveAfter().then((afterFn) => {
+    if (afterFn) {
+      afterFn(() => {
+        void runner();
+      });
+      return;
+    }
+    if (typeof queueMicrotask === "function") {
+      queueMicrotask(() => {
+        void runner();
+      });
+      return;
+    }
+    setTimeout(() => {
+      void runner();
+    }, 0);
+  });
 }
 
 async function triggerDeployReindex() {
@@ -173,4 +188,15 @@ function resolveDeployId() {
     process.env.NEXT_PUBLIC_BUILD_ID ||
     FALLBACK_DEPLOY_ID
   );
+}
+
+async function resolveAfter(): Promise<AfterFn | null> {
+  if (cachedAfter !== undefined) return cachedAfter;
+  try {
+    const mod = (await import("next/server")) as { after?: AfterFn };
+    cachedAfter = typeof mod.after === "function" ? mod.after : null;
+  } catch {
+    cachedAfter = null;
+  }
+  return cachedAfter;
 }
