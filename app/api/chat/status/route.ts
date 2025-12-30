@@ -75,6 +75,6 @@ export async function GET(req: NextRequest) {
 
 function extractProjectRef(value: string | null) {
   if (!value) return null;
-  const match = value.match(/^https?:\\/\\/(.+?)\\.supabase\\.co/);
+  const match = value.match(/^https?:\/\/(.+?)\.supabase\.co/);
   return match?.[1] ?? value;
 }
