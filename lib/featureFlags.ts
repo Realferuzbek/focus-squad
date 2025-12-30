@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "./supabaseServer";
+import { supabaseAdmin, supabaseAnon } from "./supabaseServer";
 
 const FLAG_CACHE_MS = 30 * 1000;
 type FlagCacheEntry = { value: boolean; expiresAt: number };
@@ -78,6 +78,31 @@ export async function isAiChatEnabled(
   options?: FlagFetchOptions,
 ) {
   return fetchFlag(AI_CHAT_FLAG, defaultValue, options);
+}
+
+export async function getPublicAiChatEnabled(
+  defaultValue = false,
+): Promise<boolean | null> {
+  try {
+    const sb = supabaseAnon();
+    const { data, error } = await sb
+      .from("feature_flags")
+      .select("enabled")
+      .eq("key", AI_CHAT_FLAG)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (typeof data?.enabled === "boolean") {
+      return data.enabled;
+    }
+    return defaultValue;
+  } catch (error) {
+    console.warn(
+      `[feature_flags] public read failed for "${AI_CHAT_FLAG}"`,
+      error,
+    );
+    return null;
+  }
 }
 
 export async function setAiChatEnabled(

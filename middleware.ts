@@ -96,6 +96,7 @@ function isPublic(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (pathname === "/") return true;
   if (pathname === "/api/chat") return true;
+  if (pathname === "/api/chat/status") return true;
   if (pathname === "/api/chat/rating") return true;
   if (pathname === "/api/ai/health") return true;
   if (STATIC_EXT.test(pathname)) return true;

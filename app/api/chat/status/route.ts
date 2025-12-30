@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
-import { isAiChatEnabled } from "@/lib/featureFlags";
+import { getPublicAiChatEnabled, isAiChatEnabled } from "@/lib/featureFlags";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const enabled = await isAiChatEnabled(false, { cache: false });
+    const publicEnabled = await getPublicAiChatEnabled(false);
+    const enabled =
+      typeof publicEnabled === "boolean"
+        ? publicEnabled
+        : await isAiChatEnabled(false, { cache: false });
     return NextResponse.json(
       {
         enabled,
