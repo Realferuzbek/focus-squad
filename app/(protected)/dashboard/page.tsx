@@ -51,6 +51,7 @@ export default async function DashboardPage() {
       accent: "from-[#a855f7] via-[#6366f1] to-[#22d3ee]",
       icon: "🏆",
       href: "/leaderboard",
+      isLive: true,
     },
     {
       key: "chat",
@@ -62,16 +63,19 @@ export default async function DashboardPage() {
       key: "motivation",
       accent: "from-[#22d3ee] via-[#2dd4bf] to-[#a855f7]",
       icon: "⚡",
+      isLive: true,
     },
     {
       key: "live",
       accent: "from-[#f472b6] via-[#ec4899] to-[#a855f7]",
       icon: "📺",
+      isLive: true,
     },
     {
       key: "tasks",
       accent: "from-[#8b5cf6] via-[#a855f7] to-[#6366f1]",
       icon: "✔️",
+      isLive: true,
     },
     {
       key: "timer",

@@ -61,25 +61,8 @@ export default async function MotivationVaultFeature() {
       />
 
       <main className="relative mx-auto flex max-w-6xl flex-col gap-10 px-4 py-10 lg:py-14">
-        <header className="relative overflow-hidden rounded-[32px] border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_30px_90px_rgba(40,18,88,0.35)]">
+        <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-7 shadow-[0_30px_90px_rgba(40,18,88,0.35)] backdrop-blur-xl">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.08),transparent_38%),radial-gradient(circle_at_82%_10%,rgba(255,255,255,0.05),transparent_35%),linear-gradient(140deg,rgba(255,255,255,0.04),transparent_55%)]" />
-          <div className="relative flex flex-col gap-6 p-8 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-3">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1 text-[10px] uppercase tracking-[0.45em] text-indigo-100/80">
-                {t.motivation.heroTag}
-              </span>
-              <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
-                {t.motivation.heroTitle}
-              </h1>
-              <p className="max-w-2xl text-base text-white/70 md:text-lg">
-                {t.motivation.heroSubtitle}
-              </p>
-            </div>
-          </div>
-        </header>
-
-        <section className="relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-[#120f2b]/90 via-[#0c0b1c]/90 to-[#0c0a16]/90 p-7 shadow-[0_25px_70px_rgba(16,10,60,0.55)]">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(255,255,255,0.06),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.04),transparent_45%)]" />
           <div className="relative flex flex-wrap items-center justify-between gap-3">
             <div className="text-[11px] uppercase tracking-[0.45em] text-fuchsia-100/80">
               {t.motivation.todaysMantra}
