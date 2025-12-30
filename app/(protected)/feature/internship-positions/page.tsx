@@ -8,11 +8,20 @@ export default function InternshipPositionsFeature() {
         Internship Positions
       </h1>
       <p className="mt-4 max-w-xl text-sm text-white/65 md:text-base">
-        Curated internship calls with actionable timelines, application tips,
-        and accountability prompts will live here soon.
+        Find real internships without scams &mdash; with clear requirements and
+        deadlines.
+        <br />
+        <br />
+        &bull; Verified listings only (official pages / trusted organizations)
+        <br />
+        &bull; Filters: remote, paid, beginner-friendly, country, deadlines
+        <br />
+        &bull; Eligibility + apply steps + portfolio checklist
+        <br />
+        &bull; One tap: add deadlines to your planner/calendar
       </p>
       <p className="mt-6 rounded-full border border-white/15 px-4 py-2 text-xs uppercase tracking-[0.35em] text-white/50">
-        Coming soon
+        Coming soon &mdash; verified listings only.
       </p>
     </div>
   );

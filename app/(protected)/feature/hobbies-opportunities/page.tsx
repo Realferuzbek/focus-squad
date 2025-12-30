@@ -8,11 +8,20 @@ export default function HobbiesOpportunitiesFeature() {
         Hobbies Opportunities
       </h1>
       <p className="mt-4 max-w-xl text-sm text-white/65 md:text-base">
-        A curated board of clubs, hackathons, maker challenges, and creative
-        sprints is on the way to keep your curiosity fueled.
+        Turn interests into skills with simple tracks, challenges, and project
+        ideas.
+        <br />
+        <br />
+        &bull; Quick quiz &rarr; 3 recommended tracks
+        <br />
+        &bull; Starter kit + 7-day challenge
+        <br />
+        &bull; Real project ideas (not just theory)
+        <br />
+        &bull; Community links to join people like you
       </p>
       <p className="mt-6 rounded-full border border-white/15 px-4 py-2 text-xs uppercase tracking-[0.35em] text-white/50">
-        Coming soon
+        Coming soon &mdash; starting with a small set of high-quality tracks.
       </p>
     </div>
   );

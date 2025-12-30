@@ -8,11 +8,21 @@ export default function UniversitiesEmailsFeature() {
         Universities Emails
       </h1>
       <p className="mt-4 max-w-xl text-sm text-white/65 md:text-base">
-        Direct contacts for admissions teams, program coordinators, and student
-        ambassadors are being verified and will surface here soon.
+        A clean database of universities and verified contacts &mdash; so you
+        don&rsquo;t waste hours searching.
+        <br />
+        <br />
+        &bull; Search and filter by country, major/field, scholarships,
+        deadlines, cost
+        <br />
+        &bull; Open each university page with verified contacts and guidance
+        <br />
+        &bull; Save your shortlist and compare options
+        <br />
+        &bull; One tap: start an email draft with a clean structure
       </p>
       <p className="mt-6 rounded-full border border-white/15 px-4 py-2 text-xs uppercase tracking-[0.35em] text-white/50">
-        Coming soon
+        Coming soon &mdash; contacts are being verified before publishing.
       </p>
     </div>
   );

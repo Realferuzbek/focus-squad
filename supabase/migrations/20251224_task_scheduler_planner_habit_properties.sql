@@ -108,6 +108,7 @@ alter table public.task_habits
   add column if not exists schedule_end_time integer;
 
 alter table public.task_habits
+  drop constraint if exists task_habits_target_check,
   alter column target type text using target::text,
   alter column schedule_start_time type integer using (
     case

@@ -8,11 +8,20 @@ export default function OlympiadOpportunitiesFeature() {
         Olympiad Opportunities
       </h1>
       <p className="mt-4 max-w-xl text-sm text-white/65 md:text-base">
-        Upcoming Olympiads, prep resources, and team formation channels will
-        launch here to help you chase podium finishes.
+        Discover real olympiads and prepare with a clear checklist and
+        schedule.
+        <br />
+        <br />
+        &bull; Filter by age/grade, country, subject, difficulty
+        <br />
+        &bull; Timeline, syllabus, and trusted past papers/resources
+        <br />
+        &bull; Step-by-step prep checklist
+        <br />
+        &bull; Auto-generate a prep plan into your planner/calendar
       </p>
       <p className="mt-6 rounded-full border border-white/15 px-4 py-2 text-xs uppercase tracking-[0.35em] text-white/50">
-        Coming soon
+        Coming soon &mdash; verified competitions only.
       </p>
     </div>
   );
