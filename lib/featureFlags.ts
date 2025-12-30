@@ -80,9 +80,7 @@ export async function isAiChatEnabled(
   return fetchFlag(AI_CHAT_FLAG, defaultValue, options);
 }
 
-export async function getPublicAiChatEnabled(
-  defaultValue = false,
-): Promise<boolean | null> {
+export async function getPublicAiChatEnabled(): Promise<boolean | null> {
   try {
     const sb = supabaseAnon();
     const { data, error } = await sb
@@ -95,7 +93,7 @@ export async function getPublicAiChatEnabled(
     if (typeof data?.enabled === "boolean") {
       return data.enabled;
     }
-    return defaultValue;
+    return null;
   } catch (error) {
     console.warn(
       `[feature_flags] public read failed for "${AI_CHAT_FLAG}"`,
