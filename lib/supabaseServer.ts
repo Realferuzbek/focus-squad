@@ -5,7 +5,9 @@ type Client = SupabaseClient;
 let adminClient: Client | undefined;
 let anonClient: Client | undefined;
 
-type NextRequestInit = RequestInit & { next?: { revalidate?: number } };
+type NextRequestInit = RequestInit & {
+  next?: { revalidate?: number | false; tags?: string[] };
+};
 
 function noStoreFetch(input: RequestInfo | URL, init?: RequestInit) {
   const nextInit: NextRequestInit = {
