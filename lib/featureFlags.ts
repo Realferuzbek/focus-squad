@@ -15,7 +15,7 @@ async function fetchFlag(
   options?: FlagFetchOptions,
 ) {
   const now = Date.now();
-  const useCache = options?.cache ?? true;
+  const useCache = options?.cache ?? false;
   if (useCache) {
     const cached = flagCache.get(key);
     if (cached && cached.expiresAt > now) {
@@ -27,13 +27,14 @@ async function fetchFlag(
     const sb = supabaseAdmin();
     const { data, error } = await sb
       .from("feature_flags")
-      .select("enabled")
+      .select("enabled, updated_at")
       .eq("key", key)
       .maybeSingle();
 
     if (error) throw error;
 
-    const value = data?.enabled ?? defaultValue;
+    const value =
+      typeof data?.enabled === "boolean" ? data.enabled : defaultValue;
     if (useCache) {
       flagCache.set(key, { value, expiresAt: now + FLAG_CACHE_MS });
     }
