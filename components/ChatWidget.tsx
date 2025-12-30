@@ -20,6 +20,11 @@ import {
   type KeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import {
+  BROADCAST_AI_TOGGLE_EVENT,
+  BROADCAST_CHANNEL_NAME,
+} from "@/lib/broadcastChannel";
+import { supabaseBrowser } from "@/lib/supabaseClient";
 
 type MessageRole = "user" | "assistant";
 
@@ -260,6 +265,26 @@ export default function ChatWidget() {
     };
   }, [applyToggleSignal]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const channel = supabaseBrowser.channel(BROADCAST_CHANNEL_NAME);
+    channel.on(
+      "broadcast",
+      { event: BROADCAST_AI_TOGGLE_EVENT },
+      (payload) => {
+        const enabled = (payload as { payload?: { enabled?: boolean } })?.payload
+          ?.enabled;
+        if (typeof enabled === "boolean") {
+          applyToggleSignal(enabled);
+        }
+      },
+    );
+    channel.subscribe();
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [applyToggleSignal]);
+
   const loadPreferences = useCallback(async () => {
     setPrefLoading(true);
     setPrefError(null);
@@ -340,6 +365,24 @@ export default function ChatWidget() {
         }),
       });
       const body = await res.json().catch(() => ({}));
+      if (res.status === 503) {
+        const pauseText =
+          typeof body?.text === "string" && body.text.length
+            ? body.text
+            : "The assistant is paused right now. Check back soon!";
+        setAiStatus("disabled");
+        lastStatusCheckRef.current = Date.now();
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `assistant-${Date.now()}`,
+            role: "assistant",
+            text: pauseText,
+            timestamp: Date.now(),
+          },
+        ]);
+        return;
+      }
       if (!res.ok || !body?.text) {
         throw new Error(body?.error || "Assistant unavailable");
       }

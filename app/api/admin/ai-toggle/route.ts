@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/adminGuard";
+import { broadcast } from "@/lib/broadcast";
+import { BROADCAST_AI_TOGGLE_EVENT } from "@/lib/broadcastChannel";
 import { isAiChatEnabled, setAiChatEnabled } from "@/lib/featureFlags";
 
 export async function GET() {
@@ -36,6 +38,11 @@ export async function POST(req: NextRequest) {
 
   const userId = typeof guard.user.id === "string" ? guard.user.id : null;
   await setAiChatEnabled(enabled, userId);
+  try {
+    await broadcast(BROADCAST_AI_TOGGLE_EVENT, { enabled });
+  } catch (error) {
+    console.error("[ai-toggle] broadcast failed", error);
+  }
   return NextResponse.json(
     { enabled },
     { headers: { "Cache-Control": "no-store" } },
