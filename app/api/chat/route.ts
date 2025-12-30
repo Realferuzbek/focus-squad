@@ -10,6 +10,8 @@ import {
   getErrorResponse,
   getModerationResponse,
   getOffTopicResponse,
+  getAdminRefusalResponse,
+  getPersonalDataRefusalResponse,
 } from "@/lib/ai-chat/messages";
 import { maybeHandleLeaderboardQuestion } from "@/lib/ai-chat/leaderboard";
 import { moderateInput } from "@/lib/ai-chat/moderation";
@@ -28,7 +30,7 @@ import { vector, type SnippetMeta } from "@/lib/rag/vector";
 import { rateLimit } from "@/lib/rateLimit";
 import { isAiChatEnabled } from "@/lib/featureFlags";
 
-const SIMILARITY_THRESHOLD = 0.2;
+const SIMILARITY_THRESHOLD = 0.25;
 const TOP_K = 5;
 
 type ChatRequestBody = {
@@ -116,6 +118,29 @@ export async function POST(req: Request) {
         reply,
         usedRag: false,
         metadata: { reason: "moderation", category: moderation.category },
+      });
+      return NextResponse.json(
+        { text: reply, usedRag: false, language },
+        { headers: noCache() },
+      );
+    }
+
+    const refusal = classifyRefusal(inputRaw);
+    if (refusal) {
+      const reply =
+        refusal === "personal"
+          ? getPersonalDataRefusalResponse(language)
+          : getAdminRefusalResponse(language);
+      await persistLog({
+        userId: userIdRaw,
+        sessionId,
+        language,
+        input: inputRaw,
+        reply,
+        usedRag: false,
+        metadata: {
+          reason: refusal === "personal" ? "personal_data" : "admin_request",
+        },
       });
       return NextResponse.json(
         { text: reply, usedRag: false, language },
@@ -354,6 +379,66 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,
   );
+}
+
+type RefusalKind = "personal" | "admin";
+
+const PERSONAL_PATTERNS: RegExp[] = [
+  /\bmy\s+(stats|statistics|tasks?|habits?|minutes?|streak|profile|account|data|activity|history|sessions?)\b/i,
+  /\bmy\s+(focus|study|timer|planner|goals?)\b/i,
+  /\bhow\s+many\s+(minutes?|hours?)\b.*\b(i|me|my)\b/i,
+  /\b(i|me|my)\s+(spent|studied|focused|tracked)\b/i,
+  /(^|\s)мо[йяеи]\s+(статистик|задач|привыч|минут|сер(ия|ии)|стрик|профил|аккаунт|данн|активн|истори)/i,
+  /(^|\s)сколько\s+(минут|часов).*(я|мне|мой|моя|моё|мои)/i,
+  /(^|\s)mening\s+(statistika|vazif|odat|daqiq|streak|profil|hisob|ma'lumot|malumot|faoliyat|tarix)/i,
+  /(^|\s)necha\s+(daqiq|soat).*(men(ing|)?)/i,
+];
+
+const ADMIN_PATTERNS: RegExp[] = [
+  /\badmin\b/i,
+  /\badmin\s+(panel|controls|dashboard)\b/i,
+  /\bbackend\b/i,
+  /\binternal\b/i,
+  /\bconfig(uration)?\b/i,
+  /\benv(ironment)?\b/i,
+  /\bdiagnostic(s)?\b/i,
+  /\bserver\s+logs?\b/i,
+  /\blog\s+export\b/i,
+  /\bapi\s*key\b/i,
+  /\bsecret\s+key\b/i,
+  /\bservice\s*role\b/i,
+  /\b(access|service|admin)\s+token\b/i,
+  /\bsupabase\b/i,
+  /\bvercel\b/i,
+  /\bendpoint\b/i,
+  /\/api\/[a-z0-9/_-]+/i,
+  /\breindex\b/i,
+  /\bfeature\s+flags?\b/i,
+  /(^|\s)админ/i,
+  /(^|\s)внутренн/i,
+  /(^|\s)(конфиг|настройк)/i,
+  /(^|\s)секрет/i,
+  /(^|\s)ключ(\s|$)/i,
+  /(^|\s)логи?(\s|$)/i,
+  /(^|\s)диагностик/i,
+  /(^|\s)(эндпоинт|endpoint)/i,
+  /(^|\s)ichki/i,
+  /(^|\s)maxfiy/i,
+  /(^|\s)kalit/i,
+  /(^|\s)sozlam/i,
+  /(^|\s)server/i,
+  /(^|\s)log/i,
+  /(^|\s)diagnostika/i,
+];
+
+function classifyRefusal(input: string): RefusalKind | null {
+  if (matchesAny(PERSONAL_PATTERNS, input)) return "personal";
+  if (matchesAny(ADMIN_PATTERNS, input)) return "admin";
+  return null;
+}
+
+function matchesAny(patterns: RegExp[], input: string) {
+  return patterns.some((pattern) => pattern.test(input));
 }
 
 function noCache() {

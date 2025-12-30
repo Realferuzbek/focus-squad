@@ -40,6 +40,30 @@ const ERROR_RESPONSES: Record<SupportedLanguage, string[]> = {
   ],
 };
 
+const PERSONAL_DATA_RESPONSES: Record<SupportedLanguage, string[]> = {
+  en: [
+    "I can’t access personal data or account info, so I can’t help with that. Ask about Focus Squad pages or features instead.",
+  ],
+  uz: [
+    "Men shaxsiy ma’lumotlar yoki akkaunt ma’lumotlariga kira olmayman, shuning uchun bunga yordam bera olmayman. Focus Squad sahifalari yoki imkoniyatlari haqida so‘rang.",
+  ],
+  ru: [
+    "Я не имею доступа к личным данным или аккаунту, поэтому не могу помочь. Спроси про страницы или функции Focus Squad.",
+  ],
+};
+
+const ADMIN_REFUSAL_RESPONSES: Record<SupportedLanguage, string[]> = {
+  en: [
+    "I can’t help with admin-only diagnostics, internal controls, or secrets. Ask about public Focus Squad features instead.",
+  ],
+  uz: [
+    "Men admin diagnostikasi, ichki boshqaruvlar yoki maxfiy kalitlar bilan yordam bera olmayman. Focus Squad’ning ommaviy funksiyalari haqida so‘rang.",
+  ],
+  ru: [
+    "Я не помогаю с админскими диагностикой, внутренними настройками или секретами. Спроси про публичные функции Focus Squad.",
+  ],
+};
+
 const LEADERBOARD_MISSING_DATE: Record<SupportedLanguage, string[]> = {
   en: [
     "I can check a leaderboard snapshot if you share a date (YYYY-MM-DD).",
@@ -89,6 +113,14 @@ export function getModerationResponse(language: SupportedLanguage) {
 
 export function getErrorResponse(language: SupportedLanguage) {
   return pick(ERROR_RESPONSES, language);
+}
+
+export function getPersonalDataRefusalResponse(language: SupportedLanguage) {
+  return pick(PERSONAL_DATA_RESPONSES, language);
+}
+
+export function getAdminRefusalResponse(language: SupportedLanguage) {
+  return pick(ADMIN_REFUSAL_RESPONSES, language);
 }
 
 export function getLeaderboardMissingDateResponse(

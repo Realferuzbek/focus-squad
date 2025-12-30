@@ -1,59 +1,28 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { getPublicAiChatEnabled, isAiChatEnabled } from "@/lib/featureFlags";
 import { supabaseAdmin } from "@/lib/supabaseServer";
+import { reindexSite } from "@/lib/rag/crawl";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
+const REINDEX_STATE_TABLE = "rag_reindex_state";
+const REINDEX_STATE_KEY = "deploy";
+const REINDEX_LOCK_TTL_MS = 45 * 60 * 1000;
+const FALLBACK_DEPLOY_ID =
+  process.env.DEPLOY_ID_FALLBACK ?? new Date().toISOString();
+
+export async function GET(_req: NextRequest) {
   try {
     const publicEnabled = await getPublicAiChatEnabled();
     const fallbackEnabled = await isAiChatEnabled(false, { cache: false });
     const enabled =
       typeof publicEnabled === "boolean" ? publicEnabled : fallbackEnabled;
-    const wantsDebug = req.nextUrl.searchParams.get("debug") === "1";
-    let debugInfo: Record<string, unknown> | null = null;
-    if (wantsDebug) {
-      const serviceUrl =
-        process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? null;
-      const publicUrl =
-        process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? null;
-      let serviceRow: { enabled?: boolean; updated_at?: string } | null = null;
-      let serviceError: string | null = null;
-      try {
-        const sb = supabaseAdmin();
-        const { data, error } = await sb
-          .from("feature_flags")
-          .select("enabled, updated_at")
-          .eq("key", "ai_chat_enabled")
-          .maybeSingle();
-        if (error) {
-          serviceError = error.message;
-        } else if (data) {
-          serviceRow = data;
-        }
-      } catch (error) {
-        serviceError = error instanceof Error ? error.message : String(error);
-      }
-      debugInfo = {
-        source: typeof publicEnabled === "boolean" ? "public" : "service",
-        publicEnabled,
-        serviceEnabled: fallbackEnabled,
-        serviceRow,
-        serviceError,
-        serviceRef: extractProjectRef(serviceUrl),
-        publicRef: extractProjectRef(publicUrl),
-        serviceKeyPresent: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-        anonKeyPresent: Boolean(
-          process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        ),
-      };
-    }
+    scheduleDeployReindex();
     return NextResponse.json(
       {
         enabled,
         status: enabled ? "online" : "disabled",
-        ...(debugInfo ?? {}),
       },
       { headers: { "Cache-Control": "no-store" } },
     );
@@ -73,8 +42,135 @@ export async function GET(req: NextRequest) {
   }
 }
 
-function extractProjectRef(value: string | null) {
-  if (!value) return null;
-  const match = value.match(/^https?:\/\/(.+?)\.supabase\.co/);
-  return match?.[1] ?? value;
+function scheduleDeployReindex() {
+  const runner = () =>
+    triggerDeployReindex().catch((error) =>
+      console.error("[reindex] deploy trigger failed", error),
+    );
+  if (typeof after === "function") {
+    after(runner);
+  } else {
+    void Promise.resolve().then(runner);
+  }
+}
+
+async function triggerDeployReindex() {
+  if (
+    !process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    !(process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL)
+  ) {
+    return;
+  }
+
+  const deployId = resolveDeployId();
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const lockExpiresAt = new Date(
+    now.getTime() + REINDEX_LOCK_TTL_MS,
+  ).toISOString();
+
+  const sb = supabaseAdmin();
+  const { data: row, error } = await sb
+    .from(REINDEX_STATE_TABLE)
+    .select("deploy_id, in_progress, lock_expires_at")
+    .eq("key", REINDEX_STATE_KEY)
+    .maybeSingle();
+  if (error) {
+    console.warn("[reindex] failed to load deploy state", error);
+    return;
+  }
+
+  const lockExpired = row?.lock_expires_at
+    ? Date.parse(row.lock_expires_at) <= now.getTime()
+    : true;
+
+  if (row?.deploy_id === deployId && !row?.in_progress) {
+    return;
+  }
+
+  if (row?.in_progress && !lockExpired) {
+    return;
+  }
+
+  let locked = false;
+  if (row) {
+    const { data: updated, error: updateError } = await sb
+      .from(REINDEX_STATE_TABLE)
+      .update({
+        in_progress: true,
+        lock_expires_at: lockExpiresAt,
+        started_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq("key", REINDEX_STATE_KEY)
+      .or(
+        `in_progress.is.null,in_progress.eq.false,lock_expires_at.is.null,lock_expires_at.lt.${nowIso}`,
+      )
+      .select("key");
+    if (updateError) {
+      console.warn("[reindex] failed to lock deploy state", updateError);
+      return;
+    }
+    locked = Boolean(updated?.length);
+  } else {
+    const { data: inserted, error: insertError } = await sb
+      .from(REINDEX_STATE_TABLE)
+      .insert({
+        key: REINDEX_STATE_KEY,
+        deploy_id: null,
+        last_indexed_at: null,
+        in_progress: true,
+        lock_expires_at: lockExpiresAt,
+        started_at: nowIso,
+        updated_at: nowIso,
+      })
+      .select("key");
+    if (insertError) {
+      console.warn("[reindex] failed to create deploy state", insertError);
+      return;
+    }
+    locked = Boolean(inserted?.length);
+  }
+
+  if (!locked) {
+    return;
+  }
+
+  console.info(`[reindex] triggered on deploy ${deployId}`);
+  try {
+    const stats = await reindexSite();
+    const finishedAt = stats.finishedAt ?? new Date().toISOString();
+    await sb
+      .from(REINDEX_STATE_TABLE)
+      .update({
+        deploy_id: deployId,
+        last_indexed_at: finishedAt,
+        in_progress: false,
+        lock_expires_at: null,
+        updated_at: finishedAt,
+      })
+      .eq("key", REINDEX_STATE_KEY);
+    console.info(`[reindex] completed on deploy ${deployId}`, stats);
+  } catch (error) {
+    console.error(`[reindex] failed on deploy ${deployId}`, error);
+    const failedAt = new Date().toISOString();
+    await sb
+      .from(REINDEX_STATE_TABLE)
+      .update({
+        in_progress: false,
+        lock_expires_at: null,
+        updated_at: failedAt,
+      })
+      .eq("key", REINDEX_STATE_KEY);
+  }
+}
+
+function resolveDeployId() {
+  return (
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    process.env.VERCEL_DEPLOYMENT_ID ||
+    process.env.NEXT_BUILD_ID ||
+    process.env.NEXT_PUBLIC_BUILD_ID ||
+    FALLBACK_DEPLOY_ID
+  );
 }
