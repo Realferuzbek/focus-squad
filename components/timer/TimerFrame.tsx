@@ -270,10 +270,10 @@ export function TimerFrame() {
       {showFallback ? (
         <div className="absolute inset-0 flex items-center justify-center bg-[#050816]/95 text-white">
           <div className="mx-auto max-w-md px-6 text-center">
-            <h1 className="text-lg font-semibold">Timer didn't load</h1>
+            <h1 className="text-lg font-semibold">Timer didn&apos;t load</h1>
             <p className="mt-2 text-sm text-white/70">
               {isOffline
-                ? "You're offline. Reconnect and try again."
+                ? "You&apos;re offline. Reconnect and try again."
                 : "Try reloading the timer or hard reload the page."}
             </p>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
