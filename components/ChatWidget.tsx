@@ -90,6 +90,8 @@ const TOGGLE_STORAGE_KEY = "focus-ai-toggle";
 const TOGGLE_CHANNEL_NAME = "focus-ai-toggle";
 const TOGGLE_EVENT = "focus-ai-toggle";
 const STATUS_POLL_MS = 10_000;
+const MAX_TEXTAREA_HEIGHT = 140;
+const SCROLL_BOTTOM_THRESHOLD = 120;
 
 function formatTimestamp(value: number) {
   return new Date(value).toLocaleTimeString([], {
@@ -114,12 +116,59 @@ export default function ChatWidget() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [prefError, setPrefError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const autoScrollRef = useRef(true);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "auto") => {
+      const list = listRef.current;
+      if (!list) return;
+      list.scrollTo({ top: list.scrollHeight, behavior });
+    },
+    [],
+  );
+
+  const handleListScroll = useCallback(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
+    autoScrollRef.current = distance < SCROLL_BOTTOM_THRESHOLD;
+  }, []);
+
+  const resizeTextarea = useCallback(() => {
+    const element = textareaRef.current;
+    if (!element) return;
+    element.style.height = "auto";
+    const nextHeight = Math.min(element.scrollHeight, MAX_TEXTAREA_HEIGHT);
+    element.style.height = `${nextHeight}px`;
+    element.style.overflowY =
+      element.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
+    if (autoScrollRef.current) {
+      scrollToBottom("auto");
+    }
+  }, [scrollToBottom]);
 
   useEffect(() => {
-    if (listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
+    if (!open) return;
+    autoScrollRef.current = true;
+    requestAnimationFrame(() => scrollToBottom("auto"));
+  }, [open, scrollToBottom]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (autoScrollRef.current) {
+      scrollToBottom("smooth");
     }
-  }, [messages, sending]);
+  }, [messages, sending, open, scrollToBottom]);
+
+  useEffect(() => {
+    resizeTextarea();
+  }, [input, resizeTextarea]);
+
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(resizeTextarea);
+  }, [open, resizeTextarea]);
 
   useEffect(() => {
     if (!open) {
@@ -511,7 +560,7 @@ export default function ChatWidget() {
                 </button>
               </header>
               <div className="max-h-[70dvh] overflow-y-auto px-5 py-4 pb-[max(env(safe-area-inset-bottom),1rem)] text-sm">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="font-semibold text-white">
                       Use my messages to improve answers
@@ -526,12 +575,12 @@ export default function ChatWidget() {
                     type="button"
                     onClick={toggleMemory}
                     disabled={prefLoading}
-                    className={`h-6 w-11 rounded-full transition ${
+                    className={`flex h-6 w-11 shrink-0 items-center rounded-full transition ${
                       memoryEnabled ? "bg-emerald-400/80" : "bg-white/20"
                     }`}
                   >
                     <span
-                      className={`inline-block h-5 w-5 translate-y-0.5 transform rounded-full bg-white transition ${
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
                         memoryEnabled ? "translate-x-5" : "translate-x-1"
                       }`}
                     />
@@ -576,8 +625,8 @@ export default function ChatWidget() {
       </button>
 
       {open && (
-        <div className="mt-4 w-[360px] rounded-3xl border border-white/10 bg-[#090a16]/95 backdrop-blur-xl shadow-[0_40px_120px_rgba(3,5,22,0.85)]">
-          <header className="flex items-center justify-between border-b border-white/5 px-5 py-4">
+        <div className="mt-4 flex h-[520px] w-[360px] max-w-[calc(100vw-2rem)] min-h-[360px] max-h-[80dvh] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#090a16]/95 backdrop-blur-xl shadow-[0_40px_120px_rgba(3,5,22,0.85)]">
+          <header className="flex shrink-0 items-center justify-between border-b border-white/5 px-5 py-4">
             <div>
               <p className="text-lg font-semibold">Focus Squad AI</p>
               <div
@@ -609,19 +658,19 @@ export default function ChatWidget() {
             </div>
           </header>
 
-          {statusError && (
-            <div className="flex items-center gap-2 border-b border-white/5 bg-amber-500/10 px-5 py-2 text-xs text-amber-200">
-              <AlertTriangle className="h-4 w-4" />
-              {statusError}
-            </div>
-          )}
-
           <div
-            className="max-h-[420px] min-h-[300px] overflow-y-auto px-5 py-4"
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 pr-6 py-4 hide-scrollbar scroll-smooth"
+            onScroll={handleListScroll}
             ref={listRef}
           >
+            {statusError && (
+              <div className="mb-4 flex items-center gap-2 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+                <AlertTriangle className="h-4 w-4" />
+                {statusError}
+              </div>
+            )}
             {aiStatus === "disabled" && (
-              <div className="mb-4 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-amber-100">
+              <div className="ai-system-banner mb-4 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-amber-100">
                 <p className="text-sm font-semibold">Assistant paused</p>
                 <p className="mt-1 text-xs text-amber-100/80">
                   Admins paused replies for now. You can still read this thread.
@@ -669,7 +718,9 @@ export default function ChatWidget() {
                           : "border border-white/10 bg-white/5 text-white/90"
                       }`}
                     >
-                      <p className="whitespace-pre-wrap">{message.text}</p>
+                      <p className="whitespace-pre-wrap break-words">
+                        {message.text}
+                      </p>
                       {!isUser && message.chatId && (
                         <div className="mt-3 flex items-center gap-2 text-xs text-white/60">
                           <span>Was this helpful?</span>
@@ -720,22 +771,23 @@ export default function ChatWidget() {
             </div>
           </div>
 
-          <footer className="space-y-2 border-t border-white/5 px-5 py-4">
-            <div className="flex items-end gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+          <footer className="shrink-0 space-y-2 border-t border-white/5 px-5 py-4">
+            <div className="flex min-h-[56px] items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <textarea
+                ref={textareaRef}
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleComposerKeyDown}
                 placeholder={placeholder}
                 rows={1}
-                className="flex-1 resize-none bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+                className="hide-scrollbar max-h-[140px] flex-1 resize-none overflow-y-hidden bg-transparent text-sm leading-relaxed text-white placeholder:text-white/50 focus:outline-none disabled:opacity-60 whitespace-pre-wrap break-words"
                 disabled={composerDisabled}
               />
               <button
                 type="button"
                 onClick={sendMessage}
                 disabled={composerDisabled || !input.trim()}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#22D3EE)] text-white shadow-[0_18px_35px_rgba(34,211,238,0.35)] transition hover:scale-105 disabled:opacity-40 disabled:shadow-none"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7C3AED,#22D3EE)] text-white shadow-[0_18px_35px_rgba(34,211,238,0.35)] transition hover:scale-105 disabled:opacity-40 disabled:shadow-none"
                 aria-label="Send message"
               >
                 {sending ? (
