@@ -19,6 +19,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { createPortal } from "react-dom";
 
 type MessageRole = "user" | "assistant";
 
@@ -83,6 +84,8 @@ const LOCAL_PREF_KEY = "focus-chat-memory-pref";
 const TOGGLE_STORAGE_KEY = "focus-ai-toggle";
 const TOGGLE_CHANNEL_NAME = "focus-ai-toggle";
 const TOGGLE_EVENT = "focus-ai-toggle";
+const STATUS_POLL_MS = 10_000;
+const STATUS_STALE_MS = 8_000;
 
 function formatTimestamp(value: number) {
   return new Date(value).toLocaleTimeString([], {
@@ -107,12 +110,19 @@ export default function ChatWidget() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [prefError, setPrefError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const lastStatusCheckRef = useRef(0);
 
   useEffect(() => {
     if (listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
   }, [messages, sending]);
+
+  useEffect(() => {
+    if (!open) {
+      setSettingsOpen(false);
+    }
+  }, [open]);
 
   useEffect(() => {
     try {
@@ -130,18 +140,25 @@ export default function ChatWidget() {
     }
   }, []);
 
-  const refreshStatus = useCallback(async () => {
+  const refreshStatus = useCallback(async (): Promise<AiStatus> => {
     setStatusError(null);
     try {
-      const res = await fetch("/api/ai/health", { cache: "no-store" });
+      const res = await fetch("/api/chat/status", { cache: "no-store" });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok || !body?.ok) throw new Error(body?.error || "unhealthy");
-      setAiStatus(body?.checks?.enabled === false ? "disabled" : "online");
+      if (!res.ok || typeof body?.enabled !== "boolean") {
+        throw new Error(body?.error || "status unavailable");
+      }
+      const nextStatus: AiStatus = body.enabled ? "online" : "disabled";
+      setAiStatus(nextStatus);
+      lastStatusCheckRef.current = Date.now();
+      return nextStatus;
     } catch (error) {
       setAiStatus("error");
       setStatusError(
         error instanceof Error ? error.message : "Unable to reach assistant.",
       );
+      lastStatusCheckRef.current = Date.now();
+      return "error";
     }
   }, []);
 
@@ -161,8 +178,24 @@ export default function ChatWidget() {
         refreshStatus();
       }
     };
+    const handleFocus = () => refreshStatus();
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("online", handleFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("online", handleFocus);
+    };
+  }, [refreshStatus]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refreshStatus();
+      }
+    }, STATUS_POLL_MS);
+    return () => window.clearInterval(interval);
   }, [refreshStatus]);
 
   const applyToggleSignal = useCallback(
@@ -172,6 +205,14 @@ export default function ChatWidget() {
     },
     [refreshStatus],
   );
+
+  const ensureStatusFresh = useCallback(async () => {
+    const now = Date.now();
+    if (!lastStatusCheckRef.current || now - lastStatusCheckRef.current > STATUS_STALE_MS) {
+      return refreshStatus();
+    }
+    return aiStatus;
+  }, [aiStatus, refreshStatus]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -266,7 +307,7 @@ export default function ChatWidget() {
 
   const placeholder = useMemo(() => {
     if (aiStatus === "disabled") {
-      return "Assistant is paused by admins";
+      return "Assistant paused by admins";
     }
     if (aiStatus === "error") {
       return "Assistant unavailable";
@@ -276,6 +317,8 @@ export default function ChatWidget() {
 
   const sendMessage = useCallback(async () => {
     if (!input.trim() || !sessionId || composerDisabled) return;
+    const currentStatus = await ensureStatusFresh();
+    if (currentStatus !== "online") return;
     const now = Date.now();
     const userMessage: ChatMessage = {
       id: `user-${now}`,
@@ -327,7 +370,7 @@ export default function ChatWidget() {
     } finally {
       setSending(false);
     }
-  }, [input, sessionId, composerDisabled, userId]);
+  }, [input, sessionId, composerDisabled, userId, ensureStatusFresh]);
 
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -406,6 +449,88 @@ export default function ChatWidget() {
     }
   };
 
+  const settingsPanel =
+    settingsOpen && typeof document !== "undefined"
+      ? createPortal(
+          <div className="fixed inset-0 z-[60] flex items-end justify-center p-4 sm:items-center">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setSettingsOpen(false)}
+              aria-label="Close settings"
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="relative w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-hidden rounded-3xl border border-white/10 bg-[#090a16]/95 backdrop-blur-xl shadow-[0_40px_120px_rgba(3,5,22,0.85)]"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                    Data settings
+                  </p>
+                  <p className="text-lg font-semibold text-white">
+                    Personalization
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(false)}
+                  className="rounded-full bg-white/10 p-2 text-white/80 hover:bg-white/20"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </header>
+              <div className="max-h-[70dvh] overflow-y-auto px-5 py-4 pb-[max(env(safe-area-inset-bottom),1rem)] text-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-white">
+                      Use my messages to improve answers
+                    </p>
+                    <p className="text-xs text-white/60">
+                      {preferenceSupported
+                        ? "Keep personalized context so replies stay relevant."
+                        : "Sign in to manage AI data preferences."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleMemory}
+                    disabled={prefLoading}
+                    className={`h-6 w-11 rounded-full transition ${
+                      memoryEnabled ? "bg-emerald-400/80" : "bg-white/20"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 translate-y-0.5 transform rounded-full bg-white transition ${
+                        memoryEnabled ? "translate-x-5" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+                {prefError && (
+                  <p className="mt-2 text-xs text-rose-300">{prefError}</p>
+                )}
+                {preferenceSupported && (
+                  <button
+                    type="button"
+                    onClick={forgetData}
+                    disabled={!hasStoredData}
+                    className="mt-3 inline-flex items-center gap-2 text-xs text-white/60 hover:text-white disabled:opacity-30"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Forget my data
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div className="fixed bottom-6 right-6 z-40 text-white">
       <button
@@ -464,7 +589,19 @@ export default function ChatWidget() {
             </div>
           )}
 
-          <div className="max-h-[420px] min-h-[300px] overflow-y-auto px-5 py-4" ref={listRef}>
+          <div
+            className="max-h-[420px] min-h-[300px] overflow-y-auto px-5 py-4"
+            ref={listRef}
+          >
+            {aiStatus === "disabled" && (
+              <div className="mb-4 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-amber-100">
+                <p className="text-sm font-semibold">Assistant paused</p>
+                <p className="mt-1 text-xs text-amber-100/80">
+                  Admins paused replies for now. You can still read this thread.
+                  Check back soon.
+                </p>
+              </div>
+            )}
             {!messages.length && aiStatus === "online" && (
               <div className="mb-4 space-y-2">
                 <p className="text-xs uppercase tracking-[0.2em] text-white/40">
@@ -556,51 +693,6 @@ export default function ChatWidget() {
             </div>
           </div>
 
-          {settingsOpen && (
-            <div className="border-t border-white/5 px-5 py-4 text-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-white">
-                    Use my messages to improve answers
-                  </p>
-                  <p className="text-xs text-white/60">
-                    {preferenceSupported
-                      ? "Keep personalized context so replies stay relevant."
-                      : "Sign in to manage AI data preferences."}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleMemory}
-                  disabled={prefLoading}
-                  className={`h-6 w-11 rounded-full transition ${
-                    memoryEnabled ? "bg-emerald-400/80" : "bg-white/20"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 translate-y-0.5 transform rounded-full bg-white transition ${
-                      memoryEnabled ? "translate-x-5" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
-              {prefError && (
-                <p className="mt-2 text-xs text-rose-300">{prefError}</p>
-              )}
-              {preferenceSupported && (
-                <button
-                  type="button"
-                  onClick={forgetData}
-                  disabled={!hasStoredData}
-                  className="mt-3 inline-flex items-center gap-2 text-xs text-white/60 hover:text-white disabled:opacity-30"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  Forget my data
-                </button>
-              )}
-            </div>
-          )}
-
           <footer className="space-y-2 border-t border-white/5 px-5 py-4">
             <div className="flex items-end gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
               <textarea
@@ -632,6 +724,7 @@ export default function ChatWidget() {
           </footer>
         </div>
       )}
+      {settingsPanel}
     </div>
   );
 }

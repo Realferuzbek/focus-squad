@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 
 const ChatWidget = dynamic(() => import("./ChatWidget"), { ssr: false });
@@ -16,9 +17,11 @@ type IdleWindow = Window &
 
 export default function DeferredChatWidget() {
   const [ready, setReady] = useState(false);
+  const pathname = usePathname();
+  const hideLauncher = pathname === "/feature/timer";
 
   useEffect(() => {
-    if (ready) return;
+    if (ready || hideLauncher) return;
     const idleWindow: IdleWindow | null =
       typeof window !== "undefined" ? (window as IdleWindow) : null;
 
@@ -42,8 +45,8 @@ export default function DeferredChatWidget() {
         clearTimeout(timeout);
       }
     };
-  }, [ready]);
+  }, [ready, hideLauncher]);
 
-  if (!ready) return null;
+  if (!ready || hideLauncher) return null;
   return <ChatWidget />;
 }

@@ -11,7 +11,10 @@ export async function GET() {
   }
 
   const enabled = await isAiChatEnabled(true, { cache: false });
-  return NextResponse.json({ enabled });
+  return NextResponse.json(
+    { enabled },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -33,5 +36,8 @@ export async function POST(req: NextRequest) {
 
   const userId = typeof guard.user.id === "string" ? guard.user.id : null;
   await setAiChatEnabled(enabled, userId);
-  return NextResponse.json({ enabled });
+  return NextResponse.json(
+    { enabled },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }

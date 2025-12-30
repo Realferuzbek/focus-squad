@@ -10,6 +10,7 @@ import {
   getModerationResponse,
   getOffTopicResponse,
 } from "@/lib/ai-chat/messages";
+import { maybeHandleLeaderboardQuestion } from "@/lib/ai-chat/leaderboard";
 import { moderateInput } from "@/lib/ai-chat/moderation";
 import {
   extractMemoryEntries,
@@ -120,6 +121,27 @@ export async function POST(req: Request) {
         reply,
         usedRag: false,
         metadata: { reason: "moderation", category: moderation.category },
+      });
+      return NextResponse.json(
+        { text: reply, usedRag: false, language },
+        { headers: noCache() },
+      );
+    }
+
+    const leaderboardTool = await maybeHandleLeaderboardQuestion({
+      input: inputRaw,
+      language,
+    });
+    if (leaderboardTool.handled) {
+      const reply = leaderboardTool.text ?? getErrorResponse(language);
+      await persistLog({
+        userId: userIdRaw,
+        sessionId,
+        language,
+        input: inputRaw,
+        reply,
+        usedRag: false,
+        metadata: leaderboardTool.metadata ?? { reason: "leaderboard" },
       });
       return NextResponse.json(
         { text: reply, usedRag: false, language },

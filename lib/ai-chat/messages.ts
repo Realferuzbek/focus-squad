@@ -1,3 +1,4 @@
+import type { LeaderboardScope } from "@/types/leaderboard";
 import type { SupportedLanguage } from "./language";
 
 const OFF_TOPIC_RESPONSES: Record<SupportedLanguage, string[]> = {
@@ -39,6 +40,45 @@ const ERROR_RESPONSES: Record<SupportedLanguage, string[]> = {
   ],
 };
 
+const LEADERBOARD_MISSING_DATE: Record<SupportedLanguage, string[]> = {
+  en: [
+    "I can check a leaderboard snapshot if you share a date (YYYY-MM-DD).",
+  ],
+  uz: [
+    "Leaderboardni faqat sana bilan tekshira olaman (YYYY-MM-DD). Sanani yuborsangiz, tekshirib beraman.",
+  ],
+  ru: [
+    "Я могу проверить лидерборд по дате (YYYY-MM-DD). Пришлите дату, и я посмотрю.",
+  ],
+};
+
+const LEADERBOARD_MISSING_RANK: Record<SupportedLanguage, string[]> = {
+  en: ["Which rank should I check (for example, 2nd place)?"],
+  uz: ["Qaysi orin kerak (masalan, 2-orin)?"],
+  ru: ["Какое место проверить (например, 2-е место)?"],
+};
+
+const LEADERBOARD_NOT_FOUND: Record<SupportedLanguage, string[]> = {
+  en: [
+    "I can't access that exact leaderboard snapshot yet. Here's how to check it in the app: open /leaderboard, open History, and pick the date and scope.",
+  ],
+  uz: [
+    "Bu aniq leaderboard snapshotini hozir olib kelolmayman. Ilovada tekshirish uchun: /leaderboard sahifasini oching, History bo'limini oching va sana hamda scope-ni tanlang.",
+  ],
+  ru: [
+    "Я пока не могу получить этот снимок лидерборда. Проверьте в приложении: откройте /leaderboard, откройте History и выберите дату и период.",
+  ],
+};
+
+const LEADERBOARD_SCOPE_LABELS: Record<
+  SupportedLanguage,
+  Record<LeaderboardScope, string>
+> = {
+  en: { day: "Daily", week: "Weekly", month: "Monthly" },
+  uz: { day: "Kunlik", week: "Haftalik", month: "Oylik" },
+  ru: { day: "Ежедневный", week: "Еженедельный", month: "Ежемесячный" },
+};
+
 export function getOffTopicResponse(language: SupportedLanguage) {
   return pick(OFF_TOPIC_RESPONSES, language);
 }
@@ -49,6 +89,32 @@ export function getModerationResponse(language: SupportedLanguage) {
 
 export function getErrorResponse(language: SupportedLanguage) {
   return pick(ERROR_RESPONSES, language);
+}
+
+export function getLeaderboardMissingDateResponse(
+  language: SupportedLanguage,
+) {
+  return pick(LEADERBOARD_MISSING_DATE, language);
+}
+
+export function getLeaderboardMissingRankResponse(
+  language: SupportedLanguage,
+) {
+  return pick(LEADERBOARD_MISSING_RANK, language);
+}
+
+export function getLeaderboardNotFoundResponse(
+  language: SupportedLanguage,
+) {
+  return pick(LEADERBOARD_NOT_FOUND, language);
+}
+
+export function getLeaderboardScopeLabel(
+  scope: LeaderboardScope,
+  language: SupportedLanguage,
+) {
+  const labels = LEADERBOARD_SCOPE_LABELS[language] ?? LEADERBOARD_SCOPE_LABELS.en;
+  return labels[scope] ?? scope;
 }
 
 function pick(
