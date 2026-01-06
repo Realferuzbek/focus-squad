@@ -1,4 +1,19 @@
 -- Align rag_reindex_state with deploy-triggered reindex tracking
+create table if not exists public.rag_reindex_state (
+  key text primary key,
+  deploy_id text,
+  last_indexed_at timestamptz,
+  in_progress boolean not null default false,
+  lock_expires_at timestamptz,
+  started_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.rag_reindex_state enable row level security;
+
+alter table public.rag_reindex_state
+  alter column key set default 'deploy';
+
 alter table public.rag_reindex_state
   add column if not exists id bigint;
 

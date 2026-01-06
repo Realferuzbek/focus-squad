@@ -19,6 +19,11 @@ import {
   formatWithFallback,
 } from "@/lib/leaderboard/format";
 import {
+  normalizeUsername,
+  sortByMinutesThenUsername,
+  withDisplayRanks,
+} from "@/lib/leaderboard/entries";
+import {
   getTopEntryFromSnapshot,
   type LeaderboardHistoryByScope,
   type LeaderboardSnapshotRow,
@@ -171,6 +176,19 @@ type SnapshotEmptyStateProps = {
   subtitle: string;
 };
 
+type DisplayEntry = LeaderboardEntry & { displayRank: number };
+
+const TELEGRAM_HANDLE_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
+
+function getTelegramProfile(username: string) {
+  const normalized = normalizeUsername(username);
+  if (!normalized || !TELEGRAM_HANDLE_PATTERN.test(normalized)) return null;
+  return {
+    username: normalized,
+    url: `https://t.me/${normalized}`,
+  };
+}
+
 function SnapshotEmptyState({
   icon,
   title,
@@ -185,26 +203,44 @@ function SnapshotEmptyState({
   );
 }
 
-function LeaderboardEntryRow({ entry }: { entry: LeaderboardEntry }) {
+function LeaderboardEntryRow({ entry }: { entry: DisplayEntry }) {
+  const telegram = getTelegramProfile(entry.username);
+  const rawUsername =
+    normalizeUsername(entry.username) || entry.username.trim();
+  const usernameLabel = rawUsername.startsWith("@")
+    ? rawUsername
+    : `@${rawUsername || "unknown"}`;
   return (
     <li className="group rounded-2xl border border-white/10 bg-white/5 p-3 shadow-[0_18px_45px_rgba(8,7,21,0.35)] transition-transform transition-shadow duration-200 ease-out hover:-translate-y-[2px] hover:scale-[1.01] hover:shadow-[0_25px_55px_rgba(8,7,21,0.45)]">
       <div className="flex flex-col gap-3 md:grid md:grid-cols-[auto,1fr,auto] md:items-center md:gap-4">
         <div
-          className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold uppercase tracking-tight ${rankAccent(entry.rank)}`}
+          className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold uppercase tracking-tight ${rankAccent(entry.displayRank)}`}
         >
-          #{entry.rank}
+          #{entry.displayRank}
         </div>
 
         <div className="min-w-0 space-y-1">
-          <p
-            className="truncate text-base font-semibold text-white"
-            title={`@${entry.username}`}
-          >
-            @{entry.username}
-          </p>
+          {telegram ? (
+            <a
+              href={telegram.url}
+              target="_blank"
+              rel="noreferrer"
+              className="break-all text-base font-semibold text-white underline-offset-4 hover:underline"
+              title={usernameLabel}
+            >
+              {usernameLabel}
+            </a>
+          ) : (
+            <span
+              className="break-all text-base font-semibold text-white"
+              title={usernameLabel}
+            >
+              {usernameLabel}
+            </span>
+          )}
           <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
             {entry.title ? (
-              <span className="truncate" title={entry.title}>
+              <span className="break-words whitespace-normal" title={entry.title}>
                 {entry.title}
               </span>
             ) : null}
@@ -232,6 +268,9 @@ function LeaderboardEntryRow({ entry }: { entry: LeaderboardEntry }) {
 
 function LiveScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
   const config = SCOPE_CONFIG[scope];
+  const displayEntries: DisplayEntry[] = snapshot
+    ? withDisplayRanks(snapshot.entries)
+    : [];
   const iconClasses = [
     "grid h-12 w-12 place-items-center rounded-2xl border border-white/15 text-xl shadow-[0_12px_32px_rgba(0,0,0,0.35)]",
     `bg-gradient-to-br ${config.accent}`,
@@ -289,10 +328,10 @@ function LiveScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
 
       <div className="mt-4 flex-1 rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 via-white/5 to-white/0 p-3">
         {snapshot ? (
-          snapshot.entries.length > 0 ? (
+          displayEntries.length > 0 ? (
             <ol className="space-y-3">
-              {snapshot.entries.map((entry) => (
-                <LeaderboardEntryRow key={entry.rank} entry={entry} />
+              {displayEntries.map((entry) => (
+                <LeaderboardEntryRow key={`${entry.username}-${entry.displayRank}`} entry={entry} />
               ))}
             </ol>
           ) : (
@@ -496,6 +535,9 @@ export default function LeaderboardClient({
 
 function ScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
   const config = SCOPE_CONFIG[scope];
+  const displayEntries: DisplayEntry[] = snapshot
+    ? withDisplayRanks(snapshot.entries)
+    : [];
 
   const badgeClasses =
     badgeLabel === "SNAPSHOT"
@@ -504,18 +546,39 @@ function ScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
 
   const scopeLabel = scope === "day" ? "Day" : scope === "week" ? "Week" : "Month";
 
-  const SnapshotEntryRow = ({ entry }: { entry: LeaderboardEntry }) => (
+  const SnapshotEntryRow = ({ entry }: { entry: DisplayEntry }) => {
+    const telegram = getTelegramProfile(entry.username);
+    const rawUsername =
+      normalizeUsername(entry.username) || entry.username.trim();
+    const usernameLabel = rawUsername.startsWith("@")
+      ? rawUsername
+      : `@${rawUsername || "unknown"}`;
+    return (
     <li className="group relative flex items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white transition duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/10">
       <div
-        className={`flex h-11 w-11 items-center justify-center rounded-2xl text-sm font-semibold uppercase tracking-tight ${rankAccent(entry.rank)}`}
+        className={`flex h-11 w-11 items-center justify-center rounded-2xl text-sm font-semibold uppercase tracking-tight ${rankAccent(entry.displayRank)}`}
       >
-        #{entry.rank}
+        #{entry.displayRank}
       </div>
       <div className="min-w-0 flex-1 space-y-1">
-        <p className="truncate font-semibold">@{entry.username}</p>
+        {telegram ? (
+          <a
+            href={telegram.url}
+            target="_blank"
+            rel="noreferrer"
+            className="break-all font-semibold underline-offset-4 hover:underline"
+            title={usernameLabel}
+          >
+            {usernameLabel}
+          </a>
+        ) : (
+          <span className="break-all font-semibold" title={usernameLabel}>
+            {usernameLabel}
+          </span>
+        )}
         <div className="flex flex-wrap items-center gap-1 text-[11px] text-white/60">
           {entry.title ? (
-            <span className="truncate" title={entry.title}>
+            <span className="break-words whitespace-normal" title={entry.title}>
               {entry.title}
             </span>
           ) : null}
@@ -530,6 +593,7 @@ function ScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
       </div>
     </li>
   );
+  };
 
   return (
     <div className="relative h-full overflow-hidden rounded-[24px] border border-white/15 bg-gradient-to-br from-[#0f1122]/85 via-[#0a0d18]/82 to-[#05060f]/90 p-5 shadow-[0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur">
@@ -583,10 +647,10 @@ function ScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
 
       <div className="relative mt-4 rounded-2xl border border-white/10 bg-black/30 p-3 backdrop-blur-md">
         {snapshot ? (
-          snapshot.entries.length > 0 ? (
+          displayEntries.length > 0 ? (
             <ol className="space-y-2.5">
-              {snapshot.entries.map((entry) => (
-                <SnapshotEntryRow key={entry.rank} entry={entry} />
+              {displayEntries.map((entry) => (
+                <SnapshotEntryRow key={`${entry.username}-${entry.displayRank}`} entry={entry} />
               ))}
             </ol>
           ) : (
@@ -671,13 +735,15 @@ function HistoryDrawer({ open, onClose, historyByScope }: HistoryDrawerProps) {
     const topEntry =
       topEntryFromPayload ||
       (snapshot.entries.length > 0
-        ? [...snapshot.entries].sort((a, b) => a.rank - b.rank)[0]
+        ? sortByMinutesThenUsername(snapshot.entries)[0]
         : null);
     if (!topEntry) return "No entries";
-    const username = topEntry.username.startsWith("@")
-      ? topEntry.username.slice(1)
-      : topEntry.username;
-    return `#1 @${username} \u00b7 ${formatMinutes(topEntry.minutes)}`;
+    const rawUsername =
+      normalizeUsername(topEntry.username) || topEntry.username.trim();
+    const usernameLabel = rawUsername.startsWith("@")
+      ? rawUsername
+      : `@${rawUsername || "unknown"}`;
+    return `#1 ${usernameLabel} \u00b7 ${formatMinutes(topEntry.minutes)}`;
   };
 
   const handleSelectSnapshot = (id: string) => {

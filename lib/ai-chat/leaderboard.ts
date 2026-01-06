@@ -5,6 +5,7 @@ import {
   getLeaderboardNotFoundResponse,
   getLeaderboardScopeLabel,
 } from "@/lib/ai-chat/messages";
+import { withCanonicalRanks } from "@/lib/leaderboard/entries";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import type { LeaderboardEntry, LeaderboardScope } from "@/types/leaderboard";
 
@@ -306,7 +307,7 @@ async function fetchSnapshot(
   if (!row) return null;
 
   const entries = Array.isArray(row.entries)
-    ? (row.entries as LeaderboardEntry[])
+    ? withCanonicalRanks(row.entries as LeaderboardEntry[])
     : [];
 
   return {
@@ -609,7 +610,7 @@ async function fetchPreviousWeekSnapshot(
   if (!row) return null;
 
   const entries = Array.isArray(row.entries)
-    ? (row.entries as LeaderboardEntry[])
+    ? withCanonicalRanks(row.entries as LeaderboardEntry[])
     : [];
 
   return {

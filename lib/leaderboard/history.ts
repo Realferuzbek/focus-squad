@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { REQUIRED_SCOPES } from "./ingest";
+import { sortByMinutesThenUsername, withCanonicalRanks } from "./entries";
 import type {
   LeaderboardExportPayload,
   LeaderboardEntry,
@@ -73,7 +74,7 @@ export async function getLeaderboardHistory(
         ? row.chat_id
         : Number(row.chat_id);
     const entries = Array.isArray(row.entries)
-      ? (row.entries as LeaderboardEntry[])
+      ? withCanonicalRanks(row.entries as LeaderboardEntry[])
       : [];
 
     return {
@@ -121,7 +122,7 @@ export function getTopEntryFromSnapshot(
     return null;
   }
 
-  const first = board.entries[0];
+  const first = sortByMinutesThenUsername(board.entries)[0];
   const username =
     typeof first.username === "string" && first.username.startsWith("@")
       ? first.username.slice(1)

@@ -47,9 +47,10 @@ The body is JSON with the following structure:
 Rules:
 
 - `boards` **must** contain exactly three items – one for each scope (`day`, `week`, `month`).
-- `rank` values are integers between `1` and `5` and must be unique within a board.
+- Tracker `rank` values are ignored on ingest. The server sorts by `minutes` (DESC) with a username (ASC, case-insensitive) tie-breaker, then recomputes ranks `1..5`.
 - `period_start`/`period_end` are validated as calendar dates. For the day scope the start and end dates must match.
-- Usernames must omit the leading `@`.
+- Usernames are trimmed, deduped case-insensitively (highest minutes wins), and stored without the leading `@`.
+- Payloads can include more than 5 entries per board; the ingest layer keeps the top 5 after sorting.
 - Empty bodies or structurally invalid payloads are captured for review instead of being rejected.
 
 ## Storage behaviour

@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { REQUIRED_SCOPES } from "./ingest";
+import { withCanonicalRanks } from "./entries";
 import type { LeaderboardEntry, LeaderboardScope } from "@/types/leaderboard";
 
 export interface LeaderboardSnapshot {
@@ -41,7 +42,7 @@ async function fetchLatestSnapshots(): Promise<SnapshotRecord> {
       }
 
       const entries = Array.isArray(row.entries)
-        ? (row.entries as LeaderboardEntry[])
+        ? withCanonicalRanks(row.entries as LeaderboardEntry[])
         : [];
 
       return [

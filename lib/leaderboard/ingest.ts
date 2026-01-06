@@ -1,11 +1,28 @@
 import { z } from "zod";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import {
+  MAX_LEADERBOARD_ENTRIES,
+  getUsernameSortKey,
+  normalizeUsername,
+  sortByMinutesThenUsername,
+} from "@/lib/leaderboard/entries";
+import {
   LeaderboardExportPayload,
   LeaderboardScope,
 } from "@/types/leaderboard";
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_TRACKER_ENTRIES = 50;
+const EMOJI_PATTERN = /\p{Extended_Pictographic}/u;
+const KEYCAP_PATTERN = /[#*0-9]\uFE0F?\u20E3/u;
+const LETTER_PATTERN = /\p{Letter}/u;
+const RANK_EMOJI = new Map<number, string>([
+  [1, "\u{1F947}"],
+  [2, "\u{1F948}"],
+  [3, "\u{1F949}"],
+  [4, "\u0034\uFE0F\u20E3"],
+  [5, "\u0035\uFE0F\u20E3"],
+]);
 
 const isValidIsoDate = (value: string) => {
   if (!ISO_DATE_PATTERN.test(value)) {
@@ -29,7 +46,7 @@ export const SECRET_HEADER = "x-leaderboard-secret";
 
 export const trackerEntrySchema = z
   .object({
-    rank: z.number().int().min(1).max(5),
+    rank: z.number().int().min(1).max(1000),
     user_id: z.union([z.string(), z.number()]).optional(),
     seconds: z.number().int().min(0).optional(),
     minutes: z.number().int().min(0),
@@ -91,7 +108,7 @@ export const trackerBoardSchema = z
     header: z.string(),
     period_start: trackerDateSchema("period_start"),
     period_end: trackerDateSchema("period_end"),
-    entries: z.array(trackerEntrySchema).max(5),
+    entries: z.array(trackerEntrySchema).max(MAX_TRACKER_ENTRIES),
   })
   .passthrough()
   .superRefine((board, ctx) => {
@@ -102,18 +119,6 @@ export const trackerBoardSchema = z
         path: ["period_end"],
       });
     }
-
-    const seenRanks = new Set<number>();
-    board.entries.forEach((entry, index) => {
-      if (seenRanks.has(entry.rank)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `duplicate rank detected: ${entry.rank}`,
-          path: ["entries", index, "rank"],
-        });
-      }
-      seenRanks.add(entry.rank);
-    });
   });
 
 export const trackerPayloadSchema = z
@@ -166,7 +171,7 @@ export type TrackerPayload = z.infer<typeof trackerPayloadSchema>;
 
 const entrySchema = z
   .object({
-    rank: z.number().int().min(1).max(5),
+    rank: z.number().int().min(1).max(MAX_LEADERBOARD_ENTRIES),
     username: z
       .string()
       .min(1)
@@ -187,7 +192,7 @@ const boardSchema = z
     period_end: z
       .string()
       .regex(ISO_DATE_PATTERN, "period_end must be YYYY-MM-DD"),
-    entries: z.array(entrySchema).max(5),
+    entries: z.array(entrySchema).max(MAX_LEADERBOARD_ENTRIES),
   })
   .superRefine((board, ctx) => {
     if (!isValidIsoDate(board.period_start)) {
@@ -277,6 +282,52 @@ export type ParsedLeaderboardPayload = z.infer<typeof payloadSchema>;
 
 type AdminClient = ReturnType<typeof supabaseAdmin>;
 
+type NormalizedTrackerEntry = {
+  username: string;
+  minutes: number;
+  badge?: string;
+  compliment?: string;
+};
+
+function isEmojiLike(value: string | undefined) {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (LETTER_PATTERN.test(trimmed)) return false;
+  return EMOJI_PATTERN.test(trimmed) || KEYCAP_PATTERN.test(trimmed);
+}
+
+function getRankEmoji(rank: number) {
+  return RANK_EMOJI.get(rank) ?? "";
+}
+
+function mergeTrackerEntry(
+  existing: NormalizedTrackerEntry,
+  next: NormalizedTrackerEntry,
+) {
+  if (next.minutes > existing.minutes) {
+    return {
+      ...next,
+      badge: next.badge || existing.badge,
+      compliment: next.compliment || existing.compliment,
+    };
+  }
+
+  if (next.minutes === existing.minutes) {
+    return {
+      ...existing,
+      badge: existing.badge || next.badge,
+      compliment: existing.compliment || next.compliment,
+    };
+  }
+
+  return {
+    ...existing,
+    badge: existing.badge || next.badge,
+    compliment: existing.compliment || next.compliment,
+  };
+}
+
 export function normalizeTrackerPayload(
   payload: TrackerPayload,
 ): LeaderboardExportPayload {
@@ -291,28 +342,46 @@ export function normalizeTrackerPayload(
       scope: board.scope,
       period_start: board.period_start,
       period_end: board.period_end,
-      entries: board.entries.map((entry) => {
-        const username = entry.display.startsWith("@")
-          ? entry.display.slice(1)
-          : entry.display;
+      entries: (() => {
+        const deduped = new Map<string, NormalizedTrackerEntry>();
 
-        const emojis = [entry.rank_emoji, entry.badge].filter(
-          Boolean,
-        ) as string[];
+        board.entries.forEach((entry) => {
+          const username = normalizeUsername(entry.display);
+          if (!username) return;
+          const key = getUsernameSortKey(username);
+          const candidate = {
+            username,
+            minutes: entry.minutes,
+            badge: entry.badge?.trim() || undefined,
+            compliment: entry.compliment?.trim() || undefined,
+          };
 
-        const title =
-          entry.compliment && entry.badge
-            ? `${entry.badge} — ${entry.compliment}`
-            : entry.compliment || entry.badge || "";
+          const existing = deduped.get(key);
+          deduped.set(key, existing ? mergeTrackerEntry(existing, candidate) : candidate);
+        });
 
-        return {
-          rank: entry.rank,
-          username,
-          minutes: entry.minutes,
-          title,
-          emojis,
-        };
-      }),
+        const sorted = sortByMinutesThenUsername(Array.from(deduped.values()));
+
+        return sorted.slice(0, MAX_LEADERBOARD_ENTRIES).map((entry, index) => {
+          const rank = index + 1;
+          const title =
+            entry.compliment && entry.badge
+              ? `${entry.badge} — ${entry.compliment}`
+              : entry.compliment || entry.badge || "";
+          const badgeEmoji = isEmojiLike(entry.badge) ? entry.badge : null;
+          const emojis = [getRankEmoji(rank), badgeEmoji].filter(
+            Boolean,
+          ) as string[];
+
+          return {
+            rank,
+            username: entry.username,
+            minutes: entry.minutes,
+            title,
+            emojis,
+          };
+        });
+      })(),
     })),
   };
 }
@@ -445,7 +514,12 @@ function buildRecordsFromPayload(payload: LeaderboardExportPayload) {
   const updatedAtIso = new Date().toISOString();
 
   return payload.boards.map((board) => {
-    const sortedEntries = [...board.entries].sort((a, b) => a.rank - b.rank);
+    const sortedEntries = sortByMinutesThenUsername(board.entries)
+      .map((entry, index) => ({
+        ...entry,
+        rank: index + 1,
+      }))
+      .slice(0, MAX_LEADERBOARD_ENTRIES);
     return {
       scope: board.scope,
       period_start: board.period_start,
