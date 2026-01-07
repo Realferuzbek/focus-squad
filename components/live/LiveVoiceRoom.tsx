@@ -57,7 +57,7 @@ function initialsFromName(name: string) {
 
 function buildInviteUrl(roomId: string) {
   const base =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\\/$/, "") ??
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
     (typeof window !== "undefined" ? window.location.origin : "");
   return `${base}/feature/live/room/${roomId}`;
 }
