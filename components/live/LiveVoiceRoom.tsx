@@ -18,7 +18,7 @@ import {
   selectIsLocalAudioEnabled,
   selectIsLocalVideoEnabled,
   selectLocalPeer,
-  selectPeers,
+  selectPeersWithAudioStatus,
   useHMSActions,
   useHMSStore,
 } from "@100mslive/react-sdk";
@@ -66,7 +66,7 @@ export default function LiveVoiceRoom({ roomId, user }: LiveVoiceRoomProps) {
   const router = useRouter();
   const hmsActions = useHMSActions();
   const isConnected = useHMSStore(selectIsConnectedToRoom);
-  const peers = useHMSStore(selectPeers);
+  const peersWithAudio = useHMSStore(selectPeersWithAudioStatus);
   const isMicOn = useHMSStore(selectIsLocalAudioEnabled);
   const isCamOn = useHMSStore(selectIsLocalVideoEnabled);
   const localPeer = useHMSStore(selectLocalPeer);
@@ -172,14 +172,14 @@ export default function LiveVoiceRoom({ roomId, user }: LiveVoiceRoomProps) {
   }, [hmsActions, localVideoTrack?.id]);
 
   const sortedPeers = React.useMemo(() => {
-    const next = [...peers];
+    const next = [...peersWithAudio];
     next.sort((a, b) => {
-      if (a.isLocal && !b.isLocal) return -1;
-      if (!a.isLocal && b.isLocal) return 1;
-      return (a.name || "").localeCompare(b.name || "");
+      if (a.peer.isLocal && !b.peer.isLocal) return -1;
+      if (!a.peer.isLocal && b.peer.isLocal) return 1;
+      return (a.peer.name || "").localeCompare(b.peer.name || "");
     });
     return next;
-  }, [peers]);
+  }, [peersWithAudio]);
 
   async function handleCopyInvite() {
     const link = buildInviteUrl(roomId);
@@ -310,7 +310,7 @@ export default function LiveVoiceRoom({ roomId, user }: LiveVoiceRoomProps) {
                 Participants
               </p>
               <h2 className="text-lg font-semibold">
-                {peers.length} in room
+                {peersWithAudio.length} in room
               </h2>
             </div>
             <span className="pill">
@@ -320,37 +320,39 @@ export default function LiveVoiceRoom({ roomId, user }: LiveVoiceRoomProps) {
           </div>
 
           <div className="mt-4 space-y-3">
-            {sortedPeers.map((peer) => (
+            {sortedPeers.map((participant) => (
               <div
-                key={peer.id}
+                key={participant.peer.id}
                 className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/30 px-4 py-3"
               >
                 <div className="flex items-center gap-3">
                   <div
                     className={`relative flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold uppercase ${
-                      peer.isAudioEnabled
+                      participant.isAudioEnabled
                         ? "bg-emerald-500/20 text-emerald-100 ring-2 ring-emerald-400/40"
                         : "bg-white/10 text-white/80 ring-1 ring-white/10"
                     }`}
                   >
-                    {initialsFromName(peer.name || "Guest")}
+                    {initialsFromName(participant.peer.name || "Guest")}
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-white">
-                      {peer.name || "Guest"}
-                      {peer.isLocal ? " (You)" : ""}
+                      {participant.peer.name || "Guest"}
+                      {participant.peer.isLocal ? " (You)" : ""}
                     </p>
-                    <p className="text-xs text-white/50">{peer.roleName}</p>
+                    <p className="text-xs text-white/50">
+                      {participant.peer.roleName}
+                    </p>
                   </div>
                 </div>
                 <div
                   className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
-                    peer.isAudioEnabled
+                    participant.isAudioEnabled
                       ? "bg-emerald-500/20 text-emerald-100"
                       : "bg-rose-500/20 text-rose-100"
                   }`}
                 >
-                  {peer.isAudioEnabled ? (
+                  {participant.isAudioEnabled ? (
                     <>
                       <Mic className="h-3 w-3" />
                       Live
@@ -364,7 +366,7 @@ export default function LiveVoiceRoom({ roomId, user }: LiveVoiceRoomProps) {
                 </div>
               </div>
             ))}
-            {peers.length === 0 ? (
+            {peersWithAudio.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
                 No one is here yet. Stay in the room and invite others.
               </div>
