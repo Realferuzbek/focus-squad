@@ -13,10 +13,8 @@ import {
   formatHistoryDetailLabel,
   formatHistoryPeriodLabel,
   formatMinutes,
-  formatPeriodForCard,
+  formatPeriodCompact,
   formatPostedLabel,
-  formatSyncLabel,
-  formatWithFallback,
 } from "@/lib/leaderboard/format";
 import {
   normalizeUsername,
@@ -49,7 +47,6 @@ type LeaderboardClientProps = {
 
 type ScopeConfig = {
   label: string;
-  tagline: string;
   accent: string;
   icon: string;
   subtle?: boolean;
@@ -58,20 +55,17 @@ type ScopeConfig = {
 const SCOPE_CONFIG: Record<LeaderboardScope, ScopeConfig> = {
   day: {
     label: "Daily Legends",
-    tagline: "Today's hardest workers, tallied after the 21:30 check-in.",
     accent: "from-[#a855f7] via-[#6366f1] to-[#22d3ee]",
     icon: "☀️",
   },
   week: {
     label: "Weekly Marathoners",
-    tagline: "Seven-day consistency club - every minute adds up.",
     accent: "from-[#22d3ee] via-[#2dd4bf] to-[#0ea5e9]",
     icon: "📅",
     subtle: true,
   },
   month: {
     label: "Monthly Champions",
-    tagline: "Long-game legends keeping momentum all month long.",
     accent: "from-[#f97316] via-[#fb7185] to-[#a855f7]",
     icon: "🌙",
     subtle: true,
@@ -294,6 +288,20 @@ function LiveScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
               {scope === "day" ? "Day" : scope === "week" ? "Week" : "Month"}
             </p>
             <h2 className="text-lg font-semibold text-white">{config.label}</h2>
+            {snapshot ? (
+              <span
+                className="mt-2 inline-flex w-fit items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/70"
+                title={
+                  snapshot.posted_at ? formatPostedLabel(snapshot.posted_at) : undefined
+                }
+              >
+                {formatPeriodCompact(
+                  scope,
+                  snapshot.period_start,
+                  snapshot.period_end,
+                )}
+              </span>
+            ) : null}
           </div>
         </div>
         <span
@@ -303,30 +311,7 @@ function LiveScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
         </span>
       </div>
 
-      <p className="mt-3 text-sm text-white/65">{config.tagline}</p>
-
-      <div className="mt-4 grid grid-cols-2 gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.3em] text-white/45">
-            Period
-          </p>
-          <p className="mt-1 font-semibold leading-snug text-white">
-            {snapshot
-              ? formatPeriodForCard(scope, snapshot.period_start, snapshot.period_end)
-              : "Awaiting first snapshot"}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-[11px] uppercase tracking-[0.3em] text-white/45">
-            Posted
-          </p>
-          <p className="mt-1 leading-snug text-white/75">
-            {snapshot ? formatPostedLabel(snapshot.posted_at ?? null) : "Not published yet"}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 flex-1 rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 via-white/5 to-white/0 p-3">
+      <div className="mt-5 flex-1 rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 via-white/5 to-white/0 p-3">
         {snapshot ? (
           displayEntries.length > 0 ? (
             <ol className="space-y-3">
@@ -349,10 +334,6 @@ function LiveScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
           />
         )}
       </div>
-
-      <p className="mt-4 text-xs text-white/45">
-        Synced from Study With Me tracker
-      </p>
     </GlowPanel>
   );
 }
@@ -360,7 +341,6 @@ function LiveScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
 export default function LeaderboardClient({
   snapshots,
   historyByScope,
-  dataLoadedAt,
   loadError,
   backLabel,
 }: LeaderboardClientProps) {
@@ -371,18 +351,6 @@ export default function LeaderboardClient({
     () => buildLiveCardSnapshots(snapshots),
     [snapshots],
   );
-
-  const latestPostedAt = useMemo(() => {
-    return SCOPES.reduce<string | null>((latest, scope) => {
-      const current = snapshots[scope]?.posted_at ?? null;
-      if (!current) return latest;
-      if (!latest) return current;
-      return new Date(current) > new Date(latest) ? current : latest;
-    }, null);
-  }, [snapshots]);
-
-  const lastSyncLabel = formatSyncLabel(latestPostedAt);
-  const dataLoadedAtDate = useMemo(() => new Date(dataLoadedAt), [dataLoadedAt]);
 
   return (
     <main className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10">
@@ -409,63 +377,17 @@ export default function LeaderboardClient({
 
       {activeTab === "telegram" ? (
         <>
-          <header className="rounded-[32px] border border-white/10 bg-gradient-to-br from-[#1f1f33] via-[#121225] to-[#0a0a14] p-6 shadow-[0_25px_70px_rgba(104,67,255,0.25)]">
-            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <div>
-                <span className="text-xs uppercase tracking-[0.45em] text-fuchsia-300/70">
-                  Focus Squad Leaderboard
-                </span>
-                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">
-                  Celebrate the focus legends
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm text-white/60">
-                  The same rankings posted to Telegram every evening now live on
-                  the dashboard. Check who is leading today, the past week, and
-                  the full month - updated right after the 21:30 Asia/Tashkent
-                  snapshot.
-                </p>
-              </div>
-
-              <div className="flex items-stretch gap-3">
-                <div className="flex flex-col gap-3 rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-white/70 shadow-[0_18px_40px_rgba(8,7,21,0.45)]">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="uppercase tracking-[0.35em] text-[10px] text-white/50">
-                      Last sync
-                    </span>
-                    <span className="font-semibold text-white/80">
-                      {lastSyncLabel}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 text-xs text-white/50">
-                    <span>Local time</span>
-                    <time dateTime={dataLoadedAtDate.toISOString()}>
-                      {formatWithFallback(dataLoadedAtDate)}
-                    </time>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setHistoryOpen(true)}
-                  className="group relative flex min-w-[120px] flex-col justify-center overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-r from-fuchsia-500/10 via-purple-500/10 to-cyan-400/10 px-4 py-3 text-sm text-white/85 shadow-[0_18px_50px_rgba(0,0,0,0.4)] transition hover:-translate-y-0.5 hover:border-white/30 hover:shadow-[0_24px_70px_rgba(124,58,237,0.25)]"
-                >
-                  <span className="pointer-events-none absolute inset-0 opacity-40 blur-xl bg-gradient-to-r from-white/10 via-fuchsia-200/15 to-cyan-200/10" />
-                  <div className="relative flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2 font-semibold tracking-tight">
-                      <History className="h-4 w-4 text-fuchsia-200/90 transition group-hover:scale-105" />
-                      History
-                    </span>
-                    <span className="rounded-full border border-white/20 bg-white/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.28em] text-white/70 shadow-[0_10px_30px_rgba(124,58,237,0.25)]">
-                      New
-                    </span>
-                  </div>
-                  <p className="relative mt-1 text-xs text-white/60">
-                    Browse past snapshots
-                  </p>
-                </button>
-              </div>
-            </div>
-          </header>
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              aria-label="Open history"
+              className="group inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 shadow-[0_12px_30px_rgba(0,0,0,0.35)] transition hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/10"
+            >
+              <History className="h-4 w-4 text-fuchsia-200/90 transition group-hover:scale-105" />
+              <span className="hidden sm:inline">History</span>
+            </button>
+          </div>
 
           <section className="grid gap-6 md:grid-cols-3">
             {SCOPES.map((scope) => (
@@ -618,7 +540,20 @@ function ScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
               </span>
             </div>
             <h2 className="text-lg font-semibold text-white">{config.label}</h2>
-            <p className="text-xs text-white/60">{config.tagline}</p>
+            {snapshot ? (
+              <span
+                className="inline-flex w-fit items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/70"
+                title={
+                  snapshot.posted_at ? formatPostedLabel(snapshot.posted_at) : undefined
+                }
+              >
+                {formatPeriodCompact(
+                  scope,
+                  snapshot.period_start,
+                  snapshot.period_end,
+                )}
+              </span>
+            ) : null}
           </div>
         </div>
         <span
@@ -628,24 +563,7 @@ function ScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
         </span>
       </div>
 
-      <div className="relative mt-4 grid grid-cols-2 gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/80">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Period</p>
-          <p className="mt-1 font-semibold leading-snug text-white">
-            {snapshot
-              ? formatPeriodForCard(scope, snapshot.period_start, snapshot.period_end)
-              : "Awaiting first snapshot"}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-white/45">Posted</p>
-          <p className="mt-1 leading-snug text-white/80">
-            {snapshot ? formatPostedLabel(snapshot.posted_at ?? null) : "Not published yet"}
-          </p>
-        </div>
-      </div>
-
-      <div className="relative mt-4 rounded-2xl border border-white/10 bg-black/30 p-3 backdrop-blur-md">
+      <div className="relative mt-5 rounded-2xl border border-white/10 bg-black/30 p-3 backdrop-blur-md">
         {snapshot ? (
           displayEntries.length > 0 ? (
             <ol className="space-y-2.5">
@@ -671,10 +589,6 @@ function ScopeCard({ scope, snapshot, badgeLabel }: ScopeCardProps) {
             </p>
           </div>
         )}
-      </div>
-
-      <div className="mt-5 text-[11px] uppercase tracking-[0.3em] text-white/40">
-        Synced from Study With Me tracker
       </div>
     </div>
   );

@@ -31,6 +31,15 @@ const monthFormatter = buildFormatter({
   year: "numeric",
 });
 
+const monthShortFormatter = buildFormatter({
+  month: "short",
+  year: "numeric",
+});
+
+const dayFormatter = buildFormatter({
+  day: "numeric",
+});
+
 const weekdayFormatter = buildFormatter({
   weekday: "short",
 });
@@ -68,6 +77,36 @@ export function formatPeriodForCard(
   }
 
   return monthFormatter?.format(start) ?? periodStart;
+}
+
+export function formatPeriodCompact(
+  scope: LeaderboardScope,
+  periodStart: string,
+  periodEnd: string,
+) {
+  const start = new Date(`${periodStart}T00:00:00Z`);
+  const end = new Date(`${periodEnd}T00:00:00Z`);
+
+  if (scope === "day") {
+    return periodShortFormatter?.format(start) ?? periodStart;
+  }
+
+  if (scope === "week") {
+    const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+    const sameMonth = sameYear && start.getUTCMonth() === end.getUTCMonth();
+    const startLabel = periodShortFormatter?.format(start) ?? periodStart;
+    const endLabel = periodShortFormatter?.format(end) ?? periodEnd;
+    if (sameMonth) {
+      const endDay = dayFormatter?.format(end) ?? periodEnd;
+      return `${startLabel}–${endDay}, ${start.getUTCFullYear()}`;
+    }
+    if (sameYear) {
+      return `${startLabel}–${endLabel}, ${start.getUTCFullYear()}`;
+    }
+    return `${startLabel}, ${start.getUTCFullYear()}–${endLabel}, ${end.getUTCFullYear()}`;
+  }
+
+  return monthShortFormatter?.format(start) ?? periodStart;
 }
 
 export function formatPostedLabel(postedAt: string | null) {
