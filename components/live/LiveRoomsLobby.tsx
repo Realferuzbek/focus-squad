@@ -10,7 +10,6 @@ import {
   Users,
 } from "lucide-react";
 import CreateRoomModal from "@/components/live/CreateRoomModal";
-import DevJoinPanel from "@/components/live/DevJoinPanel";
 
 type LiveRoom = {
   id: string;
@@ -119,8 +118,6 @@ export default function LiveRoomsLobby({ user }: LiveRoomsLobbyProps) {
     setInviteError(null);
     router.push(`/feature/live/room/${match[0]}`);
   }
-
-  const isAdmin = Boolean(user.isAdmin);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 text-white">
@@ -286,12 +283,6 @@ export default function LiveRoomsLobby({ user }: LiveRoomsLobbyProps) {
           </div>
         )}
       </section>
-
-      {isAdmin ? (
-        <section className="rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.45)]">
-          <DevJoinPanel />
-        </section>
-      ) : null}
 
       <CreateRoomModal
         open={createOpen}
