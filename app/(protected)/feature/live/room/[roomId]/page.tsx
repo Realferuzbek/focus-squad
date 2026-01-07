@@ -1,11 +1,15 @@
 import { redirect } from "next/navigation";
-import LiveRoomsLobby from "@/components/live/LiveRoomsLobby";
+import LiveVoiceRoom from "@/components/live/LiveVoiceRoom";
 import { getCachedSession } from "@/lib/server-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export default async function LiveRoomsFeature() {
+type PageProps = {
+  params: { roomId: string };
+};
+
+export default async function LiveRoomPage({ params }: PageProps) {
   const session = await getCachedSession();
   const user = session?.user as
     | {
@@ -23,7 +27,8 @@ export default async function LiveRoomsFeature() {
 
   return (
     <div className="bg-[#07070b] min-h-[100dvh]">
-      <LiveRoomsLobby
+      <LiveVoiceRoom
+        roomId={params.roomId}
         user={{
           id: user.id,
           displayName: user.display_name ?? null,
