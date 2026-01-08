@@ -1,7 +1,7 @@
 {
-  "name": "Study with Feruzbek",
-  "short_name": "StudyFeruz",
-  "description": "Study tracker, timers, streaks and productivity tools by Feruzbek.",
+  "name": "StudyMate",
+  "short_name": "StudyMate",
+  "description": "Study tracker, timers, streaks and productivity tools by StudyMate.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

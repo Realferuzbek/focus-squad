@@ -11,10 +11,10 @@ import { inter } from "@/app/fonts";
 import Providers from "./providers";
 
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://studywithferuzbek.vercel.app";
-const SITE_TITLE = "Study with Feruzbek";
+  process.env.NEXT_PUBLIC_SITE_URL || "https://thestudymate.vercel.app";
+const SITE_TITLE = "StudyMate";
 const SITE_DESCRIPTION =
-  "Study tracker, timers, streaks & productivity tools by Feruzbek.";
+  "Study tracker, timers, streaks & productivity tools by StudyMate.";
 function sanitizeGoogleVerification(raw?: string | null) {
   if (!raw) return null;
   const trimmed = raw.trim();
@@ -37,11 +37,11 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default: SITE_TITLE,
-    template: "%s | Study with Feruzbek",
+    template: "%s | StudyMate",
   },
   description: SITE_DESCRIPTION,
   keywords: [
-    "Study with Feruzbek",
+    "StudyMate",
     "Focus Squad",
     "coworking",
     "productivity",

@@ -68,7 +68,7 @@ Set the following variables in `.env.local` to enable the AI-powered crawler and
 - `UPSTASH_VECTOR_REST_TOKEN` – Upstash Vector REST token; keep private so only backend jobs can manage vectors.
 - `UPSTASH_INDEX_NAME` – logical name of the Upstash Vector index the crawler writes to and the chatbot reads from (defaults to `focus-squad-site` so Preview/Prod can use different indices).
 - `UPSTASH_VECTOR_DIM` – dimension of the Upstash index (e.g., `1536`). This **must** match the embedding model you pick (`text-embedding-3-small` = 1536, `text-embedding-3-large` = 3072), otherwise Upstash rejects queries/upserts.
-- `SITE_BASE_URL` – canonical site origin the crawler starts from (e.g., `https://study-with-feruzbek.vercel.app`).
+- `SITE_BASE_URL` – canonical site origin the crawler starts from (e.g., `https://thestudymate.vercel.app`).
 - `INDEXER_SECRET` – shared secret required by any indexer webhook/cron to prevent unauthorized crawls.
 - `CRAWL_MAX_PAGES` – safety limit on how many unique pages to visit per crawl run.
 - `CRAWL_MAX_DEPTH` – maximum link depth from the base URL; helps bound crawl time.
@@ -99,7 +99,7 @@ Successful Vercel deploys also run `scripts/trigger-reindex.mjs` (hooked via `np
 - Production (replace the domain if needed):
 
   ```bash
-  curl -X POST https://study-with-feruzbek.vercel.app/api/reindex \
+  curl -X POST https://thestudymate.vercel.app/api/reindex \
     -H "Authorization: Bearer ${INDEXER_SECRET}"
   ```
 
@@ -122,15 +122,15 @@ Successful Vercel deploys also run `scripts/trigger-reindex.mjs` (hooked via `np
 <!-- markdownlint-disable MD033 MD034 -->
 
 ```env
-APP_URL="https://studywithferuzbek.vercel.app"
+APP_URL="https://thestudymate.vercel.app"
 CRON_SECRET="SET_IN_VERCEL"
 GOOGLE_CLIENT_ID="YOUR_GOOGLE_OAUTH_CLIENT_ID"
 GOOGLE_CLIENT_SECRET="YOUR_GOOGLE_OAUTH_CLIENT_SECRET"
 INDEXER_SECRET="YOUR_INDEXER_SECRET"
 LEADERBOARD_INGEST_SECRET="YOUR_LEADERBOARD_INGEST_SECRET"
 NEXTAUTH_SECRET="YOUR_NEXTAUTH_SECRET"
-NEXTAUTH_URL="https://studywithferuzbek.vercel.app"
-NEXT_PUBLIC_SITE_URL="https://studywithferuzbek.vercel.app"
+NEXTAUTH_URL="https://thestudymate.vercel.app"
+NEXT_PUBLIC_SITE_URL="https://thestudymate.vercel.app"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="YOUR_NEXT_PUBLIC_SUPABASE_ANON_KEY"
 NEXT_PUBLIC_SUPABASE_URL="https://rwjebnqymstetwgvwskm.supabase.co"
 NEXT_PUBLIC_TZ="Asia/Tashkent"
@@ -139,13 +139,13 @@ OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
 OPENAI_EMBED_MODEL="text-embedding-3-small"
 OPENAI_GEN_MODEL="gpt-5-mini"
 POST_DEPLOY_REINDEX_URL=""
-PUBLIC_TG_GROUP_LINK="https://t.me/studywithferuzbek"
-SITE_BASE_URL="https://studywithferuzbek.vercel.app"
+PUBLIC_TG_GROUP_LINK="https://t.me/studymate"
+SITE_BASE_URL="https://thestudymate.vercel.app"
 SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
 SUPABASE_SERVICE_ROLE_KEY="YOUR_SUPABASE_SERVICE_ROLE_KEY"
 SUPABASE_URL="https://rwjebnqymstetwgvwskm.supabase.co"
 TELEGRAM_BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
-TELEGRAM_BOT_USERNAME="Studywithferuzbek_bot"
+TELEGRAM_BOT_USERNAME="StudyMate_bot"
 TELEGRAM_GROUP_ID="YOUR_TELEGRAM_GROUP_ID"
 TELEGRAM_WEBHOOK_SECRET="YOUR_TELEGRAM_WEBHOOK_SECRET"
 UPSTASH_INDEX_NAME="focus-squad-site"
@@ -153,7 +153,7 @@ UPSTASH_VECTOR_REST_TOKEN="YOUR_UPSTASH_VECTOR_REST_TOKEN"
 UPSTASH_VECTOR_REST_URL="https://noble-moose-77370-us1-vector.upstash.io"
 VAPID_PRIVATE_KEY="YOUR_PRIVATE_VAPID_KEY"
 VAPID_PUBLIC_KEY="YOUR_PUBLIC_VAPID_KEY"
-VAPID_SUBJECT="https://studywithferuzbek.vercel.app"
+VAPID_SUBJECT="https://thestudymate.vercel.app"
 WEB_PUSH_PRIVATE_KEY="YOUR_WEB_PUSH_PRIVATE_KEY"
 WEB_PUSH_PUBLIC_KEY="YOUR_WEB_PUSH_PUBLIC_KEY"
 ```

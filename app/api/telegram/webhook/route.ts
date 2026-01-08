@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
       if (existing && existing.email?.toLowerCase() !== email) {
         await sendMessage(
           chatId,
-          "This Telegram account is already linked to another Studywithferuzbek profile. Tap Link Telegram from the site with the correct Google account.",
+          "This Telegram account is already linked to another StudyMate profile. Tap Link Telegram from the site with the correct Google account.",
         );
         return NextResponse.json({ ok: true });
       }
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
       if (!targetUser) {
         await sendMessage(
           chatId,
-          "We couldn’t locate your Studywithferuzbek profile. Please sign in with Google first, then tap Link Telegram again.",
+          "We couldn’t locate your StudyMate profile. Please sign in with Google first, then tap Link Telegram again.",
         );
         return NextResponse.json({ ok: true });
       }
@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
 
     await sendMessage(
       chatId,
-      "Hi! Please tap the Link Telegram button from https://studywithferuzbek.vercel.app to get a secure code.",
+      "Hi! Please tap the Link Telegram button from https://thestudymate.vercel.app to get a secure code.",
     );
     return NextResponse.json({ ok: true });
   }

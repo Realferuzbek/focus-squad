@@ -16,7 +16,7 @@ if (SUPABASE_URL) {
 }
 
 const RAW = process.env.NEXT_PUBLIC_SITE_URL || "";
-let SITE_URL = "https://studywithferuzbek.vercel.app";
+let SITE_URL = "https://thestudymate.vercel.app";
 try {
   if (RAW) SITE_URL = new URL(RAW).toString();
 } catch {}

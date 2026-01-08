@@ -15,7 +15,7 @@ from tools.audit_runner import AuditRunner  # noqa: E402
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Study With Feruzbek audit suite",
+        description="StudyMate audit suite",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     group = parser.add_mutually_exclusive_group(required=True)

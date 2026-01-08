@@ -18,12 +18,12 @@ export default async function Home() {
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10">
           <Image
             src="/logo.svg"
-            alt="Studywithferuzbek"
+            alt="StudyMate"
             width={40}
             height={40}
           />
         </div>
-        <h1 className="mt-6 text-3xl font-semibold">Studywithferuzbek</h1>
+        <h1 className="mt-6 text-3xl font-semibold">StudyMate</h1>
         <p className="mt-2 text-sm font-medium uppercase tracking-[0.3em] text-fuchsia-300/70">
           Welcome back
         </p>

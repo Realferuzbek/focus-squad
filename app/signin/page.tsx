@@ -55,7 +55,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             id="signin-heading"
             className="text-2xl font-extrabold uppercase tracking-[0.22em]"
           >
-            Study With Feruzbek
+            StudyMate
           </h1>
         </div>
 

@@ -1,5 +1,5 @@
 /** @type {import('next-sitemap').IConfig} */
 module.exports = {
-  siteUrl: "https://studywithferuzbek.vercel.app",
+  siteUrl: "https://thestudymate.vercel.app",
   generateRobotsTxt: true,
 };

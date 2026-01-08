@@ -169,7 +169,7 @@ else:
 # ---- Alias groups (merge these usernames as one person, shown as the canonical) ----
 # canonical_username: [canonical_username, alias1, alias2, ...]
 ALIAS_GROUPS_USERNAMES = {
-    "realferuzbek": ["realferuzbek", "contact_admin_me", "studywithferuzbek"]
+    "realferuzbek": ["realferuzbek", "contact_admin_me", "studymate"]
 }
 
 # Quiet roster logging unless call is active/changed
@@ -1059,8 +1059,8 @@ def _audit_layout_text(text: str) -> tuple[bool, str]:
         return False, "missing trailing newline"
     stripped = text.rstrip("\n")
     lines = stripped.split("\n")
-    if not lines or lines[0] != "Study With Me":
-        return False, "line 1 must be 'Study With Me'"
+    if not lines or lines[0] != "StudyMate":
+        return False, "line 1 must be 'StudyMate'"
     dash_pattern = re.escape(EM_DASH)
     if len(lines) < 2 or not re.fullmatch(rf"📊 LEADERBOARD{dash_pattern}DAY \d+ 👑", lines[1]):
         return False, f"line 2 mismatch (expected 📊 LEADERBOARD{EM_DASH}DAY N 👑)"

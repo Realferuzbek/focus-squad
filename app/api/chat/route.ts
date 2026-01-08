@@ -509,7 +509,7 @@ const GENERAL_KNOWLEDGE_PATTERNS: RegExp[] = [
 
 const FOCUS_SQUAD_PATTERNS: RegExp[] = [
   /\bfocus\s+squad\b/i,
-  /\bstudy\s+with\s+feruzbek\b/i,
+  /\bstudymate\b/i,
   /\bdashboard\b/i,
   /\b(timer|pomodoro|focus\s+timer|break)\b/i,
   /\bleaderboard\b/i,

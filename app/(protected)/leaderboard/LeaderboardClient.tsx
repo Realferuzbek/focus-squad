@@ -425,7 +425,7 @@ export default function LeaderboardClient({
                 Coming soon
               </span>
               <h2 className="mt-4 text-2xl font-semibold text-white">
-                Studywithferuzbek Live Leaderboard
+                StudyMate Live Leaderboard
               </h2>
               <p className="mt-2 max-w-3xl text-sm text-white/65">
                 Real-time rankings based on focus sessions you start on this

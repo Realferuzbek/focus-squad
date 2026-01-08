@@ -1,6 +1,6 @@
 /** @type {import('next-sitemap').IConfig} */
 const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://studywithferuzbek.vercel.app";
+  process.env.NEXT_PUBLIC_SITE_URL || "https://thestudymate.vercel.app";
 
 module.exports = {
   siteUrl,

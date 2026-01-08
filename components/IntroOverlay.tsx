@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 const lines = [
-  "✨ Welcome to our Study With Me family!",
+  "✨ Welcome to our StudyMate family!",
   "Here, you’ll finally escape distractions, stay consistent, and push yourself together with peers who are chasing the same goals.",
   "📚 Every day we study live, track our focus time, and grow step by step.",
   "🏆 Your effort counts — see your name rise on the leaderboard, celebrate wins, and get inspired by others.",
