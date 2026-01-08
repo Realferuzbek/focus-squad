@@ -69,12 +69,12 @@ export default function SignInInteractive({
     signIn(
       "google",
       { callbackUrl, redirect: true },
-      switchMode ? { prompt: "select_account" } : undefined,
+      { prompt: "select_account" },
     ).catch((error) => {
       console.error("[signin] failed to start Google OAuth", error);
       setRedirecting(false);
     });
-  }, [callbackUrl, redirecting, switchMode]);
+  }, [callbackUrl, redirecting]);
 
   useEffect(() => {
     if (switchMode && !redirecting) {

@@ -83,7 +83,7 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
       switchAccount: "Switch account",
       deleteAccount: "Delete account",
       deleteAccountConfirm:
-        "Deleting your account removes your profile, saved progress, and Telegram link. This cannot be undone. Continue?",
+        "Deleting your account removes your profile and saved progress. This cannot be undone. Continue?",
       languageMenuLabel: "Change language",
       languages: {
         en: "English",
@@ -186,7 +186,7 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
       switchAccount: "Сменить аккаунт",
       deleteAccount: "Удалить аккаунт",
       deleteAccountConfirm:
-        "Удаление аккаунта уберёт профиль, историю и связь с Telegram. Это действие необратимо. Продолжить?",
+        "Удаление аккаунта уберёт профиль и историю. Это действие необратимо. Продолжить?",
       languageMenuLabel: "Выбрать язык",
       languages: {
         en: "Английский",
@@ -290,7 +290,7 @@ export const TRANSLATIONS: Record<Locale, Translations> = {
       switchAccount: "Hisobni almashtirish",
       deleteAccount: "Hisobni o'chirish",
       deleteAccountConfirm:
-        "Hisobingiz, saqlangan ma'lumotlar va Telegram bog'lanishi to'liq o'chiriladi. Bu amalni qaytarib bo'lmaydi. Davom etasizmi?",
+        "Hisobingiz va saqlangan ma'lumotlar to'liq o'chiriladi. Bu amalni qaytarib bo'lmaydi. Davom etasizmi?",
       languageMenuLabel: "Tilni tanlash",
       languages: {
         en: "Inglizcha",

@@ -73,7 +73,7 @@ Set the following variables in `.env.local` to enable the AI-powered crawler and
 - `CRAWL_MAX_PAGES` – safety limit on how many unique pages to visit per crawl run.
 - `CRAWL_MAX_DEPTH` – maximum link depth from the base URL; helps bound crawl time.
 - `CRAWL_ALLOWED_PATHS` – comma-separated list of path prefixes the crawler should include.
-- `CRAWL_BLOCKED_PATHS` – comma-separated list of path prefixes to exclude (useful for `/api`, build assets, etc.). Defaults block `/admin`, `/dashboard`, `/link-telegram`, `/signin`, `/api`, `/_next`, `/static`, `/assets`, `/community/admin`.
+- `CRAWL_BLOCKED_PATHS` – comma-separated list of path prefixes to exclude (useful for `/api`, build assets, etc.). Defaults block `/admin`, `/dashboard`, `/signin`, `/api`, `/_next`, `/static`, `/assets`, `/community/admin`.
 - `POST_DEPLOY_REINDEX_URL` – optional host override that `scripts/trigger-reindex.mjs` should hit after a successful deploy (falls back to the new Vercel deployment URL automatically).
 - `USE_MOCK_AI` / `USE_MOCK_VECTOR` – optional toggles (`0`/`1`) that enable deterministic, in-memory embeddings + vector storage for local development so you can test the workflow without hitting OpenAI or Upstash quotas. When these are `1`, you can also adjust `MOCK_EMBED_DIM` (default `1536`) to match your Upstash index dimension.
 

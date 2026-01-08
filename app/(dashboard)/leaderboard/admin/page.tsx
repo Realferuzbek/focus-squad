@@ -95,7 +95,6 @@ export default async function LeaderboardAdminPage({
 }: PageProps) {
   const session = await getCachedSession();
   if (!session?.user) redirect("/signin");
-  if (!(session.user as any).telegram_linked) redirect("/link-telegram");
 
   const allowSimulation = process.env.NODE_ENV !== "production";
   const summaries = await loadSummaries();

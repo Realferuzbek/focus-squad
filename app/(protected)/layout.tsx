@@ -13,6 +13,5 @@ export default async function ProtectedLayout({
 }) {
   const session = await getCachedSession();
   if (!session?.user) redirect("/signin");
-  if (!(session.user as any).telegram_linked) redirect("/link-telegram");
   return <>{children}</>;
 }

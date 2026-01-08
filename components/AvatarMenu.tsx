@@ -71,7 +71,7 @@ export default function AvatarMenu({
     if (deleting) return;
     const confirmed = window.confirm(
       deleteAccountConfirm ??
-        "Deleting your account removes your profile and Telegram link. This cannot be undone. Continue?",
+        "Deleting your account removes your profile and saved progress. This cannot be undone. Continue?",
     );
     if (!confirmed) return;
     setDeleting(true);

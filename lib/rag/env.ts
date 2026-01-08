@@ -19,7 +19,7 @@ const EnvSchema = z.object({
   CRAWL_ALLOWED_PATHS: z.string().default("/"),
   CRAWL_BLOCKED_PATHS: z
     .string()
-    .default("/admin,/dashboard,/link-telegram,/signin,/api,/_next,/static,/assets,/community/admin"),
+    .default("/admin,/dashboard,/signin,/api,/_next,/static,/assets,/community/admin"),
 });
 
 type EnvInput = z.input<typeof EnvSchema>;
@@ -45,7 +45,7 @@ const FALLBACK_ENV: EnvInput = {
   CRAWL_MAX_DEPTH: "3",
   CRAWL_ALLOWED_PATHS: "/",
   CRAWL_BLOCKED_PATHS:
-    "/admin,/dashboard,/link-telegram,/signin,/api,/_next,/static,/assets,/community/admin",
+    "/admin,/dashboard,/signin,/api,/_next,/static,/assets,/community/admin",
 };
 
 const rawEnv: Partial<EnvInput> = {

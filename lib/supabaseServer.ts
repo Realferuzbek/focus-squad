@@ -14,9 +14,6 @@ function noStoreFetch(input: RequestInfo | URL, init?: RequestInit) {
     ...(init ?? {}),
     cache: "no-store",
   };
-  const nextMeta =
-    nextInit.next && typeof nextInit.next === "object" ? nextInit.next : {};
-  nextInit.next = { ...nextMeta, revalidate: 0 };
   return fetch(input, nextInit);
 }
 

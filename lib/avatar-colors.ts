@@ -62,7 +62,7 @@ export function getAvatarVisuals({
   const seedSource = (name ?? email ?? DEFAULT_SEED).trim();
   const seed = (seedSource && seedSource.toLowerCase()) || DEFAULT_SEED;
   const firstSymbol =
-    (name ?? email ?? DEFAULT_SEED).trim().charAt(0).toUpperCase() || "S";
+    (email ?? name ?? DEFAULT_SEED).trim().charAt(0).toUpperCase() || "S";
 
   return {
     initial: firstSymbol,

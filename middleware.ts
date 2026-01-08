@@ -77,7 +77,11 @@ function buildSecurityContext(req: NextRequest) {
 const PUBLIC_PATHS = new Set<string>([
   "/signin",
   "/api/auth",
+  "/api/live",
   "/api/reindex",
+  "/api/leaderboard/health",
+  "/api/leaderboard/latest",
+  "/api/cron/leaderboard",
   "/api/cron/nightly-reindex",
   "/api/telegram/webhook",
   "/api/admin/state",
@@ -109,7 +113,6 @@ function isBypassPath(pathname: string): boolean {
 }
 
 type SessionSnapshot = {
-  telegram_linked: boolean;
   is_blocked: boolean | string | number | null | undefined;
 };
 
@@ -129,7 +132,6 @@ async function fetchSessionSnapshot(
     const user = payload?.user;
     if (!user) return null;
     return {
-      telegram_linked: !!(user.telegram_linked ?? user.telegramLinked),
       is_blocked: user.is_blocked,
     };
   } catch (error) {
@@ -257,13 +259,16 @@ export async function middleware(req: NextRequest) {
     const snapshot = await fetchSessionSnapshot(req);
     if (snapshot) {
       token = {
-        telegram_linked: snapshot.telegram_linked,
         is_blocked: snapshot.is_blocked,
       };
     }
   }
 
   if (!token) {
+    if (url.pathname.startsWith("/api/")) {
+      const resp = NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return applySecurityHeaders(resp, securityContext);
+    }
     const signin = new URL("/signin", req.url);
     signin.searchParams.set("callbackUrl", url.pathname + url.search);
     const redirect = NextResponse.redirect(signin);
@@ -281,21 +286,26 @@ export async function middleware(req: NextRequest) {
   const csrfBypassed =
     needsCsrf &&
     (CSRF_ENFORCEMENT_DISABLED || isMaintenanceBypassPath(url.pathname));
+  let csrfTokenToSet: string | null = null;
 
   // For authenticated GETs, ensure a CSRF cookie is present (non-HttpOnly so client JS can read it)
   if (!needsCsrf && method === "GET") {
     const existing = req.cookies.get(CSRF_COOKIE_NAME)?.value;
     if (!existing) {
-      const tokenValue = generateCsrfToken();
-      const resp = NextResponse.next();
-      resp.cookies.set(
-        CSRF_COOKIE_NAME,
-        tokenValue,
-        buildCsrfCookieOptions(securityContext),
-      );
-      return applySecurityHeaders(resp, securityContext);
+      csrfTokenToSet = generateCsrfToken();
     }
   }
+
+  const finalizeResponse = (resp: NextResponse) => {
+    if (csrfTokenToSet) {
+      resp.cookies.set(
+        CSRF_COOKIE_NAME,
+        csrfTokenToSet,
+        buildCsrfCookieOptions(securityContext),
+      );
+    }
+    return applySecurityHeaders(resp, securityContext);
+  };
 
   // Verify CSRF on state-changing requests unless webhook or public
   if (needsCsrf && !csrfBypassed) {
@@ -324,7 +334,7 @@ export async function middleware(req: NextRequest) {
       const resp = new NextResponse("CSRF token missing or invalid", {
         status: 403,
       });
-      return applySecurityHeaders(resp, securityContext);
+      return finalizeResponse(resp);
     }
   } else if (csrfBypassed) {
     console.warn("[csrf] enforcement bypassed", {
@@ -341,15 +351,7 @@ export async function middleware(req: NextRequest) {
     const out = new URL("/api/auth/signout", req.url);
     out.searchParams.set("callbackUrl", "/signin");
     const redirect = NextResponse.redirect(out);
-    return applySecurityHeaders(redirect, securityContext);
-  }
-
-  const needLink = !(token as any).telegram_linked;
-  const onLinkPage = url.pathname.startsWith("/link-telegram");
-  if (needLink && !onLinkPage) {
-    const linkUrl = new URL("/link-telegram", req.url);
-    const redirect = NextResponse.redirect(linkUrl);
-    return applySecurityHeaders(redirect, securityContext);
+    return finalizeResponse(redirect);
   }
 
   const response = NextResponse.next();
@@ -361,7 +363,7 @@ export async function middleware(req: NextRequest) {
     );
   }
 
-  return applySecurityHeaders(response, securityContext);
+  return finalizeResponse(response);
 }
 
 export const config = {

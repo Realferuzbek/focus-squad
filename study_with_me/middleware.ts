@@ -57,13 +57,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(out);
   }
 
-  const needLink = !(token as any).telegram_linked;
-  const onLinkPage = url.pathname.startsWith("/link-telegram");
-  if (needLink && !onLinkPage) {
-    const linkUrl = new URL("/link-telegram", req.url);
-    return NextResponse.redirect(linkUrl);
-  }
-
   const response = NextResponse.next();
   if (latestVersion && svCookie !== latestVersion) {
     response.cookies.set("sv", latestVersion, {

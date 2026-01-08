@@ -44,7 +44,7 @@ export default function AdminSessionPanel() {
       }
       setMessage(
         `Session bumped to v${data?.session_version ?? "?"}${
-          requireRelink ? " — Telegram relink required" : ""
+          requireRelink ? " — Telegram links cleared" : ""
         }`,
       );
     } catch {
@@ -80,8 +80,8 @@ export default function AdminSessionPanel() {
       <section className="rounded-2xl border border-white/10 bg-[#0f0f18] p-6">
         <h2 className="text-lg font-semibold">Global session reset</h2>
         <p className="mt-2 text-sm text-zinc-400">
-          Force everyone to sign back in. Optionally require the Telegram link
-          flow again.
+          Force everyone to sign back in. Optionally clear stored Telegram
+          links.
         </p>
         <label className="mt-4 flex items-center gap-2 text-sm text-zinc-300">
           <input
@@ -90,7 +90,7 @@ export default function AdminSessionPanel() {
             checked={requireRelink}
             onChange={(e) => setRequireRelink(e.target.checked)}
           />
-          Require Telegram relink
+          Clear Telegram links
         </label>
         <button
           className="btn-primary focus-ring mt-4"

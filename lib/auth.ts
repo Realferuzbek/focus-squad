@@ -24,7 +24,7 @@ const SESSION_COOKIE_SECURE =
   (process.env.NEXTAUTH_URL ?? "").startsWith("https://");
 
 const USER_PROFILE_COLUMNS =
-  "id,is_admin,is_dm_admin,telegram_user_id,avatar_url,name,display_name,is_blocked";
+  "id,is_admin,is_dm_admin,avatar_url,name,display_name,is_blocked";
 
 const PROFILE_REFRESH_INTERVAL_MS = 60_000; // refresh Supabase profile at most once per minute.
 
@@ -32,7 +32,6 @@ type UserProfileRecord = {
   id: string;
   is_admin?: boolean | null;
   is_dm_admin?: boolean | null;
-  telegram_user_id?: string | null;
   avatar_url?: string | null;
   name?: string | null;
   display_name?: string | null;
@@ -53,10 +52,6 @@ function normalizeProfileRecord(
       typeof record.is_dm_admin === "boolean"
         ? record.is_dm_admin
         : record.is_dm_admin,
-    telegram_user_id:
-      typeof record.telegram_user_id === "string"
-        ? record.telegram_user_id
-        : record.telegram_user_id ?? null,
     avatar_url:
       typeof record.avatar_url === "string" ? record.avatar_url : null,
     name: typeof record.name === "string" ? record.name : null,
@@ -102,7 +97,7 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          prompt: "consent",
+          prompt: "select_account",
           access_type: "offline",
           response_type: "code",
         },
@@ -129,6 +124,7 @@ export const authOptions: NextAuthOptions = {
         const sb = supabaseAdmin();
         const email = (user.email || "").toLowerCase();
         if (!email) return false;
+        const nextAvatarUrl = user.image ?? null;
 
         const { data: existing } = await sb
           .from("users")
@@ -149,17 +145,23 @@ export const authOptions: NextAuthOptions = {
               email,
               name: user.name,
               display_name: user.name,
-              avatar_url: user.image ?? null,
+              avatar_url: nextAvatarUrl,
               is_admin: ADMIN_EMAILS.has(email),
             })
             .select(USER_PROFILE_COLUMNS)
             .single();
           profileRecord =
             normalizeProfileRecord(inserted ?? undefined) ?? profileRecord;
-        } else if (ADMIN_EMAILS.has(email) && !existing.is_admin) {
+        } else {
+          const updates: Record<string, unknown> = {
+            avatar_url: nextAvatarUrl,
+          };
+          if (ADMIN_EMAILS.has(email) && !existing.is_admin) {
+            updates.is_admin = true;
+          }
           const { data: updated } = await sb
             .from("users")
-            .update({ is_admin: true })
+            .update(updates)
             .eq("email", email)
             .select(USER_PROFILE_COLUMNS)
             .single();
@@ -217,7 +219,6 @@ export const authOptions: NextAuthOptions = {
       let nextUid = (token as any).uid;
       let nextIsAdmin = prevIsAdmin;
       let nextIsDmAdmin = prevIsDmAdmin;
-      let nextTelegramLinked = !!(token as any).telegram_linked;
       let nextAvatarUrl = (token as any).avatar_url ?? null;
       let nextDisplayName =
         (token as any).display_name ?? (token as any).name ?? null;
@@ -243,9 +244,6 @@ export const authOptions: NextAuthOptions = {
         }
         if (typeof record.is_dm_admin === "boolean") {
           nextIsDmAdmin = record.is_dm_admin;
-        }
-        if (record.telegram_user_id !== undefined) {
-          nextTelegramLinked = !!record.telegram_user_id;
         }
         if (record.avatar_url !== undefined) {
           nextAvatarUrl = record.avatar_url ?? null;
@@ -276,7 +274,6 @@ export const authOptions: NextAuthOptions = {
           } else {
             nextIsAdmin = ADMIN_EMAILS.has(email);
             nextIsDmAdmin = false;
-            nextTelegramLinked = false;
             nextIsBlocked = false;
           }
           profileRefreshedAt = now;
@@ -305,7 +302,6 @@ export const authOptions: NextAuthOptions = {
       (token as any).uid = nextUid;
       (token as any).is_admin = nextIsAdmin;
       (token as any).is_dm_admin = nextIsDmAdmin;
-      (token as any).telegram_linked = nextTelegramLinked;
       (token as any).avatar_url = nextAvatarUrl;
       (token as any).display_name = nextDisplayName;
       if (sid) (token as any).sid = sid;
@@ -321,9 +317,9 @@ export const authOptions: NextAuthOptions = {
       (session.user as any).id = (token as any).uid;
       (session.user as any).is_admin = !!(token as any).is_admin;
       (session.user as any).is_dm_admin = !!(token as any).is_dm_admin;
-      (session.user as any).telegram_linked = !!(token as any).telegram_linked;
-      (session.user as any).avatar_url =
-        (token as any).avatar_url ?? session.user?.image ?? null;
+      const avatarUrl = (token as any).avatar_url ?? null;
+      (session.user as any).avatar_url = avatarUrl;
+      (session.user as any).image = avatarUrl;
       (session.user as any).display_name =
         (token as any).display_name ?? session.user?.name ?? null;
       (session.user as any).is_blocked = isBlockedFlag(
