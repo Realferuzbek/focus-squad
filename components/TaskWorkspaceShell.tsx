@@ -1395,7 +1395,7 @@ export default function TaskWorkspaceShell() {
         !devSeededRef.current
       ) {
         devSeededRef.current = true;
-        await fetch("/api/task-scheduler/dev-seed", { method: "POST" });
+        await csrfFetch("/api/task-scheduler/dev-seed", { method: "POST" });
         await loadPrivateItems();
         await loadNotes();
         return;

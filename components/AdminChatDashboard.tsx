@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, Download, Filter, Loader2, Trash2, X } from "lucide-react";
+import { csrfFetch } from "@/lib/csrf-client";
 
 type AdminChat = {
   id: string;
@@ -111,7 +112,7 @@ export default function AdminChatDashboard({ users }: Props) {
     );
     if (!confirmed) return;
     try {
-      const res = await fetch("/api/admin/chats/delete", {
+      const res = await csrfFetch("/api/admin/chats/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chatIds: Array.from(selection) }),

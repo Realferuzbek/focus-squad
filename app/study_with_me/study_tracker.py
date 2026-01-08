@@ -121,7 +121,7 @@ def _log_exc(label: str, e: Exception):
 # =================== CONFIG ===================
 API_ID   = 27333292
 API_HASH = "d8e1fbba6f100090d6876036ccb121df"
-SESSION  = "study_session"                    # single session file
+SESSION  = str(BASE_DIR / "study_session")    # single session file
 
 # >>> SET THIS EXACTLY TO YOUR GROUP USERNAME (no https://t.me/ or @)
 GROUP = "studywithferuzbek"
@@ -135,7 +135,7 @@ FLUSH_EVERY  = 600  # 10 minutes
 # Daily post time (Asia/Tashkent)
 POST_HOUR    = 21
 POST_MINUTE  = 30
-DB_PATH      = "study.db"
+DB_PATH      = BASE_DIR / "study.db"
 
 # Display / compliments
 SHOW_MAX_PER_LIST = 10
@@ -149,7 +149,7 @@ BACKOFF_RETRIES = 6
 BACKOFF_BASE    = 1.0  # seconds
 
 # Manual control flag for "post now"
-CONTROL_POST_NOW_FILE = "post_now.flag"
+CONTROL_POST_NOW_FILE = BASE_DIR / "post_now.flag"
 
 # ---- Gating ----
 # Minimum time within ONE videochat session to count at all (5 minutes)
@@ -195,7 +195,7 @@ async def _send_message_with_retry(target, *args, **kwargs):
 # ---------- NEW: Heartbeat / state (1/6) ----------
 HEARTBEAT_IDLE_EVERY = int(os.getenv("HEARTBEAT_IDLE_EVERY", "600"))   # 10 min when no livestream
 HEARTBEAT_OFFLINE_EVERY = int(os.getenv("HEARTBEAT_OFFLINE_EVERY", "60"))  # 1 min while offline
-STATE_FILE = "tracker_state.json"
+STATE_FILE = BASE_DIR / "tracker_state.json"
 
 HEARTBEAT_SEC = 10   # set to 30 if you prefer
 
@@ -368,10 +368,13 @@ def db_fetch_period_seconds(start_date: datetime, end_date: datetime, min_daily:
     return [(int(uid), int(sec)) for (uid, sec) in rows]
 
 # ---------- Quotes (Word of the Day) ----------
-def _load_quotes(path="quotes.txt"):
+def _load_quotes(path=BASE_DIR / "quotes.txt"):
     lines = []
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        file_path = Path(path)
+        if not file_path.is_absolute():
+            file_path = BASE_DIR / file_path
+        with open(file_path, "r", encoding="utf-8") as f:
             for line in f:
                 s = line.strip()
                 if s:
@@ -546,10 +549,13 @@ async def fetch_participants(input_call):
     return out
 
 # ---------- Compliments / formatting ----------
-def _load_compliments_file(path="compliments.txt"):
+def _load_compliments_file(path=BASE_DIR / "compliments.txt"):
     pool = []
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        file_path = Path(path)
+        if not file_path.is_absolute():
+            file_path = BASE_DIR / file_path
+        with open(file_path, "r", encoding="utf-8") as f:
             for line in f:
                 s = line.strip()
                 if not s or s.startswith("["): continue

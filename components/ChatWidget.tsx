@@ -24,6 +24,7 @@ import {
   BROADCAST_AI_TOGGLE_EVENT,
   BROADCAST_CHANNEL_NAME,
 } from "@/lib/broadcastChannel";
+import { csrfFetch } from "@/lib/csrf-client";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
 type MessageRole = "user" | "assistant";
@@ -389,7 +390,7 @@ export default function ChatWidget() {
     setInput("");
     setSending(true);
     try {
-      const res = await fetch("/api/chat", {
+      const res = await csrfFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -472,7 +473,7 @@ export default function ChatWidget() {
       ),
     );
     try {
-      await fetch("/api/chat/rating", {
+      await csrfFetch("/api/chat/rating", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chatId, sessionId, rating }),
@@ -491,7 +492,7 @@ export default function ChatWidget() {
       return;
     }
     try {
-      const res = await fetch("/api/chat/preferences", {
+      const res = await csrfFetch("/api/chat/preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ memoryEnabled: nextValue }),
@@ -512,7 +513,7 @@ export default function ChatWidget() {
     );
     if (!confirmed) return;
     try {
-      const res = await fetch("/api/chat/preferences", {
+      const res = await csrfFetch("/api/chat/preferences", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
       });
