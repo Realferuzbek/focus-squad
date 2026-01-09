@@ -174,7 +174,7 @@ export default function SignInInteractive({
             Continue in Browser
           </button>
           <p className="text-sm text-neutral-300">
-            Telegram's in-app browser may ask for email again. Continue in
+            Telegram&apos;s in-app browser may ask for email again. Continue in
             browser for the fastest Google sign-in.
           </p>
           {currentUrl ? (
@@ -193,7 +193,7 @@ export default function SignInInteractive({
           ) : null}
           {openBlocked ? (
             <p className="text-sm text-neutral-400">
-              Tap the menu and choose "Open in browser".
+              Tap the menu and choose &quot;Open in browser&quot;.
             </p>
           ) : null}
         </div>
