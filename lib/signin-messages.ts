@@ -16,29 +16,28 @@ const MESSAGE_MAP: Record<string, SignInErrorMessage> = {
       "Your previous session ended. Please sign in again to continue.",
   },
   OAuthSignin: {
-    title: "Google sign-in unavailable",
+    title: "Provider sign-in unavailable",
     description:
-      "We couldn't start the Google sign-in flow. Retry in a fresh tab or private window.",
+      "We couldn't start the sign-in flow. Retry in a fresh tab or private window.",
   },
   OAuthCallback: {
-    title: "Google didn't finish signing you in",
+    title: "Provider didn't finish signing you in",
     description:
-      "Retry the Google sign-in. A private window often resolves this.",
+      "Retry the sign-in. A private window often resolves this.",
   },
   OAuthAccountNotLinked: {
     title: "Use your original sign-in",
     description:
-      "This Google account is already linked elsewhere. Sign in with the provider you originally used.",
+      "That account is already linked elsewhere. Sign in with the provider you originally used.",
   },
   EmailSignin: {
     title: "Email sign-in disabled",
     description:
-      "Email links are unavailable. Use Continue with Google instead.",
+      "Email links are unavailable. Use another sign-in option instead.",
   },
   CredentialsSignin: {
-    title: "Password sign-in disabled",
-    description:
-      "Password sign-in is unavailable. Use Continue with Google instead.",
+    title: "Invalid credentials",
+    description: "Check your email and password, then try again.",
   },
   AccessDenied: {
     title: "Access denied",

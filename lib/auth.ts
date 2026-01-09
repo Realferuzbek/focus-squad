@@ -1,7 +1,11 @@
 ﻿// lib/auth.ts
 import NextAuth, { getServerSession, type NextAuthOptions } from "next-auth";
+import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
 import { supabaseAdmin } from "./supabaseServer";
+import { ADMIN_EMAILS } from "./admin-emails";
 import {
   generateSessionId,
   needsRollingRotation,
@@ -13,8 +17,6 @@ import {
   shouldDenySignIn,
 } from "./blocked-user-guard";
 
-export const ADMIN_EMAILS = new Set<string>(["feruzbekqurbonov03@gmail.com"]);
-
 const SESSION_ROLLING_INTERVAL_MS = resolveSessionRollingInterval(
   process.env.NEXTAUTH_SESSION_ROLLING_INTERVAL_MINUTES,
 );
@@ -25,8 +27,11 @@ const SESSION_COOKIE_SECURE =
 
 const USER_PROFILE_COLUMNS =
   "id,is_admin,is_dm_admin,avatar_url,name,display_name,is_blocked";
+const CREDENTIALS_COLUMNS = `${USER_PROFILE_COLUMNS},email,password_hash`;
 
 const PROFILE_REFRESH_INTERVAL_MS = 60_000; // refresh Supabase profile at most once per minute.
+const MIN_PASSWORD_LENGTH = 8;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type UserProfileRecord = {
   id: string;
@@ -60,6 +65,10 @@ function normalizeProfileRecord(
     is_blocked:
       typeof record.is_blocked === "boolean" ? record.is_blocked : null,
   };
+}
+
+function isValidEmail(email: string): boolean {
+  return EMAIL_REGEX.test(email);
 }
 
 async function fetchUserProfileByEmail(
@@ -103,6 +112,58 @@ export const authOptions: NextAuthOptions = {
         },
       },
     }),
+    GitHub({
+      clientId: process.env.GITHUB_ID!,
+      clientSecret: process.env.GITHUB_SECRET!,
+    }),
+    Credentials({
+      name: "Email and Password",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        const emailInput =
+          typeof credentials?.email === "string" ? credentials.email : "";
+        const password =
+          typeof credentials?.password === "string"
+            ? credentials.password
+            : "";
+        const email = emailInput.trim().toLowerCase();
+
+        if (
+          !email ||
+          !isValidEmail(email) ||
+          password.length < MIN_PASSWORD_LENGTH
+        ) {
+          return null;
+        }
+
+        try {
+          const sb = supabaseAdmin();
+          const { data } = await sb
+            .from("users")
+            .select(CREDENTIALS_COLUMNS)
+            .eq("email", email)
+            .maybeSingle();
+
+          if (!data?.password_hash || shouldDenySignIn(data)) {
+            return null;
+          }
+
+          const valid = await bcrypt.compare(password, data.password_hash);
+          if (!valid) return null;
+
+          return {
+            id: data.id,
+            email: data.email ?? email,
+            name: data.display_name ?? data.name ?? data.email ?? email,
+          };
+        } catch {
+          return null;
+        }
+      },
+    }),
   ],
   pages: { signIn: "/signin" },
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
@@ -124,7 +185,10 @@ export const authOptions: NextAuthOptions = {
         const sb = supabaseAdmin();
         const email = (user.email || "").toLowerCase();
         if (!email) return false;
-        const nextAvatarUrl = user.image ?? null;
+        const nextAvatarUrl =
+          typeof user.image === "string" && user.image.length > 0
+            ? user.image
+            : null;
 
         const { data: existing } = await sb
           .from("users")
@@ -153,20 +217,23 @@ export const authOptions: NextAuthOptions = {
           profileRecord =
             normalizeProfileRecord(inserted ?? undefined) ?? profileRecord;
         } else {
-          const updates: Record<string, unknown> = {
-            avatar_url: nextAvatarUrl,
-          };
+          const updates: Record<string, unknown> = {};
+          if (nextAvatarUrl) {
+            updates.avatar_url = nextAvatarUrl;
+          }
           if (ADMIN_EMAILS.has(email) && !existing.is_admin) {
             updates.is_admin = true;
           }
-          const { data: updated } = await sb
-            .from("users")
-            .update(updates)
-            .eq("email", email)
-            .select(USER_PROFILE_COLUMNS)
-            .single();
-          profileRecord =
-            normalizeProfileRecord(updated ?? undefined) ?? profileRecord;
+          if (Object.keys(updates).length > 0) {
+            const { data: updated } = await sb
+              .from("users")
+              .update(updates)
+              .eq("email", email)
+              .select(USER_PROFILE_COLUMNS)
+              .single();
+            profileRecord =
+              normalizeProfileRecord(updated ?? undefined) ?? profileRecord;
+          }
         }
 
         if (profileRecord) {

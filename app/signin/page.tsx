@@ -121,8 +121,8 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         {!isTelegram ? (
           <p id={hintId} className="mt-4 text-center text-sm text-neutral-300">
             {isSignedIn
-              ? "You're already signed in. Use the dashboard shortcut above or sign out to switch Google accounts."
-              : "We only support Google sign-in. You'll be redirected back to your dashboard."}
+              ? "You're already signed in. Use the dashboard shortcut above or sign out to switch accounts."
+              : "Use Google, GitHub, or email and password to sign in. You'll be redirected back to your dashboard."}
           </p>
         ) : null}
       </main>

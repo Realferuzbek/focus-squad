@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, useCallback, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useMemo, useState, useCallback, useEffect, type FormEvent } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import {
   resolveSignInError,
@@ -12,6 +12,11 @@ import { buildExternalSigninUrl, isTelegramWebView } from "@/lib/inapp-browser";
 
 const SWITCH_ACCOUNT_ENABLED =
   process.env.NEXT_PUBLIC_ENABLE_SWITCH_ACCOUNT === "1";
+const LAST_USED_KEY = "last_used_auth";
+const MIN_PASSWORD_LENGTH = 8;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type LastUsedAuth = "google" | "github" | "email";
 
 type SignInInteractiveProps = {
   defaultCallbackUrl: string;
@@ -25,7 +30,10 @@ export default function SignInInteractive({
   initialIsTelegramWebView,
 }: SignInInteractiveProps) {
   const params = useSearchParams();
-  const [redirecting, setRedirecting] = useState(false);
+  const router = useRouter();
+  const [redirectingProvider, setRedirectingProvider] = useState<
+    "google" | "github" | null
+  >(null);
   const [externalUrl, setExternalUrl] = useState<string | null>(null);
   const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
   const [openBlocked, setOpenBlocked] = useState(false);
@@ -33,6 +41,13 @@ export default function SignInInteractive({
   const [telegramWebView, setTelegramWebView] = useState(
     () => initialIsTelegramWebView ?? false,
   );
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [lastUsedAuth, setLastUsedAuth] = useState<LastUsedAuth | null>(null);
 
   const switchRequested = params.get("switch") === "1";
   const switchMode = SWITCH_ACCOUNT_ENABLED && switchRequested;
@@ -77,23 +92,144 @@ export default function SignInInteractive({
   const alertId = errorMessage ? "signin-error" : undefined;
   const blockedAlertId = blockedMessage ? "signin-blocked" : undefined;
   const switchAlertId = !switchMode && switchRequested ? "signin-switch" : undefined;
+  const formAlertId = formError ? "signin-form-error" : undefined;
   const describedBy =
-    [hintId, alertId, blockedAlertId, switchAlertId]
+    [hintId, alertId, blockedAlertId, switchAlertId, formAlertId]
       .filter(Boolean)
       .join(" ") || undefined;
 
-  const handleClick = useCallback(() => {
-    if (redirecting || telegramWebView) return;
-    setRedirecting(true);
+  const updateLastUsed = useCallback((value: LastUsedAuth) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LAST_USED_KEY, value);
+    }
+    setLastUsedAuth(value);
+  }, []);
+
+  const handleGoogleClick = useCallback(() => {
+    if (redirectingProvider || formSubmitting || telegramWebView) return;
+    updateLastUsed("google");
+    setRedirectingProvider("google");
     signIn(
       "google",
       { callbackUrl, redirect: true },
       { prompt: "select_account" },
     ).catch((error) => {
       console.error("[signin] failed to start Google OAuth", error);
-      setRedirecting(false);
+      setRedirectingProvider(null);
     });
-  }, [callbackUrl, redirecting, telegramWebView]);
+  }, [
+    callbackUrl,
+    formSubmitting,
+    redirectingProvider,
+    telegramWebView,
+    updateLastUsed,
+  ]);
+
+  const handleGitHubClick = useCallback(() => {
+    if (redirectingProvider || formSubmitting || telegramWebView) return;
+    updateLastUsed("github");
+    setRedirectingProvider("github");
+    signIn("github", { callbackUrl, redirect: true }).catch((error) => {
+      console.error("[signin] failed to start GitHub OAuth", error);
+      setRedirectingProvider(null);
+    });
+  }, [
+    callbackUrl,
+    formSubmitting,
+    redirectingProvider,
+    telegramWebView,
+    updateLastUsed,
+  ]);
+
+  const handleCredentialsSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (formSubmitting || redirectingProvider || telegramWebView) return;
+      setFormError(null);
+
+      const trimmedEmail = email.trim().toLowerCase();
+      if (!trimmedEmail || !EMAIL_REGEX.test(trimmedEmail)) {
+        setFormError("Enter a valid email.");
+        return;
+      }
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        setFormError(
+          `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`,
+        );
+        return;
+      }
+      if (mode === "register" && password !== confirmPassword) {
+        setFormError("Passwords do not match.");
+        return;
+      }
+
+      setFormSubmitting(true);
+
+      try {
+        if (mode === "register") {
+          const response = await fetch("/api/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: trimmedEmail,
+              password,
+              confirmPassword,
+            }),
+          });
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => null);
+            const message =
+              typeof data?.error === "string"
+                ? data.error
+                : "Unable to create account";
+            setFormError(message);
+            return;
+          }
+        }
+
+        const result = await signIn("credentials", {
+          redirect: false,
+          email: trimmedEmail,
+          password,
+          callbackUrl,
+        });
+
+        if (result?.ok) {
+          updateLastUsed("email");
+          router.push(result.url ?? callbackUrl);
+          return;
+        }
+
+        setFormError(
+          mode === "register"
+            ? "Unable to sign in after registration."
+            : "Invalid credentials",
+        );
+      } catch (error) {
+        console.error("[signin] credentials auth failed", error);
+        setFormError(
+          mode === "register"
+            ? "Unable to sign in after registration."
+            : "Unable to sign in.",
+        );
+      } finally {
+        setFormSubmitting(false);
+      }
+    },
+    [
+      callbackUrl,
+      confirmPassword,
+      email,
+      formSubmitting,
+      mode,
+      password,
+      redirectingProvider,
+      router,
+      telegramWebView,
+      updateLastUsed,
+    ],
+  );
 
   const handleExternalBrowserClick = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -117,10 +253,10 @@ export default function SignInInteractive({
   }, [externalUrl, isAndroid, telegramWebView]);
 
   useEffect(() => {
-    if (switchMode && !redirecting && !telegramWebView) {
-      handleClick();
+    if (switchMode && !redirectingProvider && !telegramWebView) {
+      handleGoogleClick();
     }
-  }, [handleClick, redirecting, switchMode, telegramWebView]);
+  }, [handleGoogleClick, redirectingProvider, switchMode, telegramWebView]);
 
   useEffect(() => {
     if (typeof navigator === "undefined") return;
@@ -133,6 +269,14 @@ export default function SignInInteractive({
     setExternalUrl(buildExternalSigninUrl(window.location.href));
   }, [params]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(LAST_USED_KEY);
+    if (stored === "google" || stored === "github" || stored === "email") {
+      setLastUsedAuth(stored);
+    }
+  }, []);
+
   const idleLabel = switchMode
     ? "Switch account with Google"
     : "Continue with Google";
@@ -140,6 +284,20 @@ export default function SignInInteractive({
   const srStatus = switchMode
     ? "Switching accounts through Google..."
     : "Redirecting to Google...";
+  const googleBusy = redirectingProvider === "google";
+  const githubBusy = redirectingProvider === "github";
+
+  const submitLabel = mode === "login" ? "Sign in" : "Create account";
+  const toggleLabel =
+    mode === "login" ? "Don't have an account?" : "Already have an account?";
+  const toggleAction = mode === "login" ? "Register here" : "Sign in";
+
+  const renderLastUsedBadge = (value: LastUsedAuth) =>
+    lastUsedAuth === value ? (
+      <span className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">
+        Last used
+      </span>
+    ) : null;
 
   const telegramHelperId = "signin-telegram-helper";
 
@@ -229,19 +387,154 @@ export default function SignInInteractive({
         </p>
       ) : null}
 
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={redirecting}
-        aria-busy={redirecting}
+      <form
+        onSubmit={handleCredentialsSubmit}
         aria-describedby={describedBy}
-        className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl bg-[linear-gradient(120deg,#7c3aed,#8b5cf6,#a855f7,#ec4899)] px-6 text-sm font-semibold text-white shadow-[0_20px_40px_rgba(123,58,237,0.35)] transition-transform duration-200 hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-75"
+        className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4"
       >
-        <span role="status" aria-live="polite" className="sr-only">
-          {redirecting ? srStatus : ""}
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-neutral-200">
+            Email and password
+          </p>
+          {renderLastUsedBadge("email")}
+        </div>
+
+        <div className="space-y-3">
+          <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-neutral-400">
+            Email
+            <input
+              type="email"
+              name="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                if (formError) setFormError(null);
+              }}
+              disabled={formSubmitting}
+              className="h-12 w-full rounded-2xl border border-white/10 bg-neutral-950/40 px-4 text-sm font-medium normal-case text-white placeholder:text-neutral-500 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition focus:border-fuchsia-400/60 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/30"
+              placeholder="you@example.com"
+              required
+            />
+          </label>
+
+          <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-neutral-400">
+            Password
+            <input
+              type="password"
+              name="password"
+              autoComplete={mode === "register" ? "new-password" : "current-password"}
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                if (formError) setFormError(null);
+              }}
+              disabled={formSubmitting}
+              className="h-12 w-full rounded-2xl border border-white/10 bg-neutral-950/40 px-4 text-sm font-medium normal-case text-white placeholder:text-neutral-500 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition focus:border-fuchsia-400/60 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/30"
+              placeholder={
+                mode === "register" ? "Create a password" : "Enter your password"
+              }
+              required
+            />
+          </label>
+
+          {mode === "register" ? (
+            <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-neutral-400">
+              Confirm password
+              <input
+                type="password"
+                name="confirmPassword"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(event) => {
+                  setConfirmPassword(event.target.value);
+                  if (formError) setFormError(null);
+                }}
+                disabled={formSubmitting}
+                className="h-12 w-full rounded-2xl border border-white/10 bg-neutral-950/40 px-4 text-sm font-medium normal-case text-white placeholder:text-neutral-500 shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition focus:border-fuchsia-400/60 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/30"
+                placeholder="Repeat your password"
+                required
+              />
+            </label>
+          ) : null}
+        </div>
+
+        {formError ? (
+          <div
+            id={formAlertId}
+            role="alert"
+            aria-live="polite"
+            className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100"
+          >
+            {formError}
+          </div>
+        ) : null}
+
+        <button
+          type="submit"
+          disabled={formSubmitting || !!redirectingProvider}
+          aria-busy={formSubmitting}
+          className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl bg-[linear-gradient(120deg,#7c3aed,#8b5cf6,#a855f7,#ec4899)] px-6 text-sm font-semibold text-white shadow-[0_20px_40px_rgba(123,58,237,0.35)] transition-transform duration-200 hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-75"
+        >
+          {formSubmitting ? "Working..." : submitLabel}
+        </button>
+
+        <p className="text-center text-sm text-neutral-300">
+          {toggleLabel}{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setFormError(null);
+              setConfirmPassword("");
+              setMode((prev) => (prev === "login" ? "register" : "login"));
+            }}
+            className="font-semibold text-white underline decoration-white/60 underline-offset-4 transition hover:text-white/90"
+          >
+            {toggleAction}
+          </button>
+        </p>
+      </form>
+
+      <div className="my-6 flex items-center gap-3">
+        <span className="h-px flex-1 bg-white/10" />
+        <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-neutral-400">
+          or continue with
         </span>
-        {redirecting ? redirectLabel : idleLabel}
-      </button>
+        <span className="h-px flex-1 bg-white/10" />
+      </div>
+
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={handleGoogleClick}
+          disabled={!!redirectingProvider || formSubmitting}
+          aria-busy={googleBusy}
+          aria-describedby={describedBy}
+          className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl border border-white/10 bg-neutral-950/40 px-6 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.35)] transition hover:border-white/25 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          <span role="status" aria-live="polite" className="sr-only">
+            {googleBusy ? srStatus : ""}
+          </span>
+          <span className="flex w-full items-center justify-between gap-3">
+            <span>{googleBusy ? redirectLabel : idleLabel}</span>
+            {renderLastUsedBadge("google")}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleGitHubClick}
+          disabled={!!redirectingProvider || formSubmitting}
+          aria-busy={githubBusy}
+          aria-describedby={describedBy}
+          className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl border border-white/10 bg-neutral-950/40 px-6 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.35)] transition hover:border-white/25 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          <span className="flex w-full items-center justify-between gap-3">
+            <span>{githubBusy ? "Redirecting..." : "Continue with GitHub"}</span>
+            {renderLastUsedBadge("github")}
+          </span>
+        </button>
+      </div>
     </>
   );
 }
