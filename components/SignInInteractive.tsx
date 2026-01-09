@@ -8,7 +8,7 @@ import {
   sanitizeCallbackPath,
   SWITCH_ACCOUNT_DISABLED_NOTICE,
 } from "@/lib/signin-messages";
-import { isTelegramWebView } from "@/lib/inapp-browser";
+import { buildExternalSigninUrl, isTelegramWebView } from "@/lib/inapp-browser";
 
 const SWITCH_ACCOUNT_ENABLED =
   process.env.NEXT_PUBLIC_ENABLE_SWITCH_ACCOUNT === "1";
@@ -26,8 +26,9 @@ export default function SignInInteractive({
 }: SignInInteractiveProps) {
   const params = useSearchParams();
   const [redirecting, setRedirecting] = useState(false);
-  const [currentUrl, setCurrentUrl] = useState<string | null>(null);
+  const [externalUrl, setExternalUrl] = useState<string | null>(null);
   const [openBlocked, setOpenBlocked] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
   const [telegramWebView, setTelegramWebView] = useState(
     () => initialIsTelegramWebView ?? false,
   );
@@ -63,6 +64,15 @@ export default function SignInInteractive({
     return sanitizeCallbackPath(callback) ?? defaultCallbackUrl;
   }, [params, defaultCallbackUrl]);
 
+  const srcFromTelegram = useMemo(() => {
+    const values = params.getAll("src");
+    if (values.some((value) => value?.toLowerCase() === "telegram")) {
+      return true;
+    }
+    const single = params.get("src");
+    return single?.toLowerCase() === "telegram";
+  }, [params]);
+
   const alertId = errorMessage ? "signin-error" : undefined;
   const blockedAlertId = blockedMessage ? "signin-blocked" : undefined;
   const switchAlertId = !switchMode && switchRequested ? "signin-switch" : undefined;
@@ -86,14 +96,23 @@ export default function SignInInteractive({
 
   const handleExternalBrowserClick = useCallback(() => {
     if (typeof window === "undefined") return;
-    const url = window.location.href;
-    const opened = window.open(url, "_blank", "noopener,noreferrer");
-    if (!opened) {
-      setOpenBlocked(true);
-    } else {
-      setOpenBlocked(false);
+    const targetUrl =
+      externalUrl ?? buildExternalSigninUrl(window.location.href);
+
+    if (telegramWebView && isAndroid) {
+      const intentUrl = buildAndroidIntentUrl(targetUrl);
+      if (intentUrl) {
+        try {
+          window.location.href = intentUrl;
+        } catch {
+          // Ignore intent errors and fall back to window.open.
+        }
+      }
     }
-  }, []);
+
+    const opened = window.open(targetUrl, "_blank", "noopener,noreferrer");
+    setOpenBlocked(!opened);
+  }, [externalUrl, isAndroid, telegramWebView]);
 
   useEffect(() => {
     if (switchMode && !redirecting && !telegramWebView) {
@@ -104,12 +123,13 @@ export default function SignInInteractive({
   useEffect(() => {
     if (typeof navigator === "undefined") return;
     setTelegramWebView(isTelegramWebView(navigator.userAgent));
+    setIsAndroid(/android/i.test(navigator.userAgent));
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setCurrentUrl(window.location.href);
-  }, []);
+    setExternalUrl(buildExternalSigninUrl(window.location.href));
+  }, [params]);
 
   const idleLabel = switchMode
     ? "Switch account with Google"
@@ -118,6 +138,44 @@ export default function SignInInteractive({
   const srStatus = switchMode
     ? "Switching accounts through Google..."
     : "Redirecting to Google...";
+
+  const telegramHelperId = "signin-telegram-helper";
+
+  if (telegramWebView) {
+    return (
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={handleExternalBrowserClick}
+          aria-describedby={telegramHelperId}
+          className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl bg-[linear-gradient(120deg,#7c3aed,#8b5cf6,#a855f7,#ec4899)] px-6 text-sm font-semibold text-white shadow-[0_20px_40px_rgba(123,58,237,0.35)] transition-transform duration-200 hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
+        >
+          Continue in Browser
+        </button>
+        <p id={telegramHelperId} className="text-sm text-neutral-300">
+          Telegram&apos;s in-app browser may ask for email again. Continue in
+          browser for quickest sign-in.
+        </p>
+        {openBlocked && externalUrl ? (
+          <p className="text-sm text-neutral-400">
+            <a
+              href={externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white underline decoration-white/60 underline-offset-4 transition hover:text-white/90"
+            >
+              Open in browser
+            </a>
+          </p>
+        ) : null}
+        {openBlocked ? (
+          <p className="text-sm text-neutral-400">
+            Tap the menu and choose Open in browser.
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -163,55 +221,39 @@ export default function SignInInteractive({
         </div>
       ) : null}
 
-      {telegramWebView ? (
-        <div className="space-y-3">
-          <button
-            type="button"
-            onClick={handleExternalBrowserClick}
-            aria-describedby={describedBy}
-            className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl bg-[linear-gradient(120deg,#7c3aed,#8b5cf6,#a855f7,#ec4899)] px-6 text-sm font-semibold text-white shadow-[0_20px_40px_rgba(123,58,237,0.35)] transition-transform duration-200 hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
-          >
-            Continue in Browser
-          </button>
-          <p className="text-sm text-neutral-300">
-            Telegram&apos;s in-app browser may ask for email again. Continue in
-            browser for the fastest Google sign-in.
-          </p>
-          {currentUrl ? (
-            <p className="text-sm text-neutral-400">
-              If nothing happens,{" "}
-              <a
-                href={currentUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-white underline decoration-white/60 underline-offset-4 transition hover:text-white/90"
-              >
-                Open
-              </a>
-              .
-            </p>
-          ) : null}
-          {openBlocked ? (
-            <p className="text-sm text-neutral-400">
-              Tap the menu and choose &quot;Open in browser&quot;.
-            </p>
-          ) : null}
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={handleClick}
-          disabled={redirecting}
-          aria-busy={redirecting}
-          aria-describedby={describedBy}
-          className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl bg-[linear-gradient(120deg,#7c3aed,#8b5cf6,#a855f7,#ec4899)] px-6 text-sm font-semibold text-white shadow-[0_20px_40px_rgba(123,58,237,0.35)] transition-transform duration-200 hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-75"
-        >
-          <span role="status" aria-live="polite" className="sr-only">
-            {redirecting ? srStatus : ""}
-          </span>
-          {redirecting ? redirectLabel : idleLabel}
-        </button>
-      )}
+      {srcFromTelegram ? (
+        <p className="mb-3 text-sm text-emerald-200">
+          You&apos;re in browser ✅
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={redirecting}
+        aria-busy={redirecting}
+        aria-describedby={describedBy}
+        className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl bg-[linear-gradient(120deg,#7c3aed,#8b5cf6,#a855f7,#ec4899)] px-6 text-sm font-semibold text-white shadow-[0_20px_40px_rgba(123,58,237,0.35)] transition-transform duration-200 hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-75"
+      >
+        <span role="status" aria-live="polite" className="sr-only">
+          {redirecting ? srStatus : ""}
+        </span>
+        {redirecting ? redirectLabel : idleLabel}
+      </button>
     </>
   );
+}
+
+function buildAndroidIntentUrl(targetUrl: string): string | null {
+  try {
+    const url = new URL(targetUrl);
+    const isLocalhost =
+      url.hostname === "localhost" ||
+      url.hostname === "127.0.0.1" ||
+      url.hostname === "::1";
+    const scheme = isLocalhost ? "http" : "https";
+    return `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=${scheme};end`;
+  } catch {
+    return null;
+  }
 }
