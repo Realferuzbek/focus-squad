@@ -8,6 +8,7 @@ import {
   sanitizeCallbackPath,
   SWITCH_ACCOUNT_DISABLED_NOTICE,
 } from "@/lib/signin-messages";
+import { isTelegramWebView } from "@/lib/inapp-browser";
 
 const SWITCH_ACCOUNT_ENABLED =
   process.env.NEXT_PUBLIC_ENABLE_SWITCH_ACCOUNT === "1";
@@ -15,14 +16,21 @@ const SWITCH_ACCOUNT_ENABLED =
 type SignInInteractiveProps = {
   defaultCallbackUrl: string;
   hintId: string;
+  initialIsTelegramWebView?: boolean;
 };
 
 export default function SignInInteractive({
   defaultCallbackUrl,
   hintId,
+  initialIsTelegramWebView,
 }: SignInInteractiveProps) {
   const params = useSearchParams();
   const [redirecting, setRedirecting] = useState(false);
+  const [currentUrl, setCurrentUrl] = useState<string | null>(null);
+  const [openBlocked, setOpenBlocked] = useState(false);
+  const [telegramWebView, setTelegramWebView] = useState(
+    () => initialIsTelegramWebView ?? false,
+  );
 
   const switchRequested = params.get("switch") === "1";
   const switchMode = SWITCH_ACCOUNT_ENABLED && switchRequested;
@@ -64,7 +72,7 @@ export default function SignInInteractive({
       .join(" ") || undefined;
 
   const handleClick = useCallback(() => {
-    if (redirecting) return;
+    if (redirecting || telegramWebView) return;
     setRedirecting(true);
     signIn(
       "google",
@@ -74,13 +82,34 @@ export default function SignInInteractive({
       console.error("[signin] failed to start Google OAuth", error);
       setRedirecting(false);
     });
-  }, [callbackUrl, redirecting]);
+  }, [callbackUrl, redirecting, telegramWebView]);
+
+  const handleExternalBrowserClick = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const url = window.location.href;
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      setOpenBlocked(true);
+    } else {
+      setOpenBlocked(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (switchMode && !redirecting) {
+    if (switchMode && !redirecting && !telegramWebView) {
       handleClick();
     }
-  }, [handleClick, redirecting, switchMode]);
+  }, [handleClick, redirecting, switchMode, telegramWebView]);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined") return;
+    setTelegramWebView(isTelegramWebView(navigator.userAgent));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setCurrentUrl(window.location.href);
+  }, []);
 
   const idleLabel = switchMode
     ? "Switch account with Google"
@@ -134,19 +163,55 @@ export default function SignInInteractive({
         </div>
       ) : null}
 
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={redirecting}
-        aria-busy={redirecting}
-        aria-describedby={describedBy}
-        className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl bg-[linear-gradient(120deg,#7c3aed,#8b5cf6,#a855f7,#ec4899)] px-6 text-sm font-semibold text-white shadow-[0_20px_40px_rgba(123,58,237,0.35)] transition-transform duration-200 hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-75"
-      >
-        <span role="status" aria-live="polite" className="sr-only">
-          {redirecting ? srStatus : ""}
-        </span>
-        {redirecting ? redirectLabel : idleLabel}
-      </button>
+      {telegramWebView ? (
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={handleExternalBrowserClick}
+            aria-describedby={describedBy}
+            className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl bg-[linear-gradient(120deg,#7c3aed,#8b5cf6,#a855f7,#ec4899)] px-6 text-sm font-semibold text-white shadow-[0_20px_40px_rgba(123,58,237,0.35)] transition-transform duration-200 hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400"
+          >
+            Continue in Browser
+          </button>
+          <p className="text-sm text-neutral-300">
+            Telegram's in-app browser may ask for email again. Continue in
+            browser for the fastest Google sign-in.
+          </p>
+          {currentUrl ? (
+            <p className="text-sm text-neutral-400">
+              If nothing happens,{" "}
+              <a
+                href={currentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white underline decoration-white/60 underline-offset-4 transition hover:text-white/90"
+              >
+                Open
+              </a>
+              .
+            </p>
+          ) : null}
+          {openBlocked ? (
+            <p className="text-sm text-neutral-400">
+              Tap the menu and choose "Open in browser".
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={handleClick}
+          disabled={redirecting}
+          aria-busy={redirecting}
+          aria-describedby={describedBy}
+          className="relative inline-flex h-12 min-h-[48px] w-full items-center justify-center rounded-2xl bg-[linear-gradient(120deg,#7c3aed,#8b5cf6,#a855f7,#ec4899)] px-6 text-sm font-semibold text-white shadow-[0_20px_40px_rgba(123,58,237,0.35)] transition-transform duration-200 hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 disabled:cursor-not-allowed disabled:opacity-75"
+        >
+          <span role="status" aria-live="polite" className="sr-only">
+            {redirecting ? srStatus : ""}
+          </span>
+          {redirecting ? redirectLabel : idleLabel}
+        </button>
+      )}
     </>
   );
 }

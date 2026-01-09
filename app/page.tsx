@@ -3,14 +3,17 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import Image from "next/image";
+import { headers } from "next/headers";
 import { Suspense } from "react";
 import { getCachedSession } from "@/lib/server-session";
 import SignInInteractive from "@/components/SignInInteractive";
+import { isTelegramWebView } from "@/lib/inapp-browser";
 
 export default async function Home() {
   const session = await getCachedSession();
   const hintId = "home-auth-hint";
   const isSignedIn = !!session?.user;
+  const isTelegram = isTelegramWebView(headers().get("user-agent") ?? undefined);
 
   return (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-[#07070b] px-6 text-white">
@@ -46,6 +49,7 @@ export default async function Home() {
               <SignInInteractive
                 defaultCallbackUrl="/dashboard"
                 hintId={hintId}
+                initialIsTelegramWebView={isTelegram}
               />
             </Suspense>
           )}

@@ -3,10 +3,12 @@ export const dynamic = "force-dynamic";
 
 import Image from "next/image";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import SignInInteractive from "@/components/SignInInteractive";
 import { getCachedSession } from "@/lib/server-session";
+import { isTelegramWebView } from "@/lib/inapp-browser";
 import {
   sanitizeCallbackPath,
   SWITCH_ACCOUNT_DISABLED_NOTICE,
@@ -33,6 +35,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const session = await getCachedSession();
   const isSignedIn = !!session?.user;
   const switchRequested = isSwitchRequested(searchParams);
+  const isTelegram = isTelegramWebView(headers().get("user-agent") ?? undefined);
   const callbackUrl =
     sanitizeCallbackPath(searchParams?.callbackUrl) ?? "/dashboard";
 
@@ -95,6 +98,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             <SignInInteractive
               defaultCallbackUrl="/dashboard"
               hintId={hintId}
+              initialIsTelegramWebView={isTelegram}
             />
           </Suspense>
         )}
