@@ -27,6 +27,7 @@ export default function SignInInteractive({
   const params = useSearchParams();
   const [redirecting, setRedirecting] = useState(false);
   const [externalUrl, setExternalUrl] = useState<string | null>(null);
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
   const [openBlocked, setOpenBlocked] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
   const [telegramWebView, setTelegramWebView] = useState(
@@ -98,6 +99,7 @@ export default function SignInInteractive({
     if (typeof window === "undefined") return;
     const targetUrl =
       externalUrl ?? buildExternalSigninUrl(window.location.href);
+    setFallbackUrl(targetUrl);
 
     if (telegramWebView && isAndroid) {
       const intentUrl = buildAndroidIntentUrl(targetUrl);
@@ -156,10 +158,10 @@ export default function SignInInteractive({
           Telegram&apos;s in-app browser may ask for email again. Continue in
           browser for quickest sign-in.
         </p>
-        {openBlocked && externalUrl ? (
+        {openBlocked && fallbackUrl ? (
           <p className="text-sm text-neutral-400">
             <a
-              href={externalUrl}
+              href={fallbackUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-white underline decoration-white/60 underline-offset-4 transition hover:text-white/90"

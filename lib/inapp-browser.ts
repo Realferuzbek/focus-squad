@@ -8,9 +8,7 @@ export function buildExternalSigninUrl(currentUrl: string): string {
     const url = new URL(currentUrl);
     url.pathname = "/signin";
     url.hash = "";
-    if (!url.searchParams.has("src")) {
-      url.searchParams.set("src", "telegram");
-    }
+    url.searchParams.set("src", "telegram");
     return url.toString();
   } catch {
     return "/signin?src=telegram";
